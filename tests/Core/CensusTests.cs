@@ -57,7 +57,7 @@ public sealed class CensusTests : IDisposable
     [Fact]
     public async Task Holding_OfAResourceNoLongerThere_IsCrossedOff()
     {
-        await Ledger.RecordAsync(new Holding("process:7@1", Me, Evidence.Ledger, DateTimeOffset.UnixEpoch, "ended"), CancellationToken.None);
+        await Ledger.RecordAsync(new Holding("process:7@1", Me, Evidence.Ledger, DateTimeOffset.UnixEpoch.AddMinutes(-1), "ended"), CancellationToken.None);
 
         await Census().TakeAsync(Me, CancellationToken.None);
 
@@ -76,6 +76,17 @@ public sealed class CensusTests : IDisposable
 
         Assert.Single(await Ledger.HoldingsAsync(CancellationToken.None));
         Assert.Contains("docker is not running", inventory.Notes[Kinds.Container], StringComparison.Ordinal);
+    }
+
+    /// <summary>A program written down a moment ago may be missing from a process table read a moment before.</summary>
+    [Fact]
+    public async Task Holding_WrittenAMomentAgo_IsNotCrossedOffForNotBeingSeenYet()
+    {
+        await Ledger.RecordAsync(new Holding("process:7@1", Me, Evidence.Ledger, DateTimeOffset.UnixEpoch, "just started"), CancellationToken.None);
+
+        await Census().TakeAsync(Me, CancellationToken.None);
+
+        Assert.Single(await Ledger.HoldingsAsync(CancellationToken.None));
     }
 
     [Fact]

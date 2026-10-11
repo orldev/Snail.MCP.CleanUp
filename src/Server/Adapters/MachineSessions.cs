@@ -4,9 +4,12 @@ namespace Snail.MCP.CleanUp.Adapters;
 
 /// <summary>The sessions of Claude Code on this machine: SleepOf's account first, the process table for the rest.</summary>
 /// <remarks>
-/// A session is alive while its agent's process is still the program that started it. The process id is
-/// not enough: ids are reused, and a session whose id now belongs to a compiler is not alive. So the
-/// process must be <c>claude</c> and must have started no later than the session did.
+/// A session is alive while its agent's process is still the program SleepOf heard it from. The process id
+/// is not enough: ids are reused, and a session whose id now belongs to a compiler is not alive. So the
+/// process must be <c>claude</c>, and must have been running when SleepOf last heard from the session.
+/// The session's start is no guide: a resumed session keeps its id and its start from hours ago, while its
+/// agent is a process started a minute ago — measured on 2026-10-11, when this very session was counted as
+/// ended by a check against its start.
 /// <para>
 /// When SleepOf is not installed, or a session never reached its hooks, the agents running right now
 /// still count: each becomes a session named after its process. Those cannot outlive their process in
@@ -15,8 +18,8 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// </remarks>
 public sealed class MachineSessions(ServerConfig config, IProcessTable processes) : ISessions
 {
-    /// <summary>How far a session may seem to start before its process, because SleepOf dates it at its first hook.</summary>
-    private static readonly TimeSpan Slack = TimeSpan.FromMinutes(2);
+    /// <summary>How far SleepOf's clock and the process table's may disagree, the process table reading to the second.</summary>
+    private static readonly TimeSpan Slack = TimeSpan.FromSeconds(5);
 
     /// <summary>The prefix of a session known only by its process.</summary>
     public const string ByProcess = "pid-";
@@ -84,8 +87,10 @@ public sealed class MachineSessions(ServerConfig config, IProcessTable processes
 
     private static bool IsAlive(SleepOfAgents.Entry entry, IReadOnlyDictionary<int, RunningProcess> agents) =>
         entry.Pid is { } pid
+        && !string.Equals(entry.State, "ended", StringComparison.Ordinal)
         && agents.TryGetValue(pid, out var agent)
-        && (entry.StartedAt is null || agent.StartedAt <= entry.StartedAt.Value + Slack);
+        && (entry.UpdatedAt ?? entry.StartedAt) is { } heard
+        && agent.StartedAt <= heard + Slack;
 
     private async Task<IReadOnlyList<SleepOfAgents.Entry>> WrittenAsync(CancellationToken cancellationToken)
     {

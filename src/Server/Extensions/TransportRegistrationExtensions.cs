@@ -21,7 +21,9 @@ public static class TransportRegistrationExtensions
                     server.ServerInstructions = ServerGuidance.Instructions;
                 })
                 .WithStdioServerTransport()
-                .WithTools<DiagnosticsTools>();
+                .WithTools<DiagnosticsTools>()
+                .WithTools<RunTools>()
+                .WithTools<LeaseTools>();
 
             return services;
         }

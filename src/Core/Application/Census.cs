@@ -22,9 +22,17 @@ public sealed class Census(
     IDiscoveries discoveries,
     TimeProvider clock)
 {
+    /// <summary>
+    /// How old a holding must be before a census may cross it off for not being seen. A program written down
+    /// a moment ago may not be in a process table read a moment before that, and crossing it off would forget
+    /// the one thing the ledger was certain of.
+    /// </summary>
+    public static TimeSpan Settling { get; } = TimeSpan.FromSeconds(10);
+
     /// <summary>The inventory of this moment, for the owner who asked.</summary>
     public async Task<Inventory> TakeAsync(Owner asker, CancellationToken cancellationToken)
     {
+        var began = clock.GetUtcNow();
         var known = await sessions.ListAsync(cancellationToken);
         var observations = await Task.WhenAll(kinds.Select(kind => ObservedAsync(kind, known, cancellationToken)));
         var holdings = (await ledger.HoldingsAsync(cancellationToken)).ToDictionary(holding => holding.ResourceId, StringComparer.Ordinal);
@@ -33,9 +41,9 @@ public sealed class Census(
         List<Resource> settled = [.. observations.SelectMany(observation => observation.Resources).Select(resource => Settled(resource, holdings))];
 
         await RememberAncestryAsync(settled, holdings, now, cancellationToken);
-        await ForgetTheGoneAsync(observations, settled, holdings.Values, cancellationToken);
+        await ForgetTheGoneAsync(observations, settled, holdings.Values.Where(holding => holding.RecordedAt < began - Settling), cancellationToken);
 
-        var (found, trailNotes) = await NoticeAsync(observations, known, now, cancellationToken);
+        var (found, trailNotes) = await NoticeAsync(observations, settled, known, now, cancellationToken);
         var notes = observations
             .Where(observation => observation.Note is not null)
             .Select(observation => KeyValuePair.Create(observation.Kind, observation.Note!))
@@ -100,6 +108,7 @@ public sealed class Census(
     /// <summary>Follows every trail, takes the baselines still missing, writes down what is new, and reads back the whole record.</summary>
     private async Task<(IReadOnlyList<Discovery> Found, IEnumerable<KeyValuePair<string, string>> Notes)> NoticeAsync(
         IReadOnlyList<Observation> observations,
+        IReadOnlyList<Resource> settled,
         IReadOnlyList<Session> known,
         DateTimeOffset now,
         CancellationToken cancellationToken)
@@ -113,7 +122,7 @@ public sealed class Census(
         await BeginAsync(alive, traces, now, cancellationToken);
 
         var written = await discoveries.ListAsync(present, cancellationToken);
-        var fresh = await NewAsync(traces, observations, shown, alive, written, now, cancellationToken);
+        var fresh = await NewAsync(traces, Claimed(observations, settled), shown, alive, written, now, cancellationToken);
 
         await discoveries.NoteAsync(fresh, cancellationToken);
         await baselines.KeepOnlyAsync(alive.Select(session => session.Owner).ToHashSet(), cancellationToken);
@@ -138,6 +147,17 @@ public sealed class Census(
         }
     }
 
+    /// <summary>
+    /// The traces something already accounts for: what a kind says it covers, and every resource that has an
+    /// owner, because a resource of kind <c>file</c> and a trace of trail <c>file</c> with the same key are the
+    /// same thing seen twice.
+    /// </summary>
+    private static HashSet<string> Claimed(IReadOnlyList<Observation> observations, IReadOnlyList<Resource> settled) =>
+    [
+        .. observations.SelectMany(observation => observation.Claimed),
+        .. settled.Where(resource => resource.Owner.IsKnown).Select(resource => resource.Id)
+    ];
+
     /// <summary>The first census a session takes part in is the line its «new» is measured from.</summary>
     private async Task BeginAsync(IReadOnlyList<Session> alive, IReadOnlyList<Trace> traces, DateTimeOffset now, CancellationToken cancellationToken)
     {
@@ -154,14 +174,13 @@ public sealed class Census(
     /// </summary>
     private async Task<IReadOnlyList<Discovery>> NewAsync(
         IReadOnlyList<Trace> traces,
-        IReadOnlyList<Observation> observations,
+        HashSet<string> claimed,
         IReadOnlyList<Rule> shown,
         IReadOnlyList<Session> alive,
         IReadOnlyList<Discovery> written,
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var claimed = observations.SelectMany(observation => observation.Claimed).ToHashSet(StringComparer.Ordinal);
         var noted = written.Select(discovery => discovery.Trace.Id).ToHashSet(StringComparer.Ordinal);
         var began = new List<(Session Session, IReadOnlySet<string> Seen)>();
 

@@ -8,9 +8,9 @@ internal sealed class FakeProcessTable : IProcessTable
 {
     public List<RunningProcess> Running { get; } = [];
 
-    public RunningProcess Add(int pid, int parent, string command, DateTimeOffset? started = null)
+    public RunningProcess Add(int pid, int parent, string command, DateTimeOffset? started = null, string? executable = null)
     {
-        var process = new RunningProcess(pid, parent, started ?? DateTimeOffset.UnixEpoch.AddDays(1), command);
+        var process = new RunningProcess(pid, parent, started ?? DateTimeOffset.UnixEpoch.AddDays(1), command) { Executable = executable };
 
         Running.Add(process);
 
@@ -19,4 +19,8 @@ internal sealed class FakeProcessTable : IProcessTable
 
     public Task<IReadOnlyList<RunningProcess>> ListAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<RunningProcess>>([.. Running]);
+
+    public void Refresh()
+    {
+    }
 }

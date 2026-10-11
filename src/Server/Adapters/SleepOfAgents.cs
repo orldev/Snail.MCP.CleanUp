@@ -16,7 +16,11 @@ public static class SleepOfAgents
     private static readonly DateTimeOffset AppleEpoch = new(2001, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>One session as SleepOf knows it.</summary>
-    public sealed record Entry(string Id, int? Pid, DateTimeOffset? StartedAt, string? Directory, string? State);
+    public sealed record Entry(string Id, int? Pid, DateTimeOffset? StartedAt, string? Directory, string? State)
+    {
+        /// <summary>When SleepOf last heard from the session.</summary>
+        public DateTimeOffset? UpdatedAt { get; init; }
+    }
 
     /// <summary>The sessions in the text of an <c>agents.json</c>; none when the text is not one.</summary>
     public static IReadOnlyList<Entry> Parse(string json)
@@ -49,7 +53,10 @@ public static class SleepOfAgents
                     pids.GetValueOrDefault(Text(session, "id")!),
                     Moment(session, "startedAt"),
                     Text(session, "cwd"),
-                    Text(session, "state")))
+                    Text(session, "state"))
+                {
+                    UpdatedAt = Moment(session, "updatedAt")
+                })
         ];
     }
 

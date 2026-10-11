@@ -18,5 +18,16 @@ internal sealed class Scratch : IDisposable
     {
         if (Directory.Exists(Path))
             Directory.Delete(Path, recursive: true);
+
+        var root = System.IO.Path.GetDirectoryName(Path)!;
+
+        try
+        {
+            if (Directory.Exists(root) && !Directory.EnumerateFileSystemEntries(root).Any())
+                Directory.Delete(root);
+        }
+        catch (IOException)
+        {
+        }
     }
 }

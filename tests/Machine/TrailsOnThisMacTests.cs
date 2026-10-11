@@ -6,6 +6,7 @@ using Snail.MCP.CleanUp.Configuration;
 
 namespace Snail.MCP.CleanUp.Tests.Machine;
 
+[Collection(OnThisMac.Name)]
 public sealed class TrailsOnThisMacTests
 {
     /// <summary>A census runs every 30 seconds in every session; following all the trails has to stay a small part of that.</summary>
@@ -20,9 +21,11 @@ public sealed class TrailsOnThisMacTests
         var processes = await new ProcessTrail(table).FollowAsync([], CancellationToken.None);
         var ports = await new PortTrail(programs).FollowAsync([], CancellationToken.None);
         var crontab = await new CrontabTrail(programs).FollowAsync([], CancellationToken.None);
+        var certificates = await new CertificateTrail(programs).FollowAsync([], CancellationToken.None);
 
         Assert.NotEmpty(files);
         Assert.NotEmpty(ports);
+        Assert.NotEmpty(certificates);
         Assert.InRange(timer.Elapsed, TimeSpan.Zero, TimeSpan.FromSeconds(5));
         Assert.True(files.Count < FileTrail.MostEntries, $"{files.Count} files, {processes.Count} processes, {crontab.Count} cron lines");
     }

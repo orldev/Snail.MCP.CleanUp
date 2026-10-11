@@ -26,7 +26,8 @@ public sealed class ProcessTable(IPrograms programs, TimeProvider clock) : IProc
                 return last.Processes;
 
             var run = await programs.RunAsync("ps", ["-axww", "-o", "pid=,ppid=,lstart=,command="], TimeSpan.FromSeconds(10), cancellationToken);
-            var processes = run.IsSuccess ? Parse(run.Output) : [];
+            var executables = await programs.RunAsync("ps", ["-axww", "-o", "pid=,comm="], TimeSpan.FromSeconds(10), cancellationToken);
+            var processes = run.IsSuccess ? Named(Parse(run.Output), Executables(executables.Output)) : [];
 
             _last = (clock.GetUtcNow(), processes);
 
@@ -39,7 +40,29 @@ public sealed class ProcessTable(IPrograms programs, TimeProvider clock) : IProc
     }
 
     /// <inheritdoc/>
+    public void Refresh() => _last = null;
+
+    /// <inheritdoc/>
     public void Dispose() => _reading.Dispose();
+
+    /// <summary>The executables of <c>ps -o pid=,comm=</c>: an id, then the path to the end of the line, spaces and all.</summary>
+    internal static IReadOnlyDictionary<int, string> Executables(string output)
+    {
+        var executables = new Dictionary<int, string>();
+
+        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var words = line.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+
+            if (words.Length == 2 && int.TryParse(words[0], CultureInfo.InvariantCulture, out var pid))
+                executables[pid] = words[1].Trim();
+        }
+
+        return executables;
+    }
+
+    private static IReadOnlyList<RunningProcess> Named(IReadOnlyList<RunningProcess> processes, IReadOnlyDictionary<int, string> executables) =>
+        [.. processes.Select(process => executables.TryGetValue(process.Pid, out var executable) ? process with { Executable = executable } : process)];
 
     /// <summary>
     /// The lines of <c>ps -o pid=,ppid=,lstart=,command=</c> under the C locale: two numbers, a start written

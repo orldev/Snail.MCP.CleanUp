@@ -40,16 +40,35 @@ public sealed class SessionsTests : IDisposable
         Assert.True(Assert.Single(await Sessions.ListAsync(CancellationToken.None)).IsAlive);
     }
 
-    /// <summary>A reused id belongs to a program that started after the session did; that session is over.</summary>
+    /// <summary>A reused id belongs to a program that started after SleepOf last heard from the session; that session is over.</summary>
     [Fact]
     public async Task Session_WhoseIdNowBelongsToALaterAgent_IsEnded()
     {
         _processes.Add(4242, 1, "/bin/claude", Began.AddHours(3));
-        Written($$$"""{"sessions":[{"id":"s1","startedAt":{{{SleepOfMoment}}}}],"pids":{"s1":4242}}""");
+        Written($$$"""{"sessions":[{"id":"s1","startedAt":{{{SleepOfMoment}}},"updatedAt":{{{SleepOfMoment}}}}],"pids":{"s1":4242}}""");
 
         var sessions = await Sessions.ListAsync(CancellationToken.None);
 
         Assert.False(sessions.Single(session => session.Id == "s1").IsAlive);
+    }
+
+    /// <summary>A resumed session keeps its id and its start from hours ago; its agent is a new process SleepOf has heard from since.</summary>
+    [Fact]
+    public async Task Session_ResumedByANewAgent_IsAlive()
+    {
+        _processes.Add(4242, 1, "/bin/claude", Began.AddHours(4));
+        Written($$$"""{"sessions":[{"id":"s1","startedAt":{{{SleepOfMoment}}},"updatedAt":{{{SleepOfMoment + 5 * 3600}}}}],"pids":{"s1":4242}}""");
+
+        Assert.True(Assert.Single(await Sessions.ListAsync(CancellationToken.None)).IsAlive);
+    }
+
+    [Fact]
+    public async Task Session_SleepOfSawEnd_IsEnded()
+    {
+        _processes.Add(4242, 1, "/bin/claude", Began.AddSeconds(-30));
+        Written($$$"""{"sessions":[{"id":"s1","startedAt":{{{SleepOfMoment}}},"state":"ended"}],"pids":{"s1":4242}}""");
+
+        Assert.False((await Sessions.ListAsync(CancellationToken.None)).Single(session => session.Id == "s1").IsAlive);
     }
 
     [Fact]

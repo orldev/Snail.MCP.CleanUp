@@ -5,4 +5,7 @@ public interface IProcessTable
 {
     /// <summary>Every process, read in one pass so that parents and children agree with each other.</summary>
     Task<IReadOnlyList<RunningProcess>> ListAsync(CancellationToken cancellationToken);
+
+    /// <summary>Makes the next reading a fresh one, after something was started that a kept reading would not show.</summary>
+    void Refresh();
 }

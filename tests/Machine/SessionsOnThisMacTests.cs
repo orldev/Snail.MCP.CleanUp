@@ -4,6 +4,7 @@ using Snail.MCP.CleanUp.Configuration;
 
 namespace Snail.MCP.CleanUp.Tests.Machine;
 
+[Collection(OnThisMac.Name)]
 public sealed class SessionsOnThisMacTests
 {
     private static MachineSessions Sessions => new(new ServerConfig(), new ProcessTable(new Programs(), new FakeTimeProvider(DateTimeOffset.UtcNow)));
@@ -17,5 +18,6 @@ public sealed class SessionsOnThisMacTests
 
         Assert.True(current.IsKnown);
         Assert.Contains(sessions, session => session.IsAlive && session.Owner == current);
+        Assert.False(current.Id.StartsWith(MachineSessions.ByProcess, StringComparison.Ordinal), "SleepOf knows this session, so it is named by SleepOf's id");
     }
 }

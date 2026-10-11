@@ -17,3 +17,15 @@ internal sealed class MachineFactAttribute : FactAttribute
             Skip = $"reads the real machine: set {Variable}=1 to run it";
     }
 }
+
+/// <summary>The tests that use the real machine run one class at a time.</summary>
+/// <remarks>
+/// A simulator booting for the first time keeps CoreSimulator busy for most of a minute, and a census run
+/// beside it waited past its deadline for <c>simctl list</c> — measured on 2026-10-11, when the suite failed
+/// in parallel and passed alone.
+/// </remarks>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class OnThisMac
+{
+    public const string Name = "on this Mac";
+}

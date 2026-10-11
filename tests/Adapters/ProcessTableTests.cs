@@ -25,6 +25,16 @@ public sealed class ProcessTableTests
         Assert.Equal("dotnet /mcp/Snail.MCP.Plans.dll  --twice  spaced", processes[2].Command);
     }
 
+    /// <summary>A command line does not quote its path; the program comes from the comm column, spaces and all.</summary>
+    [Fact]
+    public void Executable_WithSpacesInItsPath_IsReadWhole()
+    {
+        var executables = ProcessTable.Executables("  970 /Applications/Visual Studio Code.app/Contents/MacOS/Code\n17181 /bin/claude\n");
+
+        Assert.Equal("/Applications/Visual Studio Code.app/Contents/MacOS/Code", executables[970]);
+        Assert.Equal("Code", new Snail.MCP.CleanUp.Domain.RunningProcess(970, 1, DateTimeOffset.UnixEpoch, "x") { Executable = executables[970] }.Program);
+    }
+
     [Fact]
     public void Key_OfAProcess_CarriesItsStart_SoAReusedIdIsAnotherKey()
     {
