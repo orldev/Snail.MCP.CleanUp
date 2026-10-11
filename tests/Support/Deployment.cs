@@ -10,7 +10,9 @@ internal static class Deployment
     {
         var variables = new Dictionary<string, string>
         {
-            [$"{EnvironmentSettings.Prefix}DATA_DIRECTORY"] = scratch.Path
+            [$"{EnvironmentSettings.Prefix}DATA_DIRECTORY"] = scratch.Path,
+            [$"{EnvironmentSettings.Prefix}TRASH_DIRECTORY"] = scratch.File("Trash"),
+            [$"{EnvironmentSettings.Prefix}SLEEP_OF_DIRECTORY"] = scratch.File("SleepOf")
         };
 
         foreach (var (name, value) in own)

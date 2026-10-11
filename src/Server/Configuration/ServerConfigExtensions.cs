@@ -37,6 +37,9 @@ public static class ServerConfigExtensions
         if (!Path.IsPathFullyQualified(config.DataDirectory))
             faults.Add($"DataDirectory must be an absolute path, not '{config.DataDirectory}'");
 
+        if (!Path.IsPathFullyQualified(config.TrashDirectory))
+            faults.Add($"TrashDirectory must be an absolute path, not '{config.TrashDirectory}'");
+
         if (faults.Count > 0)
             throw new InvalidOperationException($"invalid configuration: {string.Join("; ", faults)}");
     }

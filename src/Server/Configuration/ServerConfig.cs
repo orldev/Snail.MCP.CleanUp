@@ -13,4 +13,12 @@ public sealed class ServerConfig
     /// </remarks>
     public string DataDirectory { get; set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".snail-mcp-cleanup");
+
+    /// <summary>Where what cannot be made again is moved to instead of being erased.</summary>
+    public string TrashDirectory { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".Trash");
+
+    /// <summary>Where Snail.SleepOf keeps its account of agent sessions, the first place sessions are read from.</summary>
+    public string SleepOfDirectory { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", "Snail.SleepOf");
 }
