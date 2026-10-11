@@ -40,6 +40,9 @@ public sealed class DockerTests
         ["network", "ls", ..] => FakePrograms.Said(Networks),
         ["volume", "ls", ..] => FakePrograms.Said("""{"Name":"demo_data","Labels":"snail.owner=session:me"}"""),
         ["system", "df", ..] => FakePrograms.Said("""{"Type":"Build Cache","Reclaimable":"1.21GB","Size":"2.5GB"}"""),
+        ["image", "ls", "--filter", "dangling=true", ..] => FakePrograms.Said("{\"ID\":\"1\",\"Size\":\"300MB\"}\n{\"ID\":\"2\",\"Size\":\"200MB\"}"),
+        ["buildx", "history", "ls", ..] => FakePrograms.Said(
+            "{\"ref\":\"orbstack/orbstack/old1\",\"created_at\":\"2026-10-09T10:00:00Z\"}\n{\"ref\":\"orbstack/orbstack/today1\",\"created_at\":\"2026-10-11T10:00:00Z\"}"),
         _ => FakePrograms.Said(string.Empty)
     };
 
@@ -99,6 +102,29 @@ public sealed class DockerTests
         Assert.True(cache.IsShared);
         Assert.True(cache.IsRegenerable);
         Assert.Equal(1_210_000_000, cache.Bytes);
+    }
+
+    [Fact]
+    public async Task DanglingImages_AreOneSharedCache_PrunedOnlyByImagePrune()
+    {
+        var dangling = Assert.Single((await new DanglingImageKind(Docker).ObserveAsync([], CancellationToken.None)).Resources);
+
+        Assert.True(dangling.IsShared);
+        Assert.Equal(500_000_000, dangling.Bytes);
+        Assert.Equal(Outcome.Released, (await new DanglingImageKind(Docker).ReleaseAsync(dangling, CancellationToken.None)).Outcome);
+        Assert.Contains("docker image prune -f", _programs.Calls);
+    }
+
+    /// <summary>Today's records are what a failed build is read from; only the older ones go.</summary>
+    [Fact]
+    public async Task BuildRecords_OlderThanADay_GoByTheirRefs_TodaysStay()
+    {
+        var kind = new BuildHistoryKind(Docker, new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero)));
+        var records = Assert.Single((await kind.ObserveAsync([], CancellationToken.None)).Resources);
+
+        Assert.Contains("1 BuildKit record", records.Title, StringComparison.Ordinal);
+        Assert.Equal(Outcome.Released, (await kind.ReleaseAsync(records, CancellationToken.None)).Outcome);
+        Assert.Contains("docker buildx history rm old1", _programs.Calls);
     }
 
     [Theory]

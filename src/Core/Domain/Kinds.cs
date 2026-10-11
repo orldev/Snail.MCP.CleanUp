@@ -39,6 +39,12 @@ public static class Kinds
     /// <summary>Docker's build cache.</summary>
     public const string BuildCache = "buildcache";
 
+    /// <summary>Docker images no tag points at any more, left by every rebuild of a tag.</summary>
+    public const string DanglingImages = "dangling";
+
+    /// <summary>BuildKit's records of finished builds.</summary>
+    public const string BuildHistory = "buildhistory";
+
     /// <summary>What an editor keeps about a folder or a window.</summary>
     public const string Editor = "editor";
 
@@ -50,7 +56,7 @@ public static class Kinds
 
     /// <summary>The order kinds are taken apart in.</summary>
     public static IReadOnlyList<string> Order { get; } =
-        [Process, Forward, Emulator, Simulator, VirtualDevice, Container, Network, Volume, Image, BuildCache, Worktree, Editor, File];
+        [Process, Forward, Emulator, Simulator, VirtualDevice, Container, Network, Volume, Image, DanglingImages, BuildCache, BuildHistory, Worktree, Editor, File];
 
     /// <summary>Where a kind stands in <see cref="Order"/>; an unknown kind stands after all of them.</summary>
     public static int Rank(string kind)

@@ -257,3 +257,121 @@ public sealed class BuildCacheKind(Docker docker) : IResourceKind
         return pruned.IsSuccess ? Release.Done(resource, "pruned the build cache; the next build fills what it needs") : Release.Refused(resource, pruned.Failure);
     }
 }
+
+/// <summary>Images no tag points at any more: what every rebuild of a tag leaves of the build before it.</summary>
+/// <remarks>
+/// A compose stand rebuilt twenty times keeps twenty images of each service, nineteen of them called
+/// <c>&lt;none&gt;</c>. They are nobody's on purpose and rebuild themselves, so they are one shared cache, removed only
+/// when caches are asked for — by <c>image prune</c>, which never touches an image a tag or a container still uses.
+/// </remarks>
+public sealed class DanglingImageKind(Docker docker) : IResourceKind
+{
+    /// <inheritdoc/>
+    public string Name => Kinds.DanglingImages;
+
+    /// <inheritdoc/>
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    {
+        if (await docker.UnreachableAsync(cancellationToken) is { } reason)
+            return Observation.Unseen(Name, reason);
+
+        var dangling = Docker.Lines((await docker.RunAsync(["image", "ls", "--filter", "dangling=true", "--format", "{{json .}}"], cancellationToken)).Output);
+
+        if (dangling.Count == 0)
+            return new Observation(Name, [], []);
+
+        var bytes = dangling.Sum(line => Docker.Bytes(Docker.Text(line, "Size")) ?? 0);
+
+        return new Observation(
+            Name,
+            [
+                new Resource
+                {
+                    Kind = Name,
+                    Key = "docker",
+                    Title = $"{dangling.Count} Docker image(s) no tag points at, left by rebuilds",
+                    IsShared = true,
+                    IsRegenerable = true,
+                    Bytes = bytes
+                }
+            ],
+            []);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Release> ReleaseAsync(Resource resource, CancellationToken cancellationToken)
+    {
+        var pruned = await docker.RunAsync(["image", "prune", "-f"], cancellationToken);
+
+        return pruned.IsSuccess ? Release.Done(resource, "pruned the images no tag points at") : Release.Refused(resource, pruned.Failure);
+    }
+}
+
+/// <summary>BuildKit's records of finished builds older than a day: logs and provenance of builds nobody is looking into any more.</summary>
+/// <remarks>
+/// BuildKit keeps a record of every build — its log, its steps, its provenance — and trims them itself, by default
+/// to fifty records and two days: measured on 2026-10-11 at exactly fifty on a Mac that builds a stand of seven
+/// images. So they do not grow without end, and today's are what a failed build is read from. Only the older ones
+/// are a cache, removed when caches are asked for.
+/// </remarks>
+public sealed class BuildHistoryKind(Docker docker, TimeProvider clock) : IResourceKind
+{
+    /// <summary>How old a record must be before it counts as nobody's business any more.</summary>
+    public static TimeSpan Kept { get; } = TimeSpan.FromDays(1);
+
+    /// <inheritdoc/>
+    public string Name => Kinds.BuildHistory;
+
+    /// <inheritdoc/>
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    {
+        if (await docker.UnreachableAsync(cancellationToken) is { } reason)
+            return Observation.Unseen(Name, reason);
+
+        var old = await OldAsync(cancellationToken);
+
+        if (old.Count == 0)
+            return new Observation(Name, [], []);
+
+        return new Observation(
+            Name,
+            [
+                new Resource
+                {
+                    Kind = Name,
+                    Key = "docker",
+                    Title = $"{old.Count} BuildKit record(s) of builds older than a day",
+                    IsShared = true,
+                    IsRegenerable = true
+                }
+            ],
+            []);
+    }
+
+    /// <inheritdoc/>
+    public async Task<Release> ReleaseAsync(Resource resource, CancellationToken cancellationToken)
+    {
+        var old = await OldAsync(cancellationToken);
+
+        if (old.Count == 0)
+            return Release.AlreadyGone(resource);
+
+        var removed = await docker.RunAsync(["buildx", "history", "rm", .. old], cancellationToken);
+
+        return removed.IsSuccess ? Release.Done(resource, $"removed {old.Count} build record(s); the last day's stay") : Release.Refused(resource, removed.Failure);
+    }
+
+    private async Task<IReadOnlyList<string>> OldAsync(CancellationToken cancellationToken)
+    {
+        var listed = await docker.RunAsync(["buildx", "history", "ls", "--format", "{{json .}}"], cancellationToken);
+        var before = clock.GetUtcNow() - Kept;
+
+        return
+        [
+            .. Docker.Lines(listed.Output)
+                .Where(line => DateTimeOffset.TryParse(Docker.Text(line, "created_at"), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var created) && created < before)
+                .Select(line => Docker.Text(line, "ref").Split('/')[^1])
+                .Where(reference => reference.Length > 0)
+        ];
+    }
+}
