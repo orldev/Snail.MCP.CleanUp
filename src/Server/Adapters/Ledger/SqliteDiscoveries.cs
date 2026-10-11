@@ -1,4 +1,4 @@
-namespace Snail.MCP.CleanUp.Core.Adapters;
+namespace Snail.MCP.CleanUp.Adapters.Ledger;
 
 /// <summary>Discoveries as rows of the shared SQLite file, one per trace, counted every time a census sees it again.</summary>
 public sealed class SqliteDiscoveries(LedgerFile file) : IDiscoveries

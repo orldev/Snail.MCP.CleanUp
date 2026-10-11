@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Snail.MCP.CleanUp.Core.Adapters;
+namespace Snail.MCP.CleanUp.Adapters.Ledger;
 
 /// <summary>The ledger as rows of the shared SQLite file.</summary>
 public sealed class SqliteLedger(LedgerFile file) : ILedger

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Snail.MCP.CleanUp.Core.Adapters;
+namespace Snail.MCP.CleanUp.Adapters.Ledger;
 
 /// <summary>Shown plans as JSON rows of the shared SQLite file, so another process of the same session can carry one out.</summary>
 public sealed class SqlitePlans(LedgerFile file, TimeProvider clock) : IPlans

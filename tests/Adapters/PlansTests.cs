@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Time.Testing;
-using Snail.MCP.CleanUp.Core.Adapters;
+using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Core.Application;
 using Snail.MCP.CleanUp.Core.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;

@@ -4,6 +4,7 @@ using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
+using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Core.Adapters;
 using Snail.MCP.CleanUp.Core.Application;
 

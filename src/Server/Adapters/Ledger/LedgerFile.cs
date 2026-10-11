@@ -1,6 +1,6 @@
 using Microsoft.Data.Sqlite;
 
-namespace Snail.MCP.CleanUp.Core.Adapters;
+namespace Snail.MCP.CleanUp.Adapters.Ledger;
 
 /// <summary>The SQLite file the account lives in, opened with the settings several processes need to share it.</summary>
 /// <remarks>

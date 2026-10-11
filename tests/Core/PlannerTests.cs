@@ -91,6 +91,22 @@ public sealed class PlannerTests
         Assert.Empty(Decided(Scope.Mine, stray).Decisions);
     }
 
+    /// <summary>A platform's tasks own their folders the way sessions own theirs: a finished task's folder is an orphan.</summary>
+    [Fact]
+    public void ResourceOfAFinishedTask_IsAnOrphan_AndOfARunningOne_IsKept()
+    {
+        var finished = Owner.Task("done");
+        var running = Owner.Task("busy");
+        var inventory = Inventory([Of("workspace", "/w/done", finished, Evidence.Label), Of("workspace", "/w/busy", running, Evidence.Label)]) with
+        {
+            Asker = Owner.Nobody,
+            Sessions = [new Session("done", null, null, null, IsAlive: false) { OwnerKind = "task" }, new Session("busy", null, null, null, IsAlive: true) { OwnerKind = "task" }]
+        };
+
+        Assert.Equal(["workspace:/w/done"], Planner.Decide(inventory, Scope.Orphans, "plan").Removals.Select(removal => removal.Resource.Id));
+        Assert.Equal(Verdict.Keep, Planner.Decide(inventory, Scope.Everything, "plan").Decisions.Single(decision => decision.Resource.Key == "/w/busy").Verdict);
+    }
+
     [Fact]
     public void Discoveries_GoToTheSessionTheyAppearedIn_AndAreNeverDecisions()
     {

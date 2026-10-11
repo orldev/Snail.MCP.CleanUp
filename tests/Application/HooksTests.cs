@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
+using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Core.Adapters;
 using Snail.MCP.CleanUp.Core.Application;
 using Snail.MCP.CleanUp.Core.Domain;

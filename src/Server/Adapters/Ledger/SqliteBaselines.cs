@@ -1,4 +1,4 @@
-namespace Snail.MCP.CleanUp.Core.Adapters;
+namespace Snail.MCP.CleanUp.Adapters.Ledger;
 
 /// <summary>Baselines as rows of the shared SQLite file, one row per trace an owner's session began with.</summary>
 public sealed class SqliteBaselines(LedgerFile file) : IBaselines
