@@ -21,8 +21,7 @@ public static class Entry
             return 0;
         }
 
-        using var host = Verbed();
-        var services = host.Services;
+        await using var services = Verbed();
 
         switch (verb)
         {
@@ -31,6 +30,18 @@ public static class Entry
                 break;
             case Hooks.CensusVerb:
                 await services.GetRequiredService<Hooks>().CensusAsync(CancellationToken.None);
+                break;
+            case "install-hooks" when args is [_, "--forwarder", var forwarder, ..]:
+                if (!Path.IsPathFullyQualified(forwarder) || !File.Exists(forwarder))
+                {
+                    await Console.Error.WriteLineAsync($"the forwarder must be the full path of the published snail-mcp-cleanup-hook, not '{forwarder}'");
+
+                    return 1;
+                }
+
+                var socket = services.GetRequiredService<ServerConfig>().HookSocket;
+
+                await Console.Out.WriteLineAsync(services.GetRequiredService<HookInstallation>().Install(Invocation.Forwarded(forwarder, socket, Hooks.Verb)));
                 break;
             case "install-hooks":
                 await Console.Out.WriteLineAsync(services.GetRequiredService<HookInstallation>().Install(Invocation.CommandLine(Hooks.Verb)));
@@ -43,15 +54,20 @@ public static class Entry
         return 0;
     }
 
-    /// <summary>The services without a transport: a verb answers once and exits.</summary>
-    private static IHost Verbed()
+    /// <summary>The services without a transport or a host: a verb answers once and exits.</summary>
+    /// <remarks>
+    /// A hook is a process of its own every time Claude Code fires one, so whatever it builds before its work is
+    /// paid at every session start and every stop. It has nothing to host — no lifetime to wait for, no background
+    /// census to run — so it builds the services it needs and nothing around them.
+    /// </remarks>
+    private static ServiceProvider Verbed()
     {
         var config = ServerConfigExtensions.Read(ServerConfigExtensions.Settings());
-        var builder = Host.CreateApplicationBuilder();
 
-        builder.UseStderrLogging();
-        builder.Services.AddSingleton(config).AddCleanUp();
-
-        return builder.Build();
+        return new ServiceCollection()
+            .AddLogging(logging => logging.SetMinimumLevel(LogLevel.Information).AddProvider(new StderrLogging()))
+            .AddSingleton(config)
+            .AddCleanUp()
+            .BuildServiceProvider();
     }
 }

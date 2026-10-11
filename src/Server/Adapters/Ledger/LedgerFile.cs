@@ -44,6 +44,10 @@ public sealed class LedgerFile(string path) : IDisposable
             first_seen TEXT NOT NULL,
             last_seen TEXT NOT NULL,
             sightings INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS shifts (
+            duty TEXT PRIMARY KEY,
+            watcher TEXT NOT NULL,
+            until TEXT NOT NULL);
         """;
 
     private readonly SemaphoreSlim _preparing = new(1, 1);

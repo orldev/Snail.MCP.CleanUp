@@ -20,6 +20,9 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
 
     private readonly Scratch _scratch = new();
 
+    /// <summary>The hook socket's directory: short, because a data directory in a temporary folder is too long for a socket path.</summary>
+    private readonly string _run = Path.Combine(Path.GetTempPath(), $"snail-{Guid.NewGuid():n}"[..14]);
+
     private static string Label => Environment.GetEnvironmentVariable("SNAIL_CLEANUP_BENCH_LABEL") is { Length: > 0 } label ? label : "unlabelled";
 
     private static (string Command, string[] Arguments) Server =>
@@ -31,7 +34,7 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
     {
         get
         {
-            var variables = new Dictionary<string, string?> { ["SNAIL_MCP_CLEANUP_DATA_DIRECTORY"] = _scratch.Path };
+            var variables = new Dictionary<string, string?> { ["SNAIL_MCP_CLEANUP_DATA_DIRECTORY"] = _scratch.Path, ["SNAIL_MCP_CLEANUP_HOOK_DIRECTORY"] = _run };
 
             foreach (var pair in (Environment.GetEnvironmentVariable("SNAIL_CLEANUP_BENCH_ENV") ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries))
                 variables[pair.Split('=', 2)[0]] = pair.Split('=', 2)[1];
@@ -57,15 +60,24 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
         result["firstCensus"] = first["performance"]!["lastCensus"]!.DeepClone();
         result["afterStart"] = Memory(pid, first);
         result["load"] = await LoadAsync(client, pid);
-        result["afterLoad"] = Memory(pid, await DiagnoseAsync(client));
+        var afterLoad = await DiagnoseAsync(client);
+
+        result["afterLoad"] = Memory(pid, afterLoad);
+        result["afterLoad"]!["censuses"] = afterLoad["performance"]!["censuses"]!.GetValue<int>();
 
         await Task.Delay(Rest);
 
         var rested = await DiagnoseAsync(client);
+        var loaded = result["afterLoad"]!["censuses"]!.GetValue<int>();
+
+        result["censusesDuringRest"] = rested["performance"]!["censuses"]!.GetValue<int>() - loaded;
 
         result["afterRest"] = Memory(pid, rested);
         result["steadyCensus"] = rested["performance"]!["lastCensus"]!.DeepClone();
         result["hook"] = await HooksAsync();
+
+        if (File.Exists(Forwarder))
+            result["forwardedHook"] = await ForwardedHooksAsync();
 
         Write(result);
         Assert.True(first["performance"]!["censuses"]!.GetValue<int>() >= 1);
@@ -176,6 +188,53 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
         return new JsonObject { ["sessionStartMs"] = sessionStart, ["stopMs"] = stop, ["sessionStartRunsMs"] = sessionStarts, ["stopRunsMs"] = stops };
     }
 
+    /// <summary>The native forwarder as published from this repository.</summary>
+    private static string Forwarder => Path.Combine(Root, "src", "Hook", "bin", "Release", "net10.0", "osx-arm64", "publish", "snail-mcp-cleanup-hook");
+
+    /// <summary>
+    /// Hooks handed to the running server by the native forwarder. Session starts are six seconds apart, as they are in
+    /// life, so that each one waits for a census of its own instead of reading the one before.
+    /// </summary>
+    private async Task<JsonObject> ForwardedHooksAsync()
+    {
+        var (command, arguments) = Server;
+
+        async Task<long> RunAsync(string input)
+        {
+            var start = new ProcessStartInfo(Forwarder) { RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true };
+
+            foreach (var argument in new[] { Path.Combine(_run, "hooks.sock"), command }.Concat(arguments).Append("hook"))
+                start.ArgumentList.Add(argument);
+
+            foreach (var (name, value) in Variables)
+                start.Environment[name] = value;
+
+            var timer = Stopwatch.StartNew();
+            using var process = Process.Start(start)!;
+
+            await process.StandardInput.WriteAsync(input);
+            process.StandardInput.Close();
+            await process.WaitForExitAsync();
+
+            return timer.ElapsedMilliseconds;
+        }
+
+        List<long> sessionStarts = [];
+        List<long> stops = [];
+
+        for (var run = 0; run < HookRuns; run++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(6));
+            sessionStarts.Add(await RunAsync("""{"hook_event_name":"SessionStart","session_id":"bench"}"""));
+            stops.Add(await RunAsync("""{"hook_event_name":"Stop","session_id":"bench"}"""));
+        }
+
+        JsonArray Runs(List<long> spent) => [.. spent.Select(time => (JsonNode?)time)];
+        long Median(List<long> spent) => spent.Order().ElementAt(spent.Count / 2);
+
+        return new JsonObject { ["sessionStartMs"] = Median(sessionStarts), ["stopMs"] = Median(stops), ["sessionStartRunsMs"] = Runs(sessionStarts), ["stopRunsMs"] = Runs(stops) };
+    }
+
     private static JsonObject Memory(int pid, JsonNode diagnosis) => new()
     {
         ["residentMB"] = Resident(pid) / 1024,
@@ -218,5 +277,8 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
     {
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
+
+        if (Directory.Exists(_run))
+            Directory.Delete(_run, recursive: true);
     }
 }

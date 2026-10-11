@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
+using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Tools;
 using Snail.MCP.CleanUp.Tools.Prompts;
@@ -26,6 +27,8 @@ public static class TransportRegistrationExtensions
                 .WithTools<LeaseTools>()
                 .WithTools<AccountTools>()
                 .WithTools<DiscoveryTools>();
+
+            services.AddHostedService<HookSocket>();
 
             return services;
         }

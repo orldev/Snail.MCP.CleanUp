@@ -20,6 +20,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\src\Server\Snail.MCP.CleanUp.csproj"/>
+        <ProjectReference Include="..\src\Hook\Snail.MCP.CleanUp.Hook.csproj"/>
     </ItemGroup>
 
 </Project>

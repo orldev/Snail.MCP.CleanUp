@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="src/Core/Snail.MCP.CleanUp.Core.csproj" />
   <Project Path="src/Server/Snail.MCP.CleanUp.csproj" />
+  <Project Path="src/Hook/Snail.MCP.CleanUp.Hook.csproj" />
   <Project Path="tests/Snail.MCP.CleanUp.Tests.csproj" />
   <Project Path="benchmarks/Snail.MCP.CleanUp.Benchmarks.csproj" />
 </Solution>

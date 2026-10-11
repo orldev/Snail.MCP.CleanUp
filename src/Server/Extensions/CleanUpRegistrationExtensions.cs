@@ -74,6 +74,7 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<ILedger, SqliteLedger>();
             services.AddSingleton<IPlans, SqlitePlans>();
             services.AddSingleton<IBaselines, SqliteBaselines>();
+            services.AddSingleton<IShifts, SqliteShifts>();
             services.AddSingleton<IDiscoveries, SqliteDiscoveries>();
             services.AddSingleton<IRules>(provider => new JsonRules(
                 Path.Combine(provider.GetRequiredService<ServerConfig>().DataDirectory, "rules.json"),
@@ -95,6 +96,9 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<Hooks>();
             services.AddSingleton<HookInstallation>();
             services.AddSingleton<Snail.MCP.CleanUp.Tools.ToolIndex>();
+            services.AddSingleton<IChanges>(provider => OperatingSystem.IsMacOS()
+                ? new Adapters.Native.KernelChanges(provider.GetRequiredService<FileTrail>())
+                : new TimedChanges(provider.GetRequiredService<TimeProvider>()));
             services.AddHostedService<Watch>();
 
             return services;

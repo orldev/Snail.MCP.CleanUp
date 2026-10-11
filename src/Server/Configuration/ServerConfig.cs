@@ -14,6 +14,16 @@ public sealed class ServerConfig
     public string DataDirectory { get; set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".snail-mcp-cleanup");
 
+    /// <summary>The private directory the hook socket is made in; <c>run</c> inside <see cref="DataDirectory"/> when not set.</summary>
+    /// <remarks>
+    /// A unix socket's path may be 104 bytes long on macOS at most, so a data directory deep in a temporary folder
+    /// needs its socket somewhere shorter.
+    /// </remarks>
+    public string? HookDirectory { get; set; }
+
+    /// <summary>The socket a hook hands its event to a running server through.</summary>
+    public string HookSocket => Path.Combine(HookDirectory ?? Path.Combine(DataDirectory, "run"), "hooks.sock");
+
     /// <summary>Where what cannot be made again is moved to instead of being erased.</summary>
     public string TrashDirectory { get; set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".Trash");

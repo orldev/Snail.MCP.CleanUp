@@ -34,17 +34,23 @@ public sealed class FileTrail : ITrail
     /// <inheritdoc/>
     public string Name => "file";
 
+    /// <summary>The directories the last walk listed: where a new entry is something a census would see.</summary>
+    public IReadOnlyList<string> Listed { get; private set; } = [];
+
     /// <inheritdoc/>
     public Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken)
     {
         var places = _watched.Concat(Pointed(rules)).GroupBy(place => place.Directory, StringComparer.Ordinal).Select(group => (group.Key, group.Max(place => place.Depth)));
         var traces = new Dictionary<string, Trace>(StringComparer.Ordinal);
+        var listed = new List<string>();
 
         foreach (var (directory, depth) in places)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            Walk(directory, depth, traces);
+            Walk(directory, depth, traces, listed);
         }
+
+        Listed = listed;
 
         return Task.FromResult<IReadOnlyList<Trace>>([.. traces.Values]);
     }
@@ -60,10 +66,12 @@ public sealed class FileTrail : ITrail
             .Where(place => place.Item2 is > 0 and <= 4)
             .Select(place => (place.Item1, place.Item2!.Value));
 
-    private static void Walk(string directory, int depth, Dictionary<string, Trace> traces)
+    private static void Walk(string directory, int depth, Dictionary<string, Trace> traces, List<string> listed)
     {
         if (depth <= 0 || traces.Count >= MostEntries)
             return;
+
+        listed.Add(directory);
 
         foreach (var (path, isFollowed) in Entries(directory))
         {
@@ -73,7 +81,7 @@ public sealed class FileTrail : ITrail
             traces.TryAdd(path, new Trace("file", path, path));
 
             if (isFollowed)
-                Walk(path, depth - 1, traces);
+                Walk(path, depth - 1, traces, listed);
         }
     }
 

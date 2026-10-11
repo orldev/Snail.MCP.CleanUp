@@ -97,6 +97,18 @@ session's proven leftovers — unless it was a `/clear`, after which the work go
 What a sweep did is written to `~/.snail-mcp-cleanup/sweeps.log`. Hooks reach every session, including ones
 whose agent has no MCP server of this kind configured.
 
+A hook run this way starts .NET and takes a census from cold every time. A small native forwarder hands the
+event to a server that is already running instead, over a socket only your user can reach
+(`~/.snail-mcp-cleanup/run/hooks.sock`), and runs the hook as above only when no server answers:
+
+```bash
+dotnet publish src/Hook -c Release -r osx-arm64
+dotnet /path/to/Snail.MCP.CleanUp.dll install-hooks --forwarder "$PWD/src/Hook/bin/Release/net10.0/osx-arm64/publish/snail-mcp-cleanup-hook"
+```
+
+Measured on an Apple Silicon Mac: a session start 0.57 s → 0.22 s, a stop 0.11 s → 0.03 s. macOS looks into a newly
+built binary the first time it runs, so the first hook after a publish takes about a second longer.
+
 ## Configuration
 
 Every setting is an environment variable under `SNAIL_MCP_CLEANUP_`:
@@ -104,6 +116,7 @@ Every setting is an environment variable under `SNAIL_MCP_CLEANUP_`:
 | Variable | Default |
 | --- | --- |
 | `DATA_DIRECTORY` | `~/.snail-mcp-cleanup` — the ledger, rules, logs of runs and sweeps |
+| `HOOK_DIRECTORY` | `run` inside the data directory — the hook socket's own directory; a socket path may be 104 bytes at most |
 | `TRASH_DIRECTORY` | `~/.Trash` |
 | `SCRATCH_ROOT` | `/private/tmp` |
 | `SLEEP_OF_DIRECTORY` | `~/Library/Application Support/Snail.SleepOf` |

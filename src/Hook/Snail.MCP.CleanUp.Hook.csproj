@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!--
+        The hook Claude Code runs at every session start, stop and session end: a native program that hands the event to
+        a running server over its socket in a few milliseconds, and runs the .NET hook only when no server answers.
+    -->
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <AssemblyName>snail-mcp-cleanup-hook</AssemblyName>
+        <RootNamespace>Snail.MCP.CleanUp.Hook</RootNamespace>
+        <PublishAot>true</PublishAot>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <OptimizationPreference>Size</OptimizationPreference>
+        <UseSystemResourceKeys>true</UseSystemResourceKeys>
+        <EventSourceSupport>false</EventSourceSupport>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Snail.MCP.CleanUp.Tests"/>
+    </ItemGroup>
+
+</Project>

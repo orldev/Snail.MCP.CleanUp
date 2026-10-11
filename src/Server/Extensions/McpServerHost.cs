@@ -7,6 +7,11 @@ namespace Snail.MCP.CleanUp.Extensions;
 /// <remarks>
 /// There is no address to listen at. What this server cleans up lives on the machine the agent works on,
 /// and a server elsewhere would see neither the processes of that machine nor its simulators.
+/// <para>
+/// The host is the empty one: the server reads its settings itself (<see cref="ServerConfigExtensions"/>), so the
+/// appsettings files, their watchers, the command line and the default loggers of the full builder were all loaded
+/// for nothing.
+/// </para>
 /// </remarks>
 public static class McpServerHost
 {
@@ -15,7 +20,7 @@ public static class McpServerHost
     {
         var settings = ServerConfigExtensions.Settings();
         var config = ServerConfigExtensions.Read(settings);
-        var builder = Host.CreateApplicationBuilder(args);
+        var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings { Args = args });
 
         builder.ConfigureMcpServer(config);
 

@@ -20,6 +20,12 @@
           "default": "~/.snail-mcp-cleanup"
         },
         {
+          "name": "SNAIL_MCP_CLEANUP_HOOK_DIRECTORY",
+          "description": "The directory, private to its user, of the socket hooks hand their events to a running server through; a socket path may be 104 bytes at most.",
+          "isRequired": false,
+          "default": "~/.snail-mcp-cleanup/run"
+        },
+        {
           "name": "SNAIL_MCP_CLEANUP_TRASH_DIRECTORY",
           "description": "Where what cannot be made again is moved to instead of being erased.",
           "isRequired": false,

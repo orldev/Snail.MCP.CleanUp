@@ -26,7 +26,8 @@ public static class McpServerRegistrationExtensions
         public IHostApplicationBuilder UseStderrLogging()
         {
             builder.Logging.ClearProviders();
-            builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);
+            builder.Logging.SetMinimumLevel(LogLevel.Information);
+            builder.Logging.AddProvider(new StderrLogging());
 
             return builder;
         }

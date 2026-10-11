@@ -25,6 +25,15 @@ public static class MacPlaces
     /// <summary>Whether a command line starts a program from a place of the system or of an installed application.</summary>
     public static bool IsSystem(string command) => command.AsSpan().IndexOfAny(System) == 0;
 
+    /// <summary>The temporary folders: looked into by every census, but never followed for changes.</summary>
+    /// <remarks>
+    /// Every program on the Mac makes and removes entries in them all the time — 36 changes a minute on an idle Mac,
+    /// measured on 2026-10-12 — so word of a change there is no word at all. What is left in them is found by the next
+    /// census something else brings, or by the one every few minutes.
+    /// </remarks>
+    public static IReadOnlySet<string> Restless { get; } =
+        new HashSet<string>([Path.TrimEndingDirectorySeparator(Path.GetTempPath()), "/private/tmp", "/tmp"], StringComparer.Ordinal);
+
     /// <summary>The directories the file trail looks into, and how many levels down.</summary>
     public static IReadOnlyList<(string Directory, int Depth)> Watched { get; } =
     [

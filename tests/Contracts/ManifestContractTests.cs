@@ -22,6 +22,7 @@ public sealed partial class ManifestContractTests
 
     private static IEnumerable<string> Settings =>
         typeof(ServerConfig).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(property => property.SetMethod?.IsPublic == true)
             .Select(property => $"{EnvironmentSettings.Prefix}{Snake().Replace(property.Name, "$1_$2").ToUpperInvariant()}")
             .Order(StringComparer.Ordinal);
 
