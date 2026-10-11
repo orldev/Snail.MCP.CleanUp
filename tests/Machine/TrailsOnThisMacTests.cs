@@ -13,11 +13,11 @@ public sealed class TrailsOnThisMacTests
     [MachineFact]
     public async Task EveryTrail_OnThisMac_IsFollowedInAFewSeconds()
     {
-        var programs = new Programs();
+        var programs = new Programs(new Snail.MCP.CleanUp.Application.Performance(TimeProvider.System), TimeProvider.System);
         var table = new ProcessTable(programs, new FakeTimeProvider(DateTimeOffset.UtcNow));
         var timer = Stopwatch.StartNew();
 
-        var files = await new FileTrail().FollowAsync(MacPlaces.Shipped, CancellationToken.None);
+        var files = await new FileTrail(new Sizes(TimeProvider.System)).FollowAsync(MacPlaces.Shipped, CancellationToken.None);
         var processes = await new ProcessTrail(table).FollowAsync([], CancellationToken.None);
         var ports = await new PortTrail(programs).FollowAsync([], CancellationToken.None);
         var crontab = await new CrontabTrail(programs).FollowAsync([], CancellationToken.None);

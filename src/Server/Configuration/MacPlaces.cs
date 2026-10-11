@@ -1,3 +1,5 @@
+using System.Buffers;
+
 namespace Snail.MCP.CleanUp.Configuration;
 
 /// <summary>Where on a Mac leftovers show up, and what lives there that is nobody's leftover.</summary>
@@ -14,6 +16,14 @@ namespace Snail.MCP.CleanUp.Configuration;
 public static class MacPlaces
 {
     private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+    /// <summary>Where the system and installed applications keep their programs; one started from there is nobody's work.</summary>
+    private static readonly SearchValues<string> System = SearchValues.Create(
+        ["/Applications/", "/System/", "/usr/libexec/", "/usr/sbin/", "/sbin/", "/Library/Apple/", "/Library/Application Support/", "/usr/bin/"],
+        StringComparison.Ordinal);
+
+    /// <summary>Whether a command line starts a program from a place of the system or of an installed application.</summary>
+    public static bool IsSystem(string command) => command.AsSpan().IndexOfAny(System) == 0;
 
     /// <summary>The directories the file trail looks into, and how many levels down.</summary>
     public static IReadOnlyList<(string Directory, int Depth)> Watched { get; } =

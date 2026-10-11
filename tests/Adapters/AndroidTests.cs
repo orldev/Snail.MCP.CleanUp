@@ -172,16 +172,16 @@ public sealed class AndroidTests : IDisposable
         Android.Define(Device, Android.Images()[0]);
         var emulator = Emulating();
 
-        var device = Assert.Single((await new VirtualDeviceKind(Android, _table).ObserveAsync([], CancellationToken.None)).Resources);
+        var device = Assert.Single((await new VirtualDeviceKind(Android, _table, new Sizes(TimeProvider.System)).ObserveAsync([], CancellationToken.None)).Resources);
 
         Assert.Equal(Owner.Session(Session), device.Owner);
         Assert.True(device.IsRegenerable);
         Assert.Equal([$"emulator:{Device}"], device.After);
-        Assert.Equal(Outcome.Failed, (await new VirtualDeviceKind(Android, _table).ReleaseAsync(device, CancellationToken.None)).Outcome);
+        Assert.Equal(Outcome.Failed, (await new VirtualDeviceKind(Android, _table, new Sizes(TimeProvider.System)).ReleaseAsync(device, CancellationToken.None)).Outcome);
 
         _table.Running.Clear();
 
-        Assert.Equal(Outcome.Released, (await new VirtualDeviceKind(Android, _table).ReleaseAsync(device, CancellationToken.None)).Outcome);
+        Assert.Equal(Outcome.Released, (await new VirtualDeviceKind(Android, _table, new Sizes(TimeProvider.System)).ReleaseAsync(device, CancellationToken.None)).Outcome);
         Assert.Empty(Android.DeviceNames());
         Assert.False(Directory.Exists(_scratch.File($"home/avd/{Device}.avd")));
     }

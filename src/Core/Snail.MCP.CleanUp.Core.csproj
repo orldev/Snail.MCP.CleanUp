@@ -15,6 +15,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Snail.MCP.CleanUp.Tests"/>
+        <InternalsVisibleTo Include="Snail.MCP.CleanUp.Benchmarks"/>
     </ItemGroup>
 
 </Project>

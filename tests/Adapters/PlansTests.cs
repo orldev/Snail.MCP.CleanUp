@@ -33,6 +33,33 @@ public sealed class PlansTests : IDisposable
         Assert.Equal(Evidence.Ledger, found.Decisions[1].Resource.Evidence);
     }
 
+    /// <summary>Rows written before the generated serializer carry the removals a second time; they are still read.</summary>
+    [Fact]
+    public async Task Plan_WrittenWithItsRemovalsTwice_IsStillFound()
+    {
+        const string body =
+            """
+            {"Id":"old","Asker":{"Kind":"session","Id":"me"},"Scope":"Mine","MadeAt":"2026-10-11T22:11:57+00:00",
+             "Decisions":[{"Resource":{"Kind":"file","Key":"/x","Title":"/x","Owner":{"Kind":"session","Id":"me"},"Evidence":"Ledger","After":[],"Facts":{}},"Verdict":"Remove","Reason":"yours"}],
+             "Discoveries":[],
+             "Removals":[{"Resource":{"Kind":"file","Key":"/x","Title":"/x","Owner":{"Kind":"session","Id":"me"},"Evidence":"Ledger","After":[],"Facts":{}},"Verdict":"Remove","Reason":"yours"}]}
+            """;
+
+        await using (var connection = await _file.OpenAsync(CancellationToken.None))
+        {
+            await using var insert = connection.CreateCommand();
+            insert.CommandText = "INSERT INTO plans (id, made_at, body) VALUES ('old', '2026-10-11T22:11:57.0000000+00:00', $body);";
+            insert.Parameters.AddWithValue("$body", body);
+            await insert.ExecuteNonQueryAsync();
+        }
+
+        var found = await new SqlitePlans(_file, TimeProvider.System).FindAsync("old", CancellationToken.None);
+
+        Assert.NotNull(found);
+        Assert.Equal("file:/x", Assert.Single(found.Removals).Resource.Id);
+        Assert.Equal(Evidence.Ledger, found.Decisions[0].Resource.Evidence);
+    }
+
     [Fact]
     public async Task Plan_NeverSaved_IsNotFound() =>
         Assert.Null(await new SqlitePlans(_file, TimeProvider.System).FindAsync("nothing", CancellationToken.None));

@@ -1,3 +1,4 @@
+using System.IO.Enumeration;
 using Snail.MCP.CleanUp.Configuration;
 
 namespace Snail.MCP.CleanUp.Adapters.Trails;
@@ -10,19 +11,25 @@ namespace Snail.MCP.CleanUp.Adapters.Trails;
 /// </remarks>
 public sealed class FileTrail : ITrail
 {
+    private readonly Sizes _sizes;
+
     /// <summary>How many entries one census reads at most; past it the trail says it stopped short.</summary>
     public const int MostEntries = 50_000;
 
     private readonly IReadOnlyList<(string Directory, int Depth)> _watched;
 
     /// <summary>A trail over the places of a Mac.</summary>
-    public FileTrail()
-        : this(MacPlaces.Watched)
+    public FileTrail(Sizes sizes)
+        : this(MacPlaces.Watched, sizes)
     {
     }
 
     /// <summary>A trail over the given places.</summary>
-    public FileTrail(IReadOnlyList<(string Directory, int Depth)> watched) => _watched = watched;
+    public FileTrail(IReadOnlyList<(string Directory, int Depth)> watched, Sizes sizes)
+    {
+        _watched = watched;
+        _sizes = sizes;
+    }
 
     /// <inheritdoc/>
     public string Name => "file";
@@ -44,7 +51,7 @@ public sealed class FileTrail : ITrail
 
     /// <inheritdoc/>
     public Task<Trace> MeasureAsync(Trace trace, CancellationToken cancellationToken) =>
-        Task.FromResult(trace with { Bytes = Sizes.Of(trace.Key) });
+        Task.FromResult(trace with { Bytes = _sizes.Of(trace.Key) });
 
     private static IEnumerable<(string Directory, int Depth)> Pointed(IReadOnlyList<Rule> rules) =>
         rules
@@ -58,55 +65,37 @@ public sealed class FileTrail : ITrail
         if (depth <= 0 || traces.Count >= MostEntries)
             return;
 
-        foreach (var entry in Entries(directory))
+        foreach (var (path, isFollowed) in Entries(directory))
         {
             if (traces.Count >= MostEntries)
                 return;
 
-            traces.TryAdd(entry.FullName, new Trace("file", entry.FullName, entry.FullName));
+            traces.TryAdd(path, new Trace("file", path, path));
 
-            if (entry is DirectoryInfo && entry.LinkTarget is null)
-                Walk(entry.FullName, depth - 1, traces);
+            if (isFollowed)
+                Walk(path, depth - 1, traces);
         }
     }
 
-    private static IReadOnlyList<FileSystemInfo> Entries(string directory)
+    /// <summary>The entries of a directory and whether each is a directory to go into: a real one, not a link to one.</summary>
+    /// <remarks>Read from the directory listing itself, without a <see cref="FileSystemInfo"/> or a look at a link's target per entry.</remarks>
+    private static IReadOnlyList<(string Path, bool IsFollowed)> Entries(string directory)
     {
         try
         {
-            return [.. new DirectoryInfo(directory).EnumerateFileSystemInfos()];
+            return
+            [
+                .. new FileSystemEnumerable<(string, bool)>(
+                    directory,
+                    (ref entry) => (entry.ToFullPath(), entry.IsDirectory && (entry.Attributes & FileAttributes.ReparsePoint) == 0),
+                    Listing)
+            ];
         }
         catch (Exception refused) when (refused is IOException or UnauthorizedAccessException or System.Security.SecurityException)
         {
             return [];
         }
     }
-}
 
-/// <summary>The space a file or a directory takes, counted with a ceiling so that a huge tree cannot hold up a census.</summary>
-public static class Sizes
-{
-    /// <summary>How many entries are counted before the count stops and says «at least».</summary>
-    public const int MostCounted = 200_000;
-
-    /// <summary>The bytes under a path; null when it cannot be read at all.</summary>
-    public static long? Of(string path)
-    {
-        try
-        {
-            if (File.Exists(path))
-                return new FileInfo(path).Length;
-
-            if (!Directory.Exists(path))
-                return null;
-
-            var options = new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
-
-            return new DirectoryInfo(path).EnumerateFiles("*", options).Take(MostCounted).Sum(file => file.Length);
-        }
-        catch (Exception refused) when (refused is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
+    private static readonly EnumerationOptions Listing = new() { IgnoreInaccessible = true, AttributesToSkip = 0 };
 }

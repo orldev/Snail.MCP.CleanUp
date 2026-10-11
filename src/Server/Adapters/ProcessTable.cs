@@ -50,12 +50,12 @@ public sealed class ProcessTable(IPrograms programs, TimeProvider clock) : IProc
     {
         var executables = new Dictionary<int, string>();
 
-        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var written in output.AsSpan().EnumerateLines())
         {
-            var words = line.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+            var line = written.Trim();
 
-            if (words.Length == 2 && int.TryParse(words[0], CultureInfo.InvariantCulture, out var pid))
-                executables[pid] = words[1].Trim();
+            if (Word(ref line) is var id && int.TryParse(id, CultureInfo.InvariantCulture, out var pid) && line.Trim() is { IsEmpty: false } executable)
+                executables[pid] = executable.ToString();
         }
 
         return executables;
@@ -68,28 +68,62 @@ public sealed class ProcessTable(IPrograms programs, TimeProvider clock) : IProc
     /// The lines of <c>ps -o pid=,ppid=,lstart=,command=</c> under the C locale: two numbers, a start written
     /// as five words such as <c>Sun Oct 11 14:04:06 2026</c>, then the command line to the end.
     /// </summary>
+    /// <remarks>
+    /// Read without splitting: the words are slices of the output, and only the command line becomes a string of
+    /// its own. Splitting cost a megabyte for a table of seven hundred processes, measured on 2026-10-12, and on
+    /// Linux, where there is no libproc, this is how every census reads the table.
+    /// </remarks>
     internal static IReadOnlyList<RunningProcess> Parse(string output)
     {
         var processes = new List<RunningProcess>();
+        Span<char> start = stackalloc char[40];
 
-        foreach (var line in output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        foreach (var written in output.AsSpan().EnumerateLines())
         {
-            var words = line.Split(' ', 8, StringSplitOptions.RemoveEmptyEntries);
+            var line = written.Trim();
 
-            if (words.Length < 8 || !int.TryParse(words[0], CultureInfo.InvariantCulture, out var pid) || !int.TryParse(words[1], CultureInfo.InvariantCulture, out var parent))
+            if (!int.TryParse(Word(ref line), CultureInfo.InvariantCulture, out var pid) || !int.TryParse(Word(ref line), CultureInfo.InvariantCulture, out var parent))
                 continue;
 
-            if (!DateTime.TryParseExact(
-                    string.Join(' ', words[2..7]),
-                    ["ddd MMM d HH:mm:ss yyyy", "ddd MMM dd HH:mm:ss yyyy"],
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeLocal,
-                    out var started))
+            var length = 0;
+
+            for (var index = 0; index < 5; index++)
+            {
+                var word = Word(ref line);
+
+                if (word.IsEmpty || length + word.Length + 1 > start.Length)
+                    break;
+
+                if (length > 0)
+                    start[length++] = ' ';
+
+                word.CopyTo(start[length..]);
+                length += word.Length;
+            }
+
+            var command = line.Trim();
+
+            if (command.IsEmpty || !DateTime.TryParseExact(start[..length], Starts, CultureInfo.InvariantCulture, DateTimeStyles.AssumeLocal, out var started))
                 continue;
 
-            processes.Add(new RunningProcess(pid, parent, new DateTimeOffset(started), words[7].Trim()));
+            processes.Add(new RunningProcess(pid, parent, new DateTimeOffset(started), command.ToString()));
         }
 
         return processes;
+    }
+
+    private static readonly string[] Starts = ["ddd MMM d HH:mm:ss yyyy", "ddd MMM dd HH:mm:ss yyyy"];
+
+    /// <summary>The next word of a line, the line moved past it.</summary>
+    private static ReadOnlySpan<char> Word(ref ReadOnlySpan<char> line)
+    {
+        line = line.TrimStart(' ');
+
+        var end = line.IndexOf(' ');
+        var word = end < 0 ? line : line[..end];
+
+        line = end < 0 ? [] : line[end..];
+
+        return word;
     }
 }

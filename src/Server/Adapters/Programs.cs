@@ -9,10 +9,40 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// parser written against English dates reads nothing on a machine set to Russian. A program that is not
 /// installed is an answer, not an exception, because a Mac without Android tools is an ordinary Mac.
 /// </remarks>
-public sealed class Programs : IPrograms
+public sealed class Programs(Snail.MCP.CleanUp.Application.Performance performance, TimeProvider clock) : IPrograms
 {
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTimeOffset At, Task<ProgramRun> Run)> _readings = new(StringComparer.Ordinal);
+
+    /// <inheritdoc/>
+    public Task<ProgramRun> ReadAsync(string program, IReadOnlyList<string> arguments, TimeSpan freshness, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var key = $"{program}\0{string.Join('\0', arguments)}";
+        var now = clock.GetUtcNow();
+
+        var reading = _readings.AddOrUpdate(
+            key,
+            _ => (now, RunAsync(program, arguments, timeout, CancellationToken.None)),
+            (_, held) => now - held.At <= freshness ? held : (now, RunAsync(program, arguments, timeout, CancellationToken.None)));
+
+        return reading.Run.WaitAsync(cancellationToken);
+    }
+
     /// <inheritdoc/>
     public async Task<ProgramRun> RunAsync(string program, IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        var started = Stopwatch.GetTimestamp();
+
+        try
+        {
+            return await RanAsync(program, arguments, timeout, cancellationToken);
+        }
+        finally
+        {
+            performance.Ran(program, arguments, Stopwatch.GetElapsedTime(started));
+        }
+    }
+
+    private static async Task<ProgramRun> RanAsync(string program, IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken)
     {
         using var process = new Process { StartInfo = Started(program, arguments) };
 

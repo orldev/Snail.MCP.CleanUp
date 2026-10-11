@@ -9,7 +9,7 @@ public sealed class CrontabTrail(IPrograms programs) : ITrail
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken)
     {
-        var run = await programs.RunAsync("crontab", ["-l"], TimeSpan.FromSeconds(5), cancellationToken);
+        var run = await programs.ReadAsync("crontab", ["-l"], IPrograms.Census, TimeSpan.FromSeconds(5), cancellationToken);
 
         if (!run.IsSuccess)
             return [];

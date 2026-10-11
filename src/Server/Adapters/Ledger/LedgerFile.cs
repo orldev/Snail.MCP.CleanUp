@@ -6,7 +6,9 @@ namespace Snail.MCP.CleanUp.Adapters.Ledger;
 /// <remarks>
 /// Every session on the machine starts its own server, and all of them write to this one file. Write-ahead
 /// logging lets readers go on while one of them writes, and the busy timeout makes a writer wait its turn
-/// instead of failing with «database is locked» the moment two sessions end at once.
+/// instead of failing with «database is locked» the moment two sessions end at once. With the log, a commit
+/// need not reach the disk before the call returns: a power cut can lose the last census's notes, never the
+/// file, and the next census writes them again.
 /// </remarks>
 public sealed class LedgerFile(string path) : IDisposable
 {
@@ -60,7 +62,7 @@ public sealed class LedgerFile(string path) : IDisposable
 
         await connection.OpenAsync(cancellationToken);
         await PrepareAsync(connection, cancellationToken);
-        await connection.RunAsync("PRAGMA busy_timeout = 10000;", cancellationToken);
+        await connection.RunAsync("PRAGMA busy_timeout = 10000; PRAGMA synchronous = NORMAL;", cancellationToken);
 
         return connection;
     }

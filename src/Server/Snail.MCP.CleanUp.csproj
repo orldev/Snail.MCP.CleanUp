@@ -5,6 +5,8 @@
         <RootNamespace>Snail.MCP.CleanUp</RootNamespace>
         <InvariantGlobalization>true</InvariantGlobalization>
         <RollForward>LatestMajor</RollForward>
+        <!-- libproc and sysctl are called through LibraryImport, whose generated marshalling is unsafe code. -->
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <PropertyGroup>
@@ -40,6 +42,7 @@
 
     <ItemGroup>
         <InternalsVisibleTo Include="Snail.MCP.CleanUp.Tests"/>
+        <InternalsVisibleTo Include="Snail.MCP.CleanUp.Benchmarks"/>
     </ItemGroup>
 
 </Project>

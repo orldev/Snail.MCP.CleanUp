@@ -1,4 +1,5 @@
 using System.Globalization;
+using Snail.MCP.CleanUp.Configuration;
 
 namespace Snail.MCP.CleanUp.Adapters.Resources;
 
@@ -27,9 +28,6 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
     /// when the first live plan of this server listed the test run that had asked for it.
     /// </summary>
     public static TimeSpan Fresh { get; } = TimeSpan.FromMinutes(2);
-
-    private static readonly string[] SystemPlaces =
-        ["/Applications/", "/System/", "/usr/libexec/", "/usr/sbin/", "/sbin/", "/Library/Apple/", "/Library/Application Support/", "/usr/bin/"];
 
     /// <inheritdoc/>
     public string Name => Kinds.Process;
@@ -176,5 +174,5 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
             : [];
 
     private static bool IsDetached(RunningProcess process) =>
-        process.ParentPid == 1 && !SystemPlaces.Any(place => process.Command.StartsWith(place, StringComparison.Ordinal));
+        process.ParentPid == 1 && !MacPlaces.IsSystem(process.Command);
 }

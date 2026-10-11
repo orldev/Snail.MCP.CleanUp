@@ -31,7 +31,7 @@ public sealed class SimulatorTests : IDisposable
         _programs.Answer = (program, arguments) => arguments is ["simctl", "list", "devices", "-j"] ? FakePrograms.Said(_devices) : FakePrograms.Said(Mine);
     }
 
-    private SimulatorKind Kind => new(_programs, _table, TimeProvider.System);
+    private SimulatorKind Kind => new(_programs, _table, new Sizes(TimeProvider.System), TimeProvider.System);
 
     private Leases LeasesFor(Owner owner, SqliteLedger ledger)
     {

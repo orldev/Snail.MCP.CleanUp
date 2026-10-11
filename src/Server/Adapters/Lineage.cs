@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Snail.MCP.CleanUp.Adapters;
 
 /// <summary>Which running programs are an agent's work: what lives under the shells it starts for its commands.</summary>
@@ -8,7 +10,7 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// </remarks>
 public static class Lineage
 {
-    private static readonly HashSet<string> Shells = new(StringComparer.Ordinal) { "zsh", "bash", "sh", "dash", "fish", "-zsh", "-bash" };
+    private static readonly FrozenSet<string> Shells = FrozenSet.Create(StringComparer.Ordinal, "zsh", "bash", "sh", "dash", "fish", "-zsh", "-bash");
 
     /// <summary>Whether a program is a shell.</summary>
     public static bool IsShell(RunningProcess process) => Shells.Contains(process.Program);

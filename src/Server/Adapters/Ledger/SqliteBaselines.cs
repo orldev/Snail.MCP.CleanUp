@@ -1,10 +1,32 @@
+using System.Collections.Concurrent;
+
 namespace Snail.MCP.CleanUp.Adapters.Ledger;
 
 /// <summary>Baselines as rows of the shared SQLite file, one row per trace an owner's session began with.</summary>
+/// <remarks>
+/// A baseline is written once, when its session first takes part in a census, and never changed after; only the end
+/// of the session removes it. So one read is kept for as long as the session runs, instead of reading its
+/// two and a half thousand rows back at every census.
+/// </remarks>
 public sealed class SqliteBaselines(LedgerFile file) : IBaselines
 {
+    private readonly ConcurrentDictionary<Owner, IReadOnlySet<string>> _read = new();
+
     /// <inheritdoc/>
     public async Task<IReadOnlySet<string>?> FindAsync(Owner owner, CancellationToken cancellationToken)
+    {
+        if (_read.TryGetValue(owner, out var known))
+            return known;
+
+        var found = await ReadAsync(owner, cancellationToken);
+
+        if (found is not null)
+            _read[owner] = found;
+
+        return found;
+    }
+
+    private async Task<IReadOnlySet<string>?> ReadAsync(Owner owner, CancellationToken cancellationToken)
     {
         await using var connection = await file.OpenAsync(cancellationToken);
         await using var command = connection.Prepared("SELECT trace_id FROM baselines WHERE owner = $owner;", ("$owner", owner.ToString()));
@@ -53,6 +75,12 @@ public sealed class SqliteBaselines(LedgerFile file) : IBaselines
     public async Task KeepOnlyAsync(IReadOnlySet<Owner> owners, CancellationToken cancellationToken)
     {
         await using var connection = await file.OpenAsync(cancellationToken);
+
+        foreach (var owner in _read.Keys)
+        {
+            if (!owners.Contains(owner))
+                _read.TryRemove(owner, out _);
+        }
 
         var kept = owners.Select(owner => owner.ToString()).ToList();
 

@@ -17,6 +17,9 @@ internal sealed class FakePrograms(Func<string, IReadOnlyList<string>, ProgramRu
         return Task.FromResult(Answer(program, arguments));
     }
 
+    public Task<ProgramRun> ReadAsync(string program, IReadOnlyList<string> arguments, TimeSpan freshness, TimeSpan timeout, CancellationToken cancellationToken) =>
+        RunAsync(program, arguments, timeout, cancellationToken);
+
     public static ProgramRun Said(string output) => new(0, output, string.Empty);
 
     public static ProgramRun Failed(string error = "") => new(1, string.Empty, error);

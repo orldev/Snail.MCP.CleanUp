@@ -9,6 +9,9 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// </remarks>
 public sealed class WorktreeKind(IPrograms programs) : IResourceKind
 {
+    /// <summary>How long a repository's worktrees are taken as read: they change when an agent makes one, not every half a minute.</summary>
+    public static TimeSpan Freshness { get; } = TimeSpan.FromMinutes(2);
+
     /// <inheritdoc/>
     public string Name => Kinds.Worktree;
 
@@ -20,7 +23,7 @@ public sealed class WorktreeKind(IPrograms programs) : IResourceKind
 
         foreach (var directory in directories)
         {
-            var run = await programs.RunAsync("git", ["-C", directory, "worktree", "list", "--porcelain"], TimeSpan.FromSeconds(10), cancellationToken);
+            var run = await programs.ReadAsync("git", ["-C", directory, "worktree", "list", "--porcelain"], Freshness, TimeSpan.FromSeconds(10), cancellationToken);
 
             if (!run.IsSuccess)
                 continue;

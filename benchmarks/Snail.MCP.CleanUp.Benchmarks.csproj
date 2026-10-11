@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <IsPackable>false</IsPackable>
+        <RootNamespace>Snail.MCP.CleanUp.Benchmarks</RootNamespace>
+        <!-- A benchmark is named by what it measures; BenchmarkDotNet needs its classes public and unsealed. -->
+        <NoWarn>$(NoWarn);CS1591;CA1515;CA1822;CA1001</NoWarn>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BenchmarkDotNet"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\src\Server\Snail.MCP.CleanUp.csproj"/>
+    </ItemGroup>
+
+</Project>

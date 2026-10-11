@@ -16,7 +16,7 @@ public sealed class PortTrail(IPrograms programs) : ITrail
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken)
     {
-        var run = await programs.RunAsync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpcn"], TimeSpan.FromSeconds(15), cancellationToken);
+        var run = await programs.ReadAsync("lsof", Listeners.Arguments, IPrograms.Census, TimeSpan.FromSeconds(15), cancellationToken);
 
         return run.ExitCode is 0 or 1 ? Parse(run.Output) : throw new InvalidOperationException(run.Failure);
     }

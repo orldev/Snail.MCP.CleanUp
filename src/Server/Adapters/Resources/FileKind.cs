@@ -1,3 +1,4 @@
+using System.IO.Enumeration;
 using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Configuration;
 
@@ -10,7 +11,7 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// writes into it — and once the session is over, it goes to the Trash rather than nowhere, because what an
 /// agent wrote there may be the only copy of something.
 /// </remarks>
-public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules, IProcessTable table, Disposal disposal, TimeProvider clock) : IResourceKind
+public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules, IProcessTable table, Disposal disposal, Sizes sizes, TimeProvider clock) : IResourceKind
 {
     /// <summary>
     /// How recently a scratchpad may have been written and still be in use, whatever the sessions say. A session
@@ -57,7 +58,7 @@ public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules,
                     Title = $"scratchpad of session {session} in {Path.GetFileName(project)}",
                     Owner = Owner.Session(session),
                     Evidence = Evidence.Label,
-                    Bytes = Sizes.Of(scratchpad),
+                    Bytes = sizes.Of(scratchpad),
                     CreatedAt = Directory.GetCreationTimeUtc(scratchpad),
                     Blocker = alive.Contains(session)
                         ? "its session is still running and writes into it"
@@ -86,7 +87,7 @@ public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules,
                 Title = rule.Note is null ? trace.Title : $"{trace.Title} — {rule.Note}",
                 IsShared = isCache,
                 IsRegenerable = isCache,
-                Bytes = Sizes.Of(trace.Key),
+                Bytes = sizes.Of(trace.Key),
                 Blocker = rule.BlockedWhileRunning is { } program && running.Contains(program) ? $"{program} is running and keeps it open" : null
             };
         }
@@ -99,7 +100,9 @@ public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules,
 
         try
         {
-            return new DirectoryInfo(directory).EnumerateFileSystemInfos("*", options).Take(5_000).Select(entry => entry.LastWriteTimeUtc).Append(Directory.GetLastWriteTimeUtc(directory)).Max();
+            var writes = new FileSystemEnumerable<DateTime>(directory, (ref entry) => entry.LastWriteTimeUtc.UtcDateTime, options);
+
+            return writes.Take(5_000).Append(Directory.GetLastWriteTimeUtc(directory)).Max();
         }
         catch (Exception refused) when (refused is IOException or UnauthorizedAccessException)
         {

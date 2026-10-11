@@ -4,7 +4,7 @@ using Snail.MCP.CleanUp.Configuration;
 namespace Snail.MCP.CleanUp.Application;
 
 /// <summary>What state the server is in: its build, the session it counts as its own, and what it can see.</summary>
-public sealed class Health(ServerConfig config, ISessions sessions, IPrograms programs, Android android, Docker docker)
+public sealed class Health(ServerConfig config, ISessions sessions, IPrograms programs, Android android, IDockerEngine docker, Performance performance)
 {
     /// <summary>The state of the server.</summary>
     public async Task<Answer> ReportAsync(CancellationToken cancellationToken = default)
@@ -18,7 +18,8 @@ public sealed class Health(ServerConfig config, ISessions sessions, IPrograms pr
             {
                 ["name"] = ThisAssembly.Name,
                 ["version"] = ThisAssembly.Version,
-                ["transport"] = "stdio"
+                ["transport"] = "stdio",
+                ["pid"] = Environment.ProcessId
             },
             ["dataDirectory"] = config.DataDirectory,
             ["session"] = new JsonObject
@@ -35,12 +36,13 @@ public sealed class Health(ServerConfig config, ISessions sessions, IPrograms pr
             },
             ["reach"] = new JsonObject
             {
-                ["simctl"] = (await programs.RunAsync("xcrun", ["simctl", "help"], TimeSpan.FromSeconds(10), cancellationToken)).IsSuccess,
+                ["simctl"] = (await programs.ReadAsync("xcrun", ["simctl", "help"], TimeSpan.FromMinutes(1), TimeSpan.FromSeconds(10), cancellationToken)).IsSuccess,
                 ["emulator"] = File.Exists(android.Emulator),
                 ["adb"] = File.Exists(android.Adb) ? (await android.IsAdbRunningAsync(cancellationToken) ? "server running" : "installed, server not running") : "not installed",
                 ["docker"] = await docker.UnreachableAsync(cancellationToken) ?? "daemon running"
             },
-            ["disk"] = Disk.Report()
+            ["disk"] = Disk.Report(),
+            ["performance"] = performance.Report()
         });
     }
 }

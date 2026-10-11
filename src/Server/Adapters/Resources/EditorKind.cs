@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Configuration;
 
 namespace Snail.MCP.CleanUp.Adapters.Resources;
@@ -11,7 +10,7 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// anyone can use again, so it is a cache in effect — removed only when caches are asked for, and not while
 /// it was written in the last hour, which is what a window still open on a deleted folder looks like.
 /// </remarks>
-public sealed class EditorKind(ServerConfig config, Disposal disposal, TimeProvider clock) : IResourceKind
+public sealed class EditorKind(ServerConfig config, Disposal disposal, Sizes sizes, TimeProvider clock) : IResourceKind
 {
     /// <summary>How recently written state counts as in use.</summary>
     public static TimeSpan InUse { get; } = TimeSpan.FromHours(1);
@@ -54,7 +53,7 @@ public sealed class EditorKind(ServerConfig config, Disposal disposal, TimeProvi
             Title = $"VS Code state of {folder}, which no longer exists",
             IsShared = true,
             IsRegenerable = true,
-            Bytes = Sizes.Of(directory),
+            Bytes = sizes.Of(directory),
             Blocker = clock.GetUtcNow().UtcDateTime - written < InUse ? "written in the last hour: a window may still be open on it" : null
         };
     }

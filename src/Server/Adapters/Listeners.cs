@@ -5,10 +5,13 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// <summary>Which process listens on which TCP ports, as <c>lsof</c> tells it.</summary>
 public static class Listeners
 {
+    /// <summary>The one way the listening ports are asked for, so that every kind and trail shares one reading.</summary>
+    public static IReadOnlyList<string> Arguments { get; } = ["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpcn"];
+
     /// <summary>The listening ports of every process that has one.</summary>
     public static async Task<IReadOnlyDictionary<int, IReadOnlyList<int>>> ReadAsync(IPrograms programs, CancellationToken cancellationToken)
     {
-        var run = await programs.RunAsync("lsof", ["-nP", "-iTCP", "-sTCP:LISTEN", "-Fpn"], TimeSpan.FromSeconds(15), cancellationToken);
+        var run = await programs.ReadAsync("lsof", Arguments, IPrograms.Census, TimeSpan.FromSeconds(15), cancellationToken);
 
         return Parse(run.Output);
     }

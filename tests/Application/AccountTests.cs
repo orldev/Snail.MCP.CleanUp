@@ -30,7 +30,7 @@ public sealed class AccountTests : IDisposable
             var discoveries = new SqliteDiscoveries(_file);
             var census = new Census([_processes], [], sessions, ledger, rules, new SqliteBaselines(_file), discoveries, _clock);
 
-            return new Account(census, sessions, new SqlitePlans(_file, _clock), new Cleaner([_processes], ledger), ledger, discoveries, rules, _clock);
+            return new Account(new MeasuredCensus(census, new Performance(_clock)), sessions, new SqlitePlans(_file, _clock), new Cleaner([_processes], ledger), ledger, discoveries, rules, _clock);
         }
     }
 

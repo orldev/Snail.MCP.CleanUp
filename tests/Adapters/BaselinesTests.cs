@@ -1,0 +1,54 @@
+using Snail.MCP.CleanUp.Adapters.Ledger;
+using Snail.MCP.CleanUp.Core.Domain;
+using static Snail.MCP.CleanUp.Tests.Support.Things;
+
+namespace Snail.MCP.CleanUp.Tests.Adapters;
+
+public sealed class BaselinesTests : IDisposable
+{
+    private readonly Scratch _scratch = new();
+
+    private readonly LedgerFile _file;
+
+    public BaselinesTests() => _file = new LedgerFile(_scratch.File("ledger.db"));
+
+    /// <summary>A baseline never changes once taken, so a second take does not move it, and it is read once.</summary>
+    [Fact]
+    public async Task Baseline_TakenOnce_IsWhatTheSessionBeganWith_AsLongAsItRuns()
+    {
+        var baselines = new SqliteBaselines(_file);
+
+        await baselines.SaveAsync(Me, ["file:/a"], DateTimeOffset.UnixEpoch, CancellationToken.None);
+        await baselines.SaveAsync(Me, ["file:/a", "file:/b"], DateTimeOffset.UnixEpoch, CancellationToken.None);
+
+        var first = await baselines.FindAsync(Me, CancellationToken.None);
+
+        Assert.NotNull(first);
+        Assert.Contains("file:/a", first);
+        Assert.DoesNotContain("file:/b", first);
+        Assert.Same(first, await baselines.FindAsync(Me, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Baseline_OfASessionThatEnded_IsGone_FromTheFileAndFromWhatWasRead()
+    {
+        var baselines = new SqliteBaselines(_file);
+
+        await baselines.SaveAsync(Me, ["file:/a"], DateTimeOffset.UnixEpoch, CancellationToken.None);
+        await baselines.SaveAsync(Neighbour, ["file:/a"], DateTimeOffset.UnixEpoch, CancellationToken.None);
+        Assert.NotNull(await baselines.FindAsync(Me, CancellationToken.None));
+
+        await baselines.KeepOnlyAsync(new HashSet<Owner> { Neighbour }, CancellationToken.None);
+
+        Assert.Null(await baselines.FindAsync(Me, CancellationToken.None));
+        Assert.Null(await new SqliteBaselines(_file).FindAsync(Me, CancellationToken.None));
+        Assert.NotNull(await baselines.FindAsync(Neighbour, CancellationToken.None));
+    }
+
+    public void Dispose()
+    {
+        _file.Dispose();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+        _scratch.Dispose();
+    }
+}

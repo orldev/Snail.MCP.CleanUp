@@ -9,7 +9,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// id is carried out — so what is removed is exactly what was shown, never what a second census happens to
 /// find a moment later.
 /// </remarks>
-public sealed class Account(Census census, ISessions sessions, IPlans plans, Cleaner cleaner, ILedger ledger, IDiscoveries discoveries, IRules rules, TimeProvider clock)
+public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans plans, Cleaner cleaner, ILedger ledger, IDiscoveries discoveries, IRules rules, TimeProvider clock)
 {
     /// <summary>What is on the machine, grouped by whose it is.</summary>
     public async Task<Answer> InventoryAsync(CancellationToken cancellationToken)
@@ -17,8 +17,9 @@ public sealed class Account(Census census, ISessions sessions, IPlans plans, Cle
         var asker = await sessions.CurrentAsync(cancellationToken);
         var inventory = await census.TakeAsync(asker, cancellationToken);
         var mine = inventory.Resources.Where(resource => resource.Owner == asker && asker.IsKnown).ToList();
-        var orphaned = inventory.Resources.Where(resource => resource.Owner.IsKnown && resource.Owner != asker && !inventory.Alive.Contains(resource.Owner)).ToList();
-        var others = inventory.Resources.Count(resource => resource.Owner.IsKnown && resource.Owner != asker && inventory.Alive.Contains(resource.Owner));
+        var alive = inventory.Alive;
+        var orphaned = inventory.Resources.Where(resource => resource.Owner.IsKnown && resource.Owner != asker && !alive.Contains(resource.Owner)).ToList();
+        var others = inventory.Resources.Count(resource => resource.Owner.IsKnown && resource.Owner != asker && alive.Contains(resource.Owner));
         var caches = inventory.Resources.Where(resource => resource.IsShared).OrderByDescending(resource => resource.Bytes ?? 0).ToList();
 
         return Answer.Ok(new JsonObject

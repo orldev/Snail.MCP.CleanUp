@@ -19,6 +19,7 @@ public static class CleanUpRegistrationExtensions
         public IServiceCollection AddCleanUp()
         {
             services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<Performance>();
 
             return services
                 .AddMachine()
@@ -30,9 +31,12 @@ public static class CleanUpRegistrationExtensions
         internal IServiceCollection AddMachine()
         {
             services.AddSingleton<IPrograms, Programs>();
-            services.AddSingleton<IProcessTable, ProcessTable>();
+            services.AddSingleton<IProcessTable>(provider => OperatingSystem.IsMacOS()
+                ? new Adapters.Native.NativeProcessTable(provider.GetRequiredService<TimeProvider>())
+                : new ProcessTable(provider.GetRequiredService<IPrograms>(), provider.GetRequiredService<TimeProvider>()));
             services.AddSingleton<ISessions, MachineSessions>();
             services.AddSingleton<Disposal>();
+            services.AddSingleton<Sizes>();
             services.AddSingleton<FileTrail>();
             services.AddSingleton<ITrail>(provider => provider.GetRequiredService<FileTrail>());
             services.AddSingleton<ITrail, ProcessTrail>();
@@ -47,6 +51,7 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<IResourceKind, VirtualDeviceKind>();
             services.AddSingleton<IResourceKind, ForwardKind>();
             services.AddSingleton<Docker>();
+            services.AddSingleton<IDockerEngine>(provider => new DockerSocket(provider.GetRequiredService<TimeProvider>()));
             services.AddSingleton<IResourceKind, ContainerKind>();
             services.AddSingleton<IResourceKind, NetworkKind>();
             services.AddSingleton<IResourceKind, VolumeKind>();
@@ -81,6 +86,7 @@ public static class CleanUpRegistrationExtensions
         internal IServiceCollection AddAccount()
         {
             services.AddSingleton<Census>();
+            services.AddSingleton<MeasuredCensus>();
             services.AddSingleton<Cleaner>();
             services.AddSingleton<Health>();
             services.AddSingleton<Runs>();

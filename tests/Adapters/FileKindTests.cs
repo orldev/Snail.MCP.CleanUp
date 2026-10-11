@@ -20,10 +20,11 @@ public sealed class FileKindTests : IDisposable
 
     private FileKind Kind(params Rule[] rules) => new(
         Config,
-        new FileTrail([(_scratch.File("apps"), 1)]),
+        new FileTrail([(_scratch.File("apps"), 1)], new Sizes(TimeProvider.System)),
         new JsonRules(_scratch.File("rules.json"), rules),
         _table,
         new Disposal(Config, new FakeTimeProvider(DateTimeOffset.UnixEpoch)),
+        new Sizes(_clock),
         _clock);
 
     private FakeTimeProvider _clock = new(DateTimeOffset.UtcNow.AddDays(1));

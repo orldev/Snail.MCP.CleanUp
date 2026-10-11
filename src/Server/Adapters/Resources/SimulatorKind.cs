@@ -1,4 +1,3 @@
-using Snail.MCP.CleanUp.Adapters.Trails;
 
 namespace Snail.MCP.CleanUp.Adapters.Resources;
 
@@ -9,7 +8,7 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// UDID alone, and only after the programs driving it are stopped: a simulator shut down under a running
 /// test runner leaves the runner hanging instead of ending.
 /// </remarks>
-public sealed class SimulatorKind(IPrograms programs, IProcessTable table, TimeProvider clock) : IResourceKind
+public sealed class SimulatorKind(IPrograms programs, IProcessTable table, Sizes sizes, TimeProvider clock) : IResourceKind
 {
     /// <summary>How long a simulator may take to shut down or to be deleted.</summary>
     public static TimeSpan Patience { get; } = TimeSpan.FromSeconds(60);
@@ -20,7 +19,7 @@ public sealed class SimulatorKind(IPrograms programs, IProcessTable table, TimeP
     /// <inheritdoc/>
     public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
     {
-        var run = await programs.RunAsync("xcrun", ["simctl", "list", "devices", "-j"], Patience, cancellationToken);
+        var run = await programs.ReadAsync("xcrun", ["simctl", "list", "devices", "-j"], IPrograms.Census, Patience, cancellationToken);
 
         if (!run.IsSuccess)
             return Observation.Unseen(Name, $"simctl could not list the simulators: {run.Failure}");
@@ -83,7 +82,7 @@ public sealed class SimulatorKind(IPrograms programs, IProcessTable table, TimeP
             Title = $"{device.Name} ({Simulators.Spoken(device.Runtime)}, {device.State.ToLowerInvariant()})",
             Owner = owner,
             Evidence = owner.IsKnown ? Evidence.Label : Evidence.None,
-            Bytes = device.DataPath is null ? null : Sizes.Of(Path.GetDirectoryName(device.DataPath)!),
+            Bytes = device.DataPath is null ? null : sizes.Of(Path.GetDirectoryName(device.DataPath)!),
             Blocker = device.IsAvailable ? null : "its runtime is no longer installed; simctl can still delete it by UDID",
             After = [.. drivers.Select(driver => $"{Kinds.Process}:{driver.Key}")],
             Facts = new Dictionary<string, string>

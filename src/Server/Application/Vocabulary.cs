@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using System.Text;
 
 namespace Snail.MCP.CleanUp.Application;
@@ -22,13 +23,12 @@ public static class Vocabulary
     private const int ShortestStem = 4;
 
     /// <summary>The words a question is made of rather than about; they say nothing about which tool it wants.</summary>
-    private static readonly HashSet<string> Common = new(StringComparer.Ordinal)
-    {
+    private static readonly FrozenSet<string> Common = FrozenSet.Create(
+        StringComparer.Ordinal,
         "a", "all", "an", "and", "any", "are", "as", "at", "be", "but", "by", "can", "do", "for", "from", "has", "have",
         "how", "i", "if", "in", "is", "it", "its", "me", "my", "no", "not", "of", "on", "one", "or", "out", "so", "that",
         "the", "their", "them", "then", "there", "they", "this", "to", "up", "was", "what", "when", "where", "which",
-        "who", "why", "will", "with", "would", "you", "your"
-    };
+        "who", "why", "will", "with", "would", "you", "your");
 
     /// <summary>The words of a text, lowercased, with everything that is not a letter or a digit as a boundary.</summary>
     public static IReadOnlyList<string> Words(string? text)

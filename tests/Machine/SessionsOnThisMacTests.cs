@@ -7,7 +7,7 @@ namespace Snail.MCP.CleanUp.Tests.Machine;
 [Collection(OnThisMac.Name)]
 public sealed class SessionsOnThisMacTests
 {
-    private static MachineSessions Sessions => new(new ServerConfig(), new ProcessTable(new Programs(), new FakeTimeProvider(DateTimeOffset.UtcNow)));
+    private static MachineSessions Sessions => new(new ServerConfig(), new ProcessTable(new Programs(new Snail.MCP.CleanUp.Application.Performance(TimeProvider.System), TimeProvider.System), new FakeTimeProvider(DateTimeOffset.UtcNow)));
 
     /// <summary>Run from a Claude Code session, the test host has an agent above it, and that agent is a session.</summary>
     [MachineFact]

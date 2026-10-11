@@ -11,6 +11,7 @@ public sealed class ProcessTableTests
         17181 17119 Sun Oct  4 19:56:24 2026     /Users/orldev/.vscode/extensions/anthropic.claude-code/native-binary/claude --output-format stream-json
         17203 17181 Sun Oct 11 19:56:25 2026     dotnet /mcp/Snail.MCP.Plans.dll  --twice  spaced
         not a process line
+           42     1 Sun Oct 11 14:04:06 2026
         """;
 
     [Fact]

@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Hosting;
-using Snail.MCP.CleanUp.Core.Application;
 
 namespace Snail.MCP.CleanUp.Application;
 
@@ -10,7 +9,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// worth anything — a process started under the agent and handed to launchd a minute later is only known
 /// to be the agent's because a census saw it while it was still a child.
 /// </remarks>
-public sealed class Watch(Census census, ISessions sessions, ILogger<Watch> logger, TimeProvider clock) : BackgroundService
+public sealed class Watch(MeasuredCensus census, ISessions sessions, ILogger<Watch> logger, TimeProvider clock) : BackgroundService
 {
     /// <summary>How often a census is taken while the session runs.</summary>
     public static TimeSpan Interval { get; } = TimeSpan.FromSeconds(30);
@@ -33,7 +32,8 @@ public sealed class Watch(Census census, ISessions sessions, ILogger<Watch> logg
         {
             var asker = await sessions.CurrentAsync(cancellationToken);
             var inventory = await census.TakeAsync(asker, cancellationToken);
-            var orphans = inventory.Resources.Count(resource => resource.Owner.IsKnown && resource.Owner != asker && !inventory.Alive.Contains(resource.Owner));
+            var alive = inventory.Alive;
+            var orphans = inventory.Resources.Count(resource => resource.Owner.IsKnown && resource.Owner != asker && !alive.Contains(resource.Owner));
 
             logger.LogDebug("census for {Asker}: {Resources} resources, {Orphans} left by ended sessions", asker, inventory.Resources.Count, orphans);
         }

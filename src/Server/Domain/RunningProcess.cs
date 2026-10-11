@@ -15,9 +15,17 @@ public sealed record RunningProcess(int Pid, int ParentPid, DateTimeOffset Start
     /// <summary>The path of the executable, when the process table could say it.</summary>
     public string? Executable { get; init; }
 
+    /// <summary>The name the program was started under, its first argument, when the process table could say it.</summary>
+    /// <remarks>
+    /// One executable can run under many names: Claude Code's single binary runs as <c>claude</c> and as the <c>ugrep</c>
+    /// its shells call — measured on 2026-10-12, when the path alone named every grep of a session an agent. The name
+    /// it was started under is what says which of them it is, and it is what ps prints too.
+    /// </remarks>
+    public string? Name { get; init; }
+
     /// <summary>The key that names this process and no later one that is given the same id.</summary>
     public string Key => $"{Pid}@{StartedAt.ToUnixTimeSeconds()}";
 
     /// <summary>The name of the program, without its directory or its arguments.</summary>
-    public string Program => Path.GetFileName(Executable ?? Command.Split(' ', 2)[0]);
+    public string Program => Name ?? Path.GetFileName(Executable ?? Command.Split(' ', 2)[0]);
 }

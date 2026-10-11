@@ -16,7 +16,7 @@ public sealed class EditorTests : IDisposable
 
     private EditorKind Kind => KindAt(_clock);
 
-    private EditorKind KindAt(FakeTimeProvider clock) => new(Config, new Disposal(Config, clock), clock);
+    private EditorKind KindAt(FakeTimeProvider clock) => new(Config, new Disposal(Config, clock), new Sizes(clock), clock);
 
     private string State(string hash, string json)
     {

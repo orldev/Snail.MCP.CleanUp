@@ -1,3 +1,4 @@
+using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Core.Adapters;
 using Snail.MCP.CleanUp.Core.Domain;
@@ -22,7 +23,7 @@ public sealed class TrailsTests : IDisposable
     {
         Made("a/b/c");
 
-        var traces = await new FileTrail([(_scratch.Path, 2)]).FollowAsync([], CancellationToken.None);
+        var traces = await new FileTrail([(_scratch.Path, 2)], new Sizes(TimeProvider.System)).FollowAsync([], CancellationToken.None);
 
         Assert.Equal([_scratch.File("a"), _scratch.File("a/b")], traces.Select(trace => trace.Key).Order(StringComparer.Ordinal));
     }
@@ -34,7 +35,7 @@ public sealed class TrailsTests : IDisposable
         Made("app/Cache/11");
 
         var rule = new Rule("file", $"{_scratch.Path}/app/Cache/*", RuleAction.Cache);
-        var traces = await new FileTrail([(_scratch.Path, 1)]).FollowAsync([rule], CancellationToken.None);
+        var traces = await new FileTrail([(_scratch.Path, 1)], new Sizes(TimeProvider.System)).FollowAsync([rule], CancellationToken.None);
 
         Assert.Contains(traces, trace => trace.Key == _scratch.File("app/Cache/11"));
     }
@@ -46,7 +47,7 @@ public sealed class TrailsTests : IDisposable
 
         await File.WriteAllBytesAsync(Path.Combine(path, "blob"), new byte[4096]);
 
-        Assert.Equal(4096, (await new FileTrail([]).MeasureAsync(new Trace("file", path, path), CancellationToken.None)).Bytes);
+        Assert.Equal(4096, (await new FileTrail([], new Sizes(TimeProvider.System)).MeasureAsync(new Trace("file", path, path), CancellationToken.None)).Bytes);
     }
 
     [Fact]

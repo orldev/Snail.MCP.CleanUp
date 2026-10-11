@@ -14,7 +14,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// when it ends. A hook never blocks the agent and never prints to it: whatever happens is written to the
 /// sweep log, and the hook exits cleanly.
 /// </remarks>
-public sealed class Hooks(Census census, Cleaner cleaner, ServerConfig config, ILogger<Hooks> logger, TimeProvider clock)
+public sealed class Hooks(MeasuredCensus census, Cleaner cleaner, ServerConfig config, ILogger<Hooks> logger, TimeProvider clock)
 {
     /// <summary>The verb Claude Code calls the server with as a hook.</summary>
     public const string Verb = "hook";

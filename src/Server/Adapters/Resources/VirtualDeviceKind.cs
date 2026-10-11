@@ -1,4 +1,3 @@
-using Snail.MCP.CleanUp.Adapters.Trails;
 
 namespace Snail.MCP.CleanUp.Adapters.Resources;
 
@@ -8,7 +7,7 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// moved to the Trash: its data is gigabytes, and gigabytes in the Trash are still gigabytes on the disk.
 /// A device is never removed while an emulator runs it.
 /// </remarks>
-public sealed class VirtualDeviceKind(Android android, IProcessTable table) : IResourceKind
+public sealed class VirtualDeviceKind(Android android, IProcessTable table, Sizes sizes) : IResourceKind
 {
     /// <inheritdoc/>
     public string Name => Kinds.VirtualDevice;
@@ -62,7 +61,7 @@ public sealed class VirtualDeviceKind(Android android, IProcessTable table) : IR
             Owner = owner,
             Evidence = owner.IsKnown ? Evidence.Label : Evidence.None,
             IsRegenerable = owner.IsKnown,
-            Bytes = Sizes.Of(Path.Combine(android.Devices, $"{name}.avd")),
+            Bytes = sizes.Of(Path.Combine(android.Devices, $"{name}.avd")),
             After = isRunning ? [$"{Kinds.Emulator}:{name}"] : []
         };
     }

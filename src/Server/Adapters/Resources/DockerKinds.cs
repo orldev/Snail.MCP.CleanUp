@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+
 namespace Snail.MCP.CleanUp.Adapters.Resources;
 
 /// <summary>Docker containers: owned when they carry the owner label, never otherwise.</summary>
@@ -6,63 +8,51 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// <c>--label snail.owner=…</c> is proof; one without it is named and left alone, however recently it
 /// appeared — and the trail notices it as something new.
 /// </remarks>
-public sealed class ContainerKind(Docker docker) : IResourceKind
+public sealed class ContainerKind(IDockerEngine engine) : IResourceKind
 {
     /// <inheritdoc/>
     public string Name => Kinds.Container;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
-    {
-        if (await docker.UnreachableAsync(cancellationToken) is { } reason)
-            return Observation.Unseen(Name, reason);
-
-        var listed = await docker.RunAsync(["ps", "-a", "--no-trunc", "--format", "{{json .}}"], cancellationToken);
-
-        return new Observation(Name, [.. Docker.Lines(listed.Output).Select(Described)], []);
-    }
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken) =>
+        await engine.SnapshotAsync(cancellationToken) is { } snapshot
+            ? new Observation(Name, [.. snapshot.Containers.Select(Described)], [])
+            : Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
 
     /// <inheritdoc/>
     public async Task<Release> ReleaseAsync(Resource resource, CancellationToken cancellationToken)
     {
-        var listed = await docker.RunAsync(["ps", "-a", "--no-trunc", "--filter", $"id={resource.Key}", "--format", "{{json .}}"], cancellationToken);
-        if (Docker.Lines(listed.Output) is not [var present, ..])
+        if (await engine.ContainerAsync(resource.Key, cancellationToken) is not { } present)
             return Release.AlreadyGone(resource);
 
-        if (Docker.OwnerOf(Docker.Labels(Docker.Text(present, "Labels"))) != resource.Owner && resource.Evidence == Evidence.Label)
+        if (Docker.OwnerOf(present.Labels) != resource.Owner && resource.Evidence == Evidence.Label)
             return Release.NotTheSame(resource, "its owner label changed since the plan was made");
 
-        var removed = await docker.RunAsync(["rm", "-f", resource.Key], cancellationToken);
+        var removed = await engine.RemoveAsync("containers", resource.Key, cancellationToken);
 
-        return removed.IsSuccess ? Release.Done(resource, $"removed container {Docker.Text(present, "Names")}") : Release.Refused(resource, removed.Failure);
+        return removed.IsDone ? Release.Done(resource, $"removed container {present.Name}") : Release.Refused(resource, removed.Message);
     }
 
-    private Resource Described(System.Text.Json.JsonElement line)
+    private Resource Described(DockerContainer container)
     {
-        var labels = Docker.Labels(Docker.Text(line, "Labels"));
-        var owner = Docker.OwnerOf(labels);
+        var owner = Docker.OwnerOf(container.Labels);
 
         return new Resource
         {
             Kind = Name,
-            Key = Docker.Text(line, "ID"),
-            Title = $"container {Docker.Text(line, "Names")} ({Docker.Text(line, "Image")}, {Docker.Text(line, "State")})",
+            Key = container.Id,
+            Title = $"container {container.Name} ({container.Image}, {container.State})",
             Owner = owner,
             Evidence = owner.IsKnown ? Evidence.Label : Evidence.None,
-            Facts = new Dictionary<string, string>
-            {
-                ["name"] = Docker.Text(line, "Names"),
-                ["networks"] = Docker.Text(line, "Networks"),
-                ["mounts"] = Docker.Text(line, "Mounts")
-            }
+            Facts = new Dictionary<string, string> { ["name"] = container.Name }
         };
     }
 }
 
-/// <summary>Docker networks and volumes: owned by the label, released after every container that uses them.</summary>
-public sealed class NetworkKind(Docker docker) : IResourceKind
+/// <summary>Docker networks: owned by the label, released after every container that uses them.</summary>
+public sealed class NetworkKind(IDockerEngine engine) : IResourceKind
 {
-    private static readonly HashSet<string> Builtin = new(StringComparer.Ordinal) { "bridge", "host", "none" };
+    private static readonly FrozenSet<string> Builtin = FrozenSet.Create(StringComparer.Ordinal, "bridge", "host", "none");
 
     /// <inheritdoc/>
     public string Name => Kinds.Network;
@@ -70,47 +60,42 @@ public sealed class NetworkKind(Docker docker) : IResourceKind
     /// <inheritdoc/>
     public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
     {
-        if (await docker.UnreachableAsync(cancellationToken) is { } reason)
-            return Observation.Unseen(Name, reason);
+        if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
+            return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
 
-        var networks = Docker.Lines((await docker.RunAsync(["network", "ls", "--no-trunc", "--format", "{{json .}}"], cancellationToken)).Output);
-        var containers = Docker.Lines((await docker.RunAsync(["ps", "-a", "--no-trunc", "--format", "{{json .}}"], cancellationToken)).Output);
-
-        return new Observation(Name, [.. networks.Where(line => !Builtin.Contains(Docker.Text(line, "Name"))).Select(line => Described(line, containers))], []);
+        return new Observation(Name, [.. snapshot.Networks.Where(network => !Builtin.Contains(network.Name)).Select(network => Described(network, snapshot.Containers))], []);
     }
 
     /// <inheritdoc/>
     public async Task<Release> ReleaseAsync(Resource resource, CancellationToken cancellationToken)
     {
-        var removed = await docker.RunAsync(["network", "rm", resource.Key], cancellationToken);
+        var removed = await engine.RemoveAsync("networks", resource.Key, cancellationToken);
 
-        if (removed.IsSuccess)
+        if (removed.IsDone)
             return Release.Done(resource, $"removed network {resource.Facts["name"]}");
 
-        return removed.Error.Contains("not found", StringComparison.OrdinalIgnoreCase) ? Release.AlreadyGone(resource) : Release.Refused(resource, removed.Failure);
+        return removed.IsMissing ? Release.AlreadyGone(resource) : Release.Refused(resource, removed.Message);
     }
 
-    private Resource Described(System.Text.Json.JsonElement line, IReadOnlyList<System.Text.Json.JsonElement> containers)
+    private Resource Described(DockerNetwork network, IReadOnlyList<DockerContainer> containers)
     {
-        var name = Docker.Text(line, "Name");
-        var owner = Docker.OwnerOf(Docker.Labels(Docker.Text(line, "Labels")));
-        var users = containers.Where(container => Docker.Text(container, "Networks").Split(',').Contains(name, StringComparer.Ordinal));
+        var owner = Docker.OwnerOf(network.Labels);
 
         return new Resource
         {
             Kind = Name,
-            Key = Docker.Text(line, "ID"),
-            Title = $"network {name}",
+            Key = network.Id,
+            Title = $"network {network.Name}",
             Owner = owner,
             Evidence = owner.IsKnown ? Evidence.Label : Evidence.None,
-            After = [.. users.Select(container => $"{Kinds.Container}:{Docker.Text(container, "ID")}")],
-            Facts = new Dictionary<string, string> { ["name"] = name }
+            After = [.. containers.Where(container => container.Networks.Contains(network.Name, StringComparer.Ordinal)).Select(container => $"{Kinds.Container}:{container.Id}")],
+            Facts = new Dictionary<string, string> { ["name"] = network.Name }
         };
     }
 }
 
 /// <summary>Docker volumes: the one Docker object that holds work, so it goes only on its label and only after its containers.</summary>
-public sealed class VolumeKind(Docker docker) : IResourceKind
+public sealed class VolumeKind(IDockerEngine engine) : IResourceKind
 {
     /// <inheritdoc/>
     public string Name => Kinds.Volume;
@@ -118,51 +103,41 @@ public sealed class VolumeKind(Docker docker) : IResourceKind
     /// <inheritdoc/>
     public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
     {
-        if (await docker.UnreachableAsync(cancellationToken) is { } reason)
-            return Observation.Unseen(Name, reason);
+        if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
+            return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
 
-        var volumes = Docker.Lines((await docker.RunAsync(["volume", "ls", "--format", "{{json .}}"], cancellationToken)).Output);
-        var containers = Docker.Lines((await docker.RunAsync(["ps", "-a", "--no-trunc", "--format", "{{json .}}"], cancellationToken)).Output);
-
-        return new Observation(Name, [.. volumes.Select(line => Described(line, containers))], []);
+        return new Observation(Name, [.. snapshot.Volumes.Select(volume => Described(volume, snapshot.Containers))], []);
     }
 
     /// <inheritdoc/>
     public async Task<Release> ReleaseAsync(Resource resource, CancellationToken cancellationToken)
     {
-        var removed = await docker.RunAsync(["volume", "rm", resource.Key], cancellationToken);
+        var removed = await engine.RemoveAsync("volumes", resource.Key, cancellationToken);
 
-        if (removed.IsSuccess)
+        if (removed.IsDone)
             return Release.Done(resource, $"removed volume {resource.Key}");
 
-        return removed.Error.Contains("no such volume", StringComparison.OrdinalIgnoreCase) ? Release.AlreadyGone(resource) : Release.Refused(resource, removed.Failure);
+        return removed.IsMissing ? Release.AlreadyGone(resource) : Release.Refused(resource, removed.Message);
     }
 
-    private Resource Described(System.Text.Json.JsonElement line, IReadOnlyList<System.Text.Json.JsonElement> containers)
+    private Resource Described(DockerVolume volume, IReadOnlyList<DockerContainer> containers)
     {
-        var name = Docker.Text(line, "Name");
-        var owner = Docker.OwnerOf(Docker.Labels(Docker.Text(line, "Labels")));
-        var users = containers.Where(container => Docker.Text(container, "Mounts").Split(',').Contains(name, StringComparer.Ordinal));
+        var owner = Docker.OwnerOf(volume.Labels);
 
         return new Resource
         {
             Kind = Name,
-            Key = name,
-            Title = $"volume {name}",
+            Key = volume.Name,
+            Title = $"volume {volume.Name}",
             Owner = owner,
             Evidence = owner.IsKnown ? Evidence.Label : Evidence.None,
-            After = [.. users.Select(container => $"{Kinds.Container}:{Docker.Text(container, "ID")}")]
+            After = [.. containers.Where(container => container.Volumes.Contains(volume.Name, StringComparer.Ordinal)).Select(container => $"{Kinds.Container}:{container.Id}")]
         };
     }
 }
 
-/// <summary>Docker images built with the owner label, and the build cache every build shares.</summary>
-/// <remarks>
-/// The build cache belongs to the machine, not to an agent, and rebuilds itself: it is a cache in every
-/// sense, removed only when caches are asked for by name. It is also where the disk goes — a stand whose
-/// disk filled stopped its database without a word — so its size is always in the inventory.
-/// </remarks>
-public sealed class ImageKind(Docker docker) : IResourceKind
+/// <summary>Docker images built with the owner label.</summary>
+public sealed class ImageKind(IDockerEngine engine) : IResourceKind
 {
     /// <inheritdoc/>
     public string Name => Kinds.Image;
@@ -170,52 +145,46 @@ public sealed class ImageKind(Docker docker) : IResourceKind
     /// <inheritdoc/>
     public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
     {
-        if (await docker.UnreachableAsync(cancellationToken) is { } reason)
-            return Observation.Unseen(Name, reason);
+        if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
+            return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
 
-        var labelled = Docker.Lines((await docker.RunAsync(["image", "ls", "--no-trunc", "--filter", $"label={Docker.OwnerLabel}", "--format", "{{json .}}"], cancellationToken)).Output);
-        var found = new List<Resource>();
-
-        foreach (var line in labelled)
-        {
-            var id = Docker.Text(line, "ID");
-            var owner = await OwnerAsync(id, cancellationToken);
-
-            found.Add(new Resource
-            {
-                Kind = Name,
-                Key = id,
-                Title = $"image {Docker.Text(line, "Repository")}:{Docker.Text(line, "Tag")}",
-                Owner = owner,
-                Evidence = owner.IsKnown ? Evidence.Label : Evidence.None,
-                Bytes = Docker.Bytes(Docker.Text(line, "Size"))
-            });
-        }
-
-        return new Observation(Name, found, []);
+        return new Observation(Name, [.. snapshot.Labelled.Select(Described)], []);
     }
 
     /// <inheritdoc/>
     public async Task<Release> ReleaseAsync(Resource resource, CancellationToken cancellationToken)
     {
-        var removed = await docker.RunAsync(["image", "rm", resource.Key], cancellationToken);
+        var removed = await engine.RemoveAsync("images", resource.Key, cancellationToken);
 
-        if (removed.IsSuccess)
+        if (removed.IsDone)
             return Release.Done(resource, $"removed {resource.Title}");
 
-        return removed.Error.Contains("No such image", StringComparison.OrdinalIgnoreCase) ? Release.AlreadyGone(resource) : Release.Refused(resource, removed.Failure);
+        return removed.IsMissing ? Release.AlreadyGone(resource) : Release.Refused(resource, removed.Message);
     }
 
-    private async Task<Owner> OwnerAsync(string id, CancellationToken cancellationToken)
+    private Resource Described(DockerImage image)
     {
-        var inspected = await docker.RunAsync(["image", "inspect", "--format", $"{{{{index .Config.Labels \"{Docker.OwnerLabel}\"}}}}", id], cancellationToken);
+        var owner = Docker.OwnerOf(image.Labels);
 
-        return inspected.IsSuccess ? Owner.Parse(inspected.Output.Trim()) : Owner.Nobody;
+        return new Resource
+        {
+            Kind = Name,
+            Key = image.Id,
+            Title = $"image {(image.Tags.Count > 0 ? image.Tags[0] : image.Id[..Math.Min(19, image.Id.Length)])}",
+            Owner = owner,
+            Evidence = owner.IsKnown ? Evidence.Label : Evidence.None,
+            Bytes = image.Size
+        };
     }
 }
 
 /// <summary>Docker's build cache, as one shared resource the size of what it could give back.</summary>
-public sealed class BuildCacheKind(Docker docker) : IResourceKind
+/// <remarks>
+/// The build cache belongs to the machine, not to an agent, and rebuilds itself: it is a cache in every sense,
+/// removed only when caches are asked for by name. It is also where the disk goes — a stand whose disk filled
+/// stopped its database without a word — so its size is always in the inventory.
+/// </remarks>
+public sealed class BuildCacheKind(IDockerEngine engine) : IResourceKind
 {
     /// <inheritdoc/>
     public string Name => Kinds.BuildCache;
@@ -223,14 +192,10 @@ public sealed class BuildCacheKind(Docker docker) : IResourceKind
     /// <inheritdoc/>
     public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
     {
-        if (await docker.UnreachableAsync(cancellationToken) is { } reason)
-            return Observation.Unseen(Name, reason);
+        if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
+            return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
 
-        var usage = Docker.Lines((await docker.RunAsync(["system", "df", "--format", "{{json .}}"], cancellationToken)).Output);
-        var cache = usage.FirstOrDefault(line => Docker.Text(line, "Type") == "Build Cache");
-        var bytes = cache.ValueKind == System.Text.Json.JsonValueKind.Undefined ? null : Docker.Bytes(Docker.Text(cache, "Reclaimable"));
-
-        if (bytes is not > 0)
+        if (snapshot.BuildCacheReclaimable <= 0)
             return new Observation(Name, [], []);
 
         return new Observation(
@@ -240,10 +205,10 @@ public sealed class BuildCacheKind(Docker docker) : IResourceKind
                 {
                     Kind = Name,
                     Key = "docker",
-                    Title = $"Docker build cache, {Docker.Text(cache, "Reclaimable")} reclaimable",
+                    Title = $"Docker build cache, {Snail.MCP.CleanUp.Application.Views.Size(snapshot.BuildCacheReclaimable)} reclaimable",
                     IsShared = true,
                     IsRegenerable = true,
-                    Bytes = bytes
+                    Bytes = snapshot.BuildCacheReclaimable
                 }
             ],
             []);
@@ -252,9 +217,9 @@ public sealed class BuildCacheKind(Docker docker) : IResourceKind
     /// <inheritdoc/>
     public async Task<Release> ReleaseAsync(Resource resource, CancellationToken cancellationToken)
     {
-        var pruned = await docker.RunAsync(["builder", "prune", "-f"], cancellationToken);
+        var pruned = await engine.PruneAsync("build", cancellationToken);
 
-        return pruned.IsSuccess ? Release.Done(resource, "pruned the build cache; the next build fills what it needs") : Release.Refused(resource, pruned.Failure);
+        return pruned.IsDone ? Release.Done(resource, "pruned the build cache; the next build fills what it needs") : Release.Refused(resource, pruned.Message);
     }
 }
 
@@ -262,9 +227,9 @@ public sealed class BuildCacheKind(Docker docker) : IResourceKind
 /// <remarks>
 /// A compose stand rebuilt twenty times keeps twenty images of each service, nineteen of them called
 /// <c>&lt;none&gt;</c>. They are nobody's on purpose and rebuild themselves, so they are one shared cache, removed only
-/// when caches are asked for — by <c>image prune</c>, which never touches an image a tag or a container still uses.
+/// when caches are asked for — by the prune of dangling images, which never touches an image a tag or a container still uses.
 /// </remarks>
-public sealed class DanglingImageKind(Docker docker) : IResourceKind
+public sealed class DanglingImageKind(IDockerEngine engine) : IResourceKind
 {
     /// <inheritdoc/>
     public string Name => Kinds.DanglingImages;
@@ -272,15 +237,11 @@ public sealed class DanglingImageKind(Docker docker) : IResourceKind
     /// <inheritdoc/>
     public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
     {
-        if (await docker.UnreachableAsync(cancellationToken) is { } reason)
-            return Observation.Unseen(Name, reason);
+        if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
+            return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
 
-        var dangling = Docker.Lines((await docker.RunAsync(["image", "ls", "--filter", "dangling=true", "--format", "{{json .}}"], cancellationToken)).Output);
-
-        if (dangling.Count == 0)
+        if (snapshot.Dangling.Count == 0)
             return new Observation(Name, [], []);
-
-        var bytes = dangling.Sum(line => Docker.Bytes(Docker.Text(line, "Size")) ?? 0);
 
         return new Observation(
             Name,
@@ -289,10 +250,10 @@ public sealed class DanglingImageKind(Docker docker) : IResourceKind
                 {
                     Kind = Name,
                     Key = "docker",
-                    Title = $"{dangling.Count} Docker image(s) no tag points at, left by rebuilds",
+                    Title = $"{snapshot.Dangling.Count} Docker image(s) no tag points at, left by rebuilds",
                     IsShared = true,
                     IsRegenerable = true,
-                    Bytes = bytes
+                    Bytes = snapshot.Dangling.Sum(image => image.Size)
                 }
             ],
             []);
@@ -301,9 +262,9 @@ public sealed class DanglingImageKind(Docker docker) : IResourceKind
     /// <inheritdoc/>
     public async Task<Release> ReleaseAsync(Resource resource, CancellationToken cancellationToken)
     {
-        var pruned = await docker.RunAsync(["image", "prune", "-f"], cancellationToken);
+        var pruned = await engine.PruneAsync("dangling", cancellationToken);
 
-        return pruned.IsSuccess ? Release.Done(resource, "pruned the images no tag points at") : Release.Refused(resource, pruned.Failure);
+        return pruned.IsDone ? Release.Done(resource, "pruned the images no tag points at") : Release.Refused(resource, pruned.Message);
     }
 }
 
@@ -312,9 +273,10 @@ public sealed class DanglingImageKind(Docker docker) : IResourceKind
 /// BuildKit keeps a record of every build — its log, its steps, its provenance — and trims them itself, by default
 /// to fifty records and two days: measured on 2026-10-11 at exactly fifty on a Mac that builds a stand of seven
 /// images. So they do not grow without end, and today's are what a failed build is read from. Only the older ones
-/// are a cache, removed when caches are asked for.
+/// are a cache, removed when caches are asked for. The records are BuildKit's, not the Engine's, so they are read
+/// through the command line.
 /// </remarks>
-public sealed class BuildHistoryKind(Docker docker, TimeProvider clock) : IResourceKind
+public sealed class BuildHistoryKind(IDockerEngine engine, Docker docker, TimeProvider clock) : IResourceKind
 {
     /// <summary>How old a record must be before it counts as nobody's business any more.</summary>
     public static TimeSpan Kept { get; } = TimeSpan.FromDays(1);
@@ -325,7 +287,7 @@ public sealed class BuildHistoryKind(Docker docker, TimeProvider clock) : IResou
     /// <inheritdoc/>
     public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
     {
-        if (await docker.UnreachableAsync(cancellationToken) is { } reason)
+        if (await engine.UnreachableAsync(cancellationToken) is { } reason)
             return Observation.Unseen(Name, reason);
 
         var old = await OldAsync(cancellationToken);
@@ -363,7 +325,7 @@ public sealed class BuildHistoryKind(Docker docker, TimeProvider clock) : IResou
 
     private async Task<IReadOnlyList<string>> OldAsync(CancellationToken cancellationToken)
     {
-        var listed = await docker.RunAsync(["buildx", "history", "ls", "--format", "{{json .}}"], cancellationToken);
+        var listed = await docker.ReadAsync(["buildx", "history", "ls", "--format", "{{json .}}"], cancellationToken);
         var before = clock.GetUtcNow() - Kept;
 
         return

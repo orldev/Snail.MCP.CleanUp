@@ -14,7 +14,7 @@ public sealed class CertificateTrail(IPrograms programs) : ITrail
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken)
     {
-        var run = await programs.RunAsync("security", ["find-certificate", "-a", "-Z"], TimeSpan.FromSeconds(15), cancellationToken);
+        var run = await programs.ReadAsync("security", ["find-certificate", "-a", "-Z"], IPrograms.Census, TimeSpan.FromSeconds(15), cancellationToken);
 
         return run.IsSuccess ? Parse(run.Output) : [];
     }

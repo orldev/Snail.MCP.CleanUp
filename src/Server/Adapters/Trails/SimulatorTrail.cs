@@ -14,7 +14,7 @@ public sealed class SimulatorTrail(IPrograms programs) : ITrail
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken)
     {
-        var run = await programs.RunAsync("xcrun", ["simctl", "list", "devices", "-j"], TimeSpan.FromSeconds(30), cancellationToken);
+        var run = await programs.ReadAsync("xcrun", ["simctl", "list", "devices", "-j"], IPrograms.Census, TimeSpan.FromSeconds(60), cancellationToken);
 
         return run.IsSuccess ? [.. Simulators.Parse(run.Output).Select(device => new Trace(Name, device.Udid, device.Name))] : [];
     }

@@ -1,3 +1,5 @@
+using Snail.MCP.CleanUp.Configuration;
+
 namespace Snail.MCP.CleanUp.Adapters.Trails;
 
 /// <summary>Programs that were handed to launchd: the ones that outlive whatever started them.</summary>
@@ -9,9 +11,6 @@ namespace Snail.MCP.CleanUp.Adapters.Trails;
 /// </remarks>
 public sealed class ProcessTrail(IProcessTable processes) : ITrail
 {
-    private static readonly string[] SystemPlaces =
-        ["/Applications/", "/System/", "/usr/libexec/", "/usr/sbin/", "/sbin/", "/Library/Apple/", "/Library/Application Support/", "/usr/bin/"];
-
     /// <inheritdoc/>
     public string Name => "process";
 
@@ -19,7 +18,7 @@ public sealed class ProcessTrail(IProcessTable processes) : ITrail
     public async Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken) =>
     [
         .. (await processes.ListAsync(cancellationToken))
-            .Where(process => process.ParentPid == 1 && !SystemPlaces.Any(place => process.Command.StartsWith(place, StringComparison.Ordinal)))
+            .Where(process => process.ParentPid == 1 && !MacPlaces.IsSystem(process.Command))
             .Select(process => new Trace(Name, process.Key, Shortened(process.Command)))
     ];
 
