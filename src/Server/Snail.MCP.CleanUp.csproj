@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>Snail.MCP.CleanUp</RootNamespace>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <RollForward>LatestMajor</RollForward>
+    </PropertyGroup>
+
+    <PropertyGroup>
+        <PackAsTool>true</PackAsTool>
+        <ToolCommandName>snail-mcp-cleanup</ToolCommandName>
+        <PackageType>McpServer</PackageType>
+        <PackageId>Snail.MCP.CleanUp</PackageId>
+        <Version>0.1.0</Version>
+        <Authors>orldev</Authors>
+        <Description>Local MCP server that keeps account of what AI agents leave behind on a Mac — processes, ports, temporary files, Docker objects, iOS simulators, Android emulators, editor state — and removes what is proven theirs, reporting everything it cannot prove.</Description>
+        <PackageTags>mcp;mcp-server;modelcontextprotocol;ai;claude;cleanup;simulator;emulator;dotnet-tool</PackageTags>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageProjectUrl>https://github.com/orldev/Snail.MCP.CleanUp</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/orldev/Snail.MCP.CleanUp</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <None Include="..\..\README.md" Pack="true" PackagePath="/" Visible="false"/>
+        <None Include="..\..\.mcp\server.json" Pack="true" PackagePath="/.mcp/" Visible="false"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Hosting"/>
+        <PackageReference Include="ModelContextProtocol"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Core\Snail.MCP.CleanUp.Core.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Snail.MCP.CleanUp.Tests"/>
+    </ItemGroup>
+
+</Project>
