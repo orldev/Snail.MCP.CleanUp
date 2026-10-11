@@ -15,9 +15,51 @@
       "environmentVariables": [
         {
           "name": "SNAIL_MCP_CLEANUP_DATA_DIRECTORY",
-          "description": "Where the ledger, the learned rules and the logs of tracked processes live; one directory for every session on the machine.",
+          "description": "Where the ledger, the learned rules and the logs of runs and sweeps live; one directory for every session on the machine.",
           "isRequired": false,
           "default": "~/.snail-mcp-cleanup"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_TRASH_DIRECTORY",
+          "description": "Where what cannot be made again is moved to instead of being erased.",
+          "isRequired": false,
+          "default": "~/.Trash"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_SCRATCH_ROOT",
+          "description": "Where Claude Code makes its claude-<uid> scratch root.",
+          "isRequired": false,
+          "default": "/private/tmp"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_SLEEP_OF_DIRECTORY",
+          "description": "Where Snail.SleepOf keeps its agents.json, the first place sessions are read from.",
+          "isRequired": false,
+          "default": "~/Library/Application Support/Snail.SleepOf"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_ANDROID_SDK",
+          "description": "The Android SDK with emulator, platform-tools and system-images.",
+          "isRequired": false,
+          "default": "~/Library/Android/sdk"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_AVD_DIRECTORY",
+          "description": "Where Android virtual devices are defined.",
+          "isRequired": false,
+          "default": "~/.android/avd"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_EDITOR_USER_DIRECTORY",
+          "description": "VS Code's user directory, with workspaceStorage inside.",
+          "isRequired": false,
+          "default": "~/Library/Application Support/Code/User"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_CLAUDE_SETTINGS",
+          "description": "Claude Code's settings, where install-hooks writes this server's hooks.",
+          "isRequired": false,
+          "default": "~/.claude/settings.json"
         }
       ]
     }
