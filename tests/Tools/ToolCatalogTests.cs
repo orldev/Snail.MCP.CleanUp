@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using ModelContextProtocol.Server;
+using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Tools;
 using Snail.MCP.CleanUp.Tools.Prompts;
 
 namespace Snail.MCP.CleanUp.Tests.Tools;
@@ -67,7 +69,8 @@ public sealed partial class ToolCatalogTests
     /// <summary>
     /// The tool list is read into the context of every session before anything is asked, so its size is
     /// spent whether or not a tool is used. The platform this fleet serves measured 65 tools at 12 800 tokens,
-    /// 39% of a 32k window; this server stays well under a tenth of that.
+    /// 39% of a 32k window. Measured on 2026-10-11 at 4123 characters over eleven tools; the ceiling leaves
+    /// room for one more short tool, and the one after it has to take something out first.
     /// </summary>
     [Fact]
     public void TheToolList_ReadIntoEverySession_StaysWithinItsBudget()
@@ -77,8 +80,35 @@ public sealed partial class ToolCatalogTests
             + tool.GetCustomAttribute<DescriptionAttribute>()!.Description.Length
             + tool.GetParameters().Sum(parameter => parameter.Name!.Length + (parameter.GetCustomAttribute<DescriptionAttribute>()?.Description.Length ?? 0)));
 
-        Assert.InRange(characters, 1, 7168);
+        Assert.InRange(characters, 1, 4608);
     }
+
+    /// <summary>A scope the code knows and the description never names is one no model will ever ask for.</summary>
+    [Fact]
+    public void PlanScope_NamesEveryScope() =>
+        Assert.All(Enum.GetNames<Scope>(), scope => Assert.Contains(scope.ToLowerInvariant(), ToolDescriptions.PlanScope, StringComparison.Ordinal));
+
+    [Fact]
+    public void LearnAction_NamesEveryRuleAction() =>
+        Assert.All(Enum.GetNames<RuleAction>(), action => Assert.Contains(action.ToLowerInvariant(), ToolDescriptions.LearnAction, StringComparison.Ordinal));
+
+    /// <summary>A limit a caller is not told about is one it meets as a refusal in the middle of its work.</summary>
+    [Fact]
+    public void PlanDescription_StatesTheLifetimeTheCodeHolds() =>
+        Assert.Contains($"within {Plan.Lifetime.TotalMinutes:0} minutes", ToolDescriptions.Plan, StringComparison.Ordinal);
+
+    /// <summary>A client asks before a tool without the hint runs; only what changes nothing goes unasked.</summary>
+    [Fact]
+    public void OnlyTheToolsThatChangeNothing_AreReadOnly() =>
+        Assert.Equal(["cleanup_diagnose", "cleanup_inventory", "cleanup_plan", "find_tool"], [.. Catalog.Named(tool => tool.ReadOnly)]);
+
+    [Fact]
+    public void OnlyTheToolsThatRemove_AreDestructive() =>
+        Assert.Equal(["cleanup_apply", "cleanup_release"], [.. Catalog.Named(tool => tool.Destructive)]);
+
+    [Fact]
+    public void EveryWordTheIndexKnows_BelongsToAToolThatExists() =>
+        Assert.Equal(Catalog.Names, [.. ToolIndex.Meant().Order(StringComparer.Ordinal)]);
 
     [GeneratedRegex(@"cleanup_[a-z_]+", RegexOptions.CultureInvariant)]
     private static partial Regex ToolName();

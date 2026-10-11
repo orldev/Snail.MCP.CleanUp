@@ -27,4 +27,16 @@ public static class Messages
 
     /// <summary>How an emulator is asked for, for a caller that asked wrongly.</summary>
     public const string EmulatorHint = "Install the Android emulator and a system image with the SDK manager, or pass part of an installed image's path as image.";
+
+    /// <summary>How a plan is carried out, for a caller whose plan was not found or went stale.</summary>
+    public const string PlanHint = "Call cleanup_plan again and pass the planId it returns to cleanup_apply within ten minutes.";
+
+    /// <summary>How one resource is released, for a caller that named one wrongly.</summary>
+    public const string ReleaseHint = "Pass an id exactly as cleanup_inventory or cleanup_plan printed it, such as simulator:<udid>; something that is not proven yours is not released.";
+
+    /// <summary>How a resource is kept.</summary>
+    public const string KeepHint = "Pass the id and the reason it should stay, such as \"the dev server I keep open\".";
+
+    /// <summary>How a rule is learned.</summary>
+    public const string LearnHint = "Pass a pattern such as ~/Library/Caches/tool/*, an action (ignore, report or cache) and the trail of the discovery when it is not file.";
 }

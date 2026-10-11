@@ -4,7 +4,7 @@ using Snail.MCP.CleanUp.Configuration;
 namespace Snail.MCP.CleanUp.Application;
 
 /// <summary>What state the server is in: its build, the session it counts as its own, and what it can see.</summary>
-public sealed class Health(ServerConfig config, ISessions sessions)
+public sealed class Health(ServerConfig config, ISessions sessions, IPrograms programs, Android android, Docker docker)
 {
     /// <summary>The state of the server.</summary>
     public async Task<Answer> ReportAsync(CancellationToken cancellationToken = default)
@@ -25,13 +25,22 @@ public sealed class Health(ServerConfig config, ISessions sessions)
             {
                 ["owner"] = current.ToString(),
                 ["isKnown"] = current.IsKnown,
+                ["dockerLabel"] = current.IsKnown ? $"{Docker.OwnerLabel}={current}" : null,
                 ["source"] = File.Exists(Path.Combine(config.SleepOfDirectory, SleepOfAgents.FileName)) ? "Snail.SleepOf" : "process table"
             },
             ["sessions"] = new JsonObject
             {
                 ["alive"] = known.Count(session => session.IsAlive),
                 ["ended"] = known.Count(session => !session.IsAlive)
-            }
+            },
+            ["reach"] = new JsonObject
+            {
+                ["simctl"] = (await programs.RunAsync("xcrun", ["simctl", "help"], TimeSpan.FromSeconds(10), cancellationToken)).IsSuccess,
+                ["emulator"] = File.Exists(android.Emulator),
+                ["adb"] = File.Exists(android.Adb) ? (await android.IsAdbRunningAsync(cancellationToken) ? "server running" : "installed, server not running") : "not installed",
+                ["docker"] = await docker.UnreachableAsync(cancellationToken) ?? "daemon running"
+            },
+            ["disk"] = Disk.Report()
         });
     }
 }

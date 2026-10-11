@@ -23,7 +23,7 @@ public static class McpServerRegistrationExtensions
         }
 
         /// <summary>stdio carries JSON-RPC, so every log line must go to stderr.</summary>
-        internal IHostApplicationBuilder UseStderrLogging()
+        public IHostApplicationBuilder UseStderrLogging()
         {
             builder.Logging.ClearProviders();
             builder.Logging.AddConsole(options => options.LogToStandardErrorThreshold = LogLevel.Trace);

@@ -23,7 +23,10 @@ public sealed class FileKindTests : IDisposable
         new FileTrail([(_scratch.File("apps"), 1)]),
         new JsonRules(_scratch.File("rules.json"), rules),
         _table,
-        new Disposal(Config, new FakeTimeProvider(DateTimeOffset.UnixEpoch)));
+        new Disposal(Config, new FakeTimeProvider(DateTimeOffset.UnixEpoch)),
+        _clock);
+
+    private FakeTimeProvider _clock = new(DateTimeOffset.UtcNow.AddDays(1));
 
     private string Scratchpad()
     {
@@ -45,6 +48,16 @@ public sealed class FileKindTests : IDisposable
         Assert.Equal(Owner.Session(SessionId), scratchpad.Owner);
         Assert.Equal(Evidence.Label, scratchpad.Evidence);
         Assert.Null(scratchpad.Blocker);
+    }
+
+    /// <summary>A session SleepOf never heard of goes by another name; its scratchpad, written a minute ago, is not an orphan.</summary>
+    [Fact]
+    public async Task Scratchpad_WrittenInTheLastHour_IsNotToBeReleased_WhateverTheSessionsSay()
+    {
+        Scratchpad();
+        _clock = new FakeTimeProvider(DateTimeOffset.UtcNow.AddMinutes(5));
+
+        Assert.NotNull(Assert.Single((await Kind().ObserveAsync([], CancellationToken.None)).Resources).Blocker);
     }
 
     [Fact]

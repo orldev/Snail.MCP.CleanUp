@@ -29,7 +29,9 @@ public sealed class ProcessKindTests : IDisposable
 
     private SqliteLedger Ledger => new(_file);
 
-    private ProcessKind Kind => new(_table, _programs, Ledger, TimeProvider.System);
+    private ProcessKind Kind => new(_table, _programs, Ledger, _later);
+
+    private readonly FakeTimeProvider _later = new(DateTimeOffset.UnixEpoch.AddDays(2));
 
     private static Session SessionOf(RunningProcess agent) => new(Me.Id, agent.Pid, DateTimeOffset.UnixEpoch, "/work", IsAlive: true);
 
@@ -61,6 +63,36 @@ public sealed class ProcessKindTests : IDisposable
         Assert.Equal(Evidence.Ancestry, server.Evidence);
         Assert.Contains("port 3000", server.Title, StringComparison.Ordinal);
         Assert.Contains("port:3000", observed.Claimed);
+    }
+
+    /// <summary>The command the agent is running right now must not be ended by a cleanup it asked for in parallel.</summary>
+    [Fact]
+    public async Task ProgramStartedAMomentAgoUnderARunningAgent_IsBlocked()
+    {
+        var agent = _table.Add(100, 1, "/bin/claude");
+        _table.Add(200, 100, "/bin/zsh -c dotnet test", DateTimeOffset.UnixEpoch.AddDays(2).AddSeconds(-20));
+
+        var shell = Assert.Single((await Kind.ObserveAsync([SessionOf(agent)], CancellationToken.None)).Resources);
+
+        Assert.Contains("right now", shell.Blocker, StringComparison.Ordinal);
+    }
+
+    /// <summary>Measured on 2026-10-11: the first live plan listed the test run that asked for it, and this server's own ps.</summary>
+    [Fact]
+    public void ThisServer_ItsAncestors_AndItsChildren_AreNeverLeftovers()
+    {
+        var table = new FakeProcessTable();
+
+        table.Add(100, 1, "/bin/claude");
+        table.Add(200, 100, "/bin/zsh -c dotnet test");
+        table.Add(300, 200, "dotnet testhost");
+        table.Add(400, 300, "dotnet Snail.MCP.CleanUp.dll");
+        table.Add(500, 400, "ps -axww");
+        table.Add(600, 200, "node server.js");
+
+        var own = ProcessKind.Own(table.Running, table.Running.ToLookup(process => process.ParentPid), self: 400);
+
+        Assert.Equal([100, 200, 300, 400, 500], own.Order());
     }
 
     /// <summary>The servers of a session are its tools; ending one would break the very session that asked.</summary>

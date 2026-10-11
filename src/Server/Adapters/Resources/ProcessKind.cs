@@ -21,6 +21,13 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
     /// <summary>How long a program is given to end on SIGTERM before it is killed.</summary>
     public static TimeSpan Grace { get; } = TimeSpan.FromSeconds(5);
 
+    /// <summary>
+    /// How young a program under a running agent's shell may be and still be the command the agent is running
+    /// right now. A cleanup asked for while a command runs must not end that command: measured on 2026-10-11,
+    /// when the first live plan of this server listed the test run that had asked for it.
+    /// </summary>
+    public static TimeSpan Fresh { get; } = TimeSpan.FromMinutes(2);
+
     private static readonly string[] SystemPlaces =
         ["/Applications/", "/System/", "/usr/libexec/", "/usr/sbin/", "/sbin/", "/Library/Apple/", "/Library/Application Support/", "/usr/bin/"];
 
@@ -38,9 +45,21 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
         var children = running.ToLookup(process => process.ParentPid);
         var listening = await Listeners.ReadAsync(programs, cancellationToken);
         var found = new Dictionary<string, Resource>(StringComparer.Ordinal);
+        var own = Own(running, children, Environment.ProcessId);
+        var now = clock.GetUtcNow();
 
         foreach (var (pid, owner) in Lineage.Of(running, sessions))
-            Add(found, owner, Evidence.Ancestry, running.Where(process => process.Pid == pid), listening);
+        {
+            foreach (var process in running.Where(process => process.Pid == pid && !own.Contains(process.Pid)))
+            {
+                var age = now - process.StartedAt;
+
+                found.TryAdd(process.Key, Described(process, owner, Evidence.Ancestry, listening.GetValueOrDefault(process.Pid) ?? []) with
+                {
+                    Blocker = age < Fresh ? $"started {age.TotalSeconds:0} s ago under a running agent: it may be the command the agent is running right now" : null
+                });
+            }
+        }
 
         foreach (var holding in await RecordedAsync(cancellationToken))
         {
@@ -50,7 +69,7 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
                 Add(found, holding.Owner, Evidence.Ancestry, Lineage.Subtree(root, children), listening);
         }
 
-        Add(found, Owner.Nobody, Evidence.None, running.Where(IsDetached), listening);
+        Add(found, Owner.Nobody, Evidence.None, running.Where(process => IsDetached(process) && !own.Contains(process.Pid)), listening);
 
         var claimed = found.Values
             .Where(resource => resource.Owner.IsKnown)
@@ -111,8 +130,28 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
         IEnumerable<RunningProcess> processes,
         IReadOnlyDictionary<int, IReadOnlyList<int>> listening)
     {
-        foreach (var process in processes.Where(process => process.Pid != Environment.ProcessId && Android.DeviceOf(process.Command) is null))
+        foreach (var process in processes.Where(process => process.Pid != Environment.ProcessId && Android.DeviceOf(process.Command) is null && !MachineSessions.IsAgent(process)))
             found.TryAdd(process.Key, Described(process, owner, evidence, listening.GetValueOrDefault(process.Pid) ?? []));
+    }
+
+    /// <summary>This server, the programs above it and the programs it started: none of them is ever anybody's leftover.</summary>
+    internal static HashSet<int> Own(IReadOnlyList<RunningProcess> running, ILookup<int, RunningProcess> children, int self)
+    {
+        var byPid = running.ToDictionary(process => process.Pid);
+        var own = new HashSet<int> { self };
+
+        if (byPid.TryGetValue(self, out var server))
+            own.UnionWith(Lineage.Subtree(server, children).Select(process => process.Pid));
+
+        var pid = self;
+
+        while (byPid.TryGetValue(pid, out var process) && process.ParentPid > 1)
+        {
+            own.Add(process.ParentPid);
+            pid = process.ParentPid;
+        }
+
+        return own;
     }
 
     private Resource Described(RunningProcess process, Owner owner, Evidence evidence, IReadOnlyList<int> ports) => new()

@@ -35,6 +35,10 @@ public sealed class ServerConfig
     public string EditorUserDirectory { get; set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", "Code", "User");
 
+    /// <summary>Claude Code's user settings, where the hooks of this server are installed beside everyone else's.</summary>
+    public string ClaudeSettings { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "settings.json");
+
     /// <summary>Where Snail.SleepOf keeps its account of agent sessions, the first place sessions are read from.</summary>
     public string SleepOfDirectory { get; set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Library", "Application Support", "Snail.SleepOf");

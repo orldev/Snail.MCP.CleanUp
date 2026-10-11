@@ -82,6 +82,10 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<Health>();
             services.AddSingleton<Runs>();
             services.AddSingleton<Leases>();
+            services.AddSingleton<Account>();
+            services.AddSingleton<Hooks>();
+            services.AddSingleton<HookInstallation>();
+            services.AddSingleton<Snail.MCP.CleanUp.Tools.ToolIndex>();
             services.AddHostedService<Watch>();
 
             return services;

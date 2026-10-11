@@ -23,7 +23,9 @@ public static class TransportRegistrationExtensions
                 .WithStdioServerTransport()
                 .WithTools<DiagnosticsTools>()
                 .WithTools<RunTools>()
-                .WithTools<LeaseTools>();
+                .WithTools<LeaseTools>()
+                .WithTools<AccountTools>()
+                .WithTools<DiscoveryTools>();
 
             return services;
         }

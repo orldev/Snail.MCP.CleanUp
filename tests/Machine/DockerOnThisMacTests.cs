@@ -15,7 +15,16 @@ public sealed class DockerOnThisMacTests : IDisposable
 {
     private readonly Scratch _scratch = new();
 
+    private const string Image = "alpine:3.20";
+
     private readonly string _name = $"snail-cleanup-test-{Guid.NewGuid():n}";
+
+    /// <summary>Whether the image was here before the test, which decides whether the test removes it after.</summary>
+    /// <remarks>
+    /// <c>docker create</c> pulls an image it does not find, and a pulled image is a leftover like any other:
+    /// measured on 2026-10-11, when the first run of this test left alpine behind on a Mac that had none.
+    /// </remarks>
+    private bool _hadImage = true;
 
     [DockerFact]
     public async Task ContainerLabelledForThisSession_IsMine_AndMyCleanupRemovesIt()
@@ -30,7 +39,8 @@ public sealed class DockerOnThisMacTests : IDisposable
         var services = host.Services;
         var me = await services.GetRequiredService<ISessions>().CurrentAsync(CancellationToken.None);
 
-        Run("docker", "create", "--name", _name, "--label", $"snail.owner={me}", "alpine:3.20", "sleep", "300");
+        _hadImage = Run("docker", "image", "inspect", Image) == 0;
+        Run("docker", "create", "--name", _name, "--label", $"snail.owner={me}", Image, "sleep", "300");
 
         var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Mine, "machine");
         var removal = Assert.Single(plan.Removals, decision => decision.Resource.Kind == Kinds.Container && decision.Resource.Facts["name"] == _name);
@@ -42,19 +52,26 @@ public sealed class DockerOnThisMacTests : IDisposable
     public void Dispose()
     {
         Run("docker", "rm", "-f", _name);
+
+        if (!_hadImage)
+            Run("docker", "image", "rm", Image);
+
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 
-    private static void Run(string program, params string[] arguments)
+    private static int Run(string program, params string[] arguments)
     {
         try
         {
             using var process = Process.Start(new ProcessStartInfo(program, arguments) { RedirectStandardOutput = true, RedirectStandardError = true })!;
             process.WaitForExit(120_000);
+
+            return process.ExitCode;
         }
         catch (System.ComponentModel.Win32Exception)
         {
+            return -1;
         }
     }
 }
