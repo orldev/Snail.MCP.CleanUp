@@ -1,5 +1,4 @@
 using ModelContextProtocol.Client;
-using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Tools.Prompts;
 
 namespace Snail.MCP.CleanUp.Tests.Contracts;
@@ -23,7 +22,7 @@ public sealed class StdioContractTests : IDisposable
 
         var listed = await client.ListToolsAsync();
 
-        Assert.Equal(ThisAssembly.Name, client.ServerInfo.Name);
+        Assert.Equal("s3l-mcp-cleanup", client.ServerInfo.Name);
         Assert.Equal(ServerGuidance.Instructions, client.ServerInstructions);
         Assert.Equal(Catalog.Names, [.. listed.Select(tool => tool.Name).Order(StringComparer.Ordinal)]);
     }

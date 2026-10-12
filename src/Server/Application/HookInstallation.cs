@@ -21,6 +21,9 @@ public sealed class HookInstallation(ServerConfig config)
 
     private static readonly JsonSerializerOptions Written = new() { WriteIndented = true };
 
+    /// <summary>The names a hook line of this server carries: its package, its command and the hook forwarder, now and before the s3l names.</summary>
+    private static readonly string[] OwnNames = ["Snail.MCP.CleanUp", "s3l-mcp-cleanup", "snail-mcp-cleanup"];
+
     /// <summary>Puts this server's hooks in, replacing any it put in before.</summary>
     public string Install(string command)
     {
@@ -60,11 +63,11 @@ public sealed class HookInstallation(ServerConfig config)
         return $"removed this server's hooks from {config.ClaudeSettings}";
     }
 
-    /// <summary>Whether a hook entry is this server's own, told by the program it runs.</summary>
+    /// <summary>Whether a hook entry is this server's own, told by the program it runs, under either of its names.</summary>
     public static bool IsOwn(JsonNode? entry) =>
         entry?["hooks"] is JsonArray commands
         && commands.Any(command => command?["command"]?.GetValue<string>() is { } line
-            && (line.Contains("Snail.MCP.CleanUp", StringComparison.Ordinal) || line.Contains("snail-mcp-cleanup", StringComparison.Ordinal)));
+            && OwnNames.Any(name => line.Contains(name, StringComparison.Ordinal)));
 
     private static void Without(JsonObject hooks)
     {

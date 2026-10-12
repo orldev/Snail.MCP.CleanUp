@@ -1,9 +1,9 @@
 using Microsoft.Extensions.DependencyInjection;
-using ModelContextProtocol.Protocol;
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Tools;
 using Snail.MCP.CleanUp.Tools.Prompts;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.CleanUp.Extensions;
 
@@ -18,7 +18,7 @@ public static class TransportRegistrationExtensions
             services
                 .AddMcpServer(server =>
                 {
-                    server.ServerInfo = new Implementation { Name = ThisAssembly.Name, Version = ThisAssembly.Version };
+                    server.ServerInfo = ServerIdentity.Of(typeof(ThisAssembly).Assembly);
                     server.ServerInstructions = ServerGuidance.Instructions;
                 })
                 .WithStdioServerTransport()

@@ -67,7 +67,7 @@ shared caches that are never touched while their program runs.
 }
 ```
 
-Rules live in `~/.snail-mcp-cleanup/rules.json`, after the shipped ones, so a learned rule overrides a shipped
+Rules live in `~/.s3l-mcp-cleanup/rules.json`, after the shipped ones, so a learned rule overrides a shipped
 one. `*` is one path segment, `**` any number, `~` is home. `cleanup_learn` writes the file and settles the
 discoveries the rule now covers.
 
@@ -84,17 +84,17 @@ Add it to an MCP client — Claude Code's `.mcp.json`:
 ```
 
 or install the tool — `dotnet tool install -g Snail.MCP.CleanUp`, or `dnx Snail.MCP.CleanUp --yes` without
-installing — and use `snail-mcp-cleanup` as the command: on macOS and Linux it is the native program, elsewhere the
+installing — and use `s3l-mcp-cleanup` as the command: on macOS and Linux it is the native program, elsewhere the
 framework-dependent one. The server finds its session through
 [Snail.SleepOf](../../xcode/Snail.SleepOf) when it is installed, and through the process table otherwise.
 
 Published for a runtime, it is a native program — no .NET needed to run it, and a third of the memory. Published
-with `-p:Install=true`, it goes into its own folder under `~/.snail-mcp`, with the hook forwarder beside it, and
+with `-p:Install=true`, it goes into its own folder under `~/.s3l-mcp`, with the hook forwarder beside it, and
 `current` points at it ([docs/publishing.md](docs/publishing.md) — the same for every Snail MCP server):
 
 ```bash
 dotnet publish src/Server -c Release -r osx-arm64 -p:Install=true
-claude mcp add -s user clean -- /Users/<you>/.snail-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp
+claude mcp add -s user clean -- /Users/<you>/.s3l-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp
 ``` Measured on an Apple
 Silicon Mac against `dotnet Snail.MCP.CleanUp.dll`: start 146 → 51 ms, resident 136 → 56 MB, first census 0.58 →
 0.25 s, a session-start hook 0.57 → 0.28 s. macOS looks into a newly built binary the first time it runs, so the
@@ -109,18 +109,20 @@ dotnet /path/to/Snail.MCP.CleanUp.dll install-hooks     # and uninstall-hooks
 Adds three entries to `~/.claude/settings.json`, beside everyone else's, keeping a backup of the file:
 `SessionStart` takes a census, `Stop` starts one in the background, and `SessionEnd` sweeps the ending
 session's proven leftovers — unless it was a `/clear`, after which the work goes on in the same process.
-What a sweep did is written to `~/.snail-mcp-cleanup/sweeps.log`. Hooks reach every session, including ones
+What a sweep did is written to `~/.s3l-mcp-cleanup/sweeps.log`. Hooks reach every session, including ones
 whose agent has no MCP server of this kind configured.
 
 A hook run this way starts .NET and takes a census from cold every time. A small native forwarder hands the
 event to a server that is already running instead, over a socket only your user can reach
-(`~/.snail-mcp-cleanup/run/hooks.sock`), and runs the hook as above only when no server answers:
+(`~/.s3l-mcp-cleanup/run/hooks.sock`), and runs the hook as above only when no server answers:
 
 ```bash
-~/.snail-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp install-hooks --forwarder ~/.snail-mcp/Snail.MCP.CleanUp/current/snail-mcp-cleanup-hook
+~/.s3l-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp install-hooks --forwarder ~/.s3l-mcp/Snail.MCP.CleanUp/current/s3l-mcp-cleanup-hook
 ```
 
-Run from a publication, it writes its hooks through `current`, so they follow every later publication.
+Run from a publication, it writes its hooks through `current`, so they follow every later publication. Hooks
+installed under the names of before — `snail-mcp-cleanup-hook`, `~/.snail-mcp/…` — are this server's too: installing
+again replaces them instead of adding a second set.
 
 Measured on an Apple Silicon Mac: a session start 0.57 s → 0.22 s, a stop 0.11 s → 0.03 s. macOS looks into a newly
 built binary the first time it runs, so the first hook after a publish takes about a second longer.
@@ -131,7 +133,7 @@ Every setting is an environment variable under `SNAIL_MCP_CLEANUP_`:
 
 | Variable | Default |
 | --- | --- |
-| `DATA_DIRECTORY` | `~/.snail-mcp-cleanup` — the ledger, rules, logs of runs and sweeps |
+| `DATA_DIRECTORY` | `~/.s3l-mcp-cleanup` — the ledger, rules, logs of runs and sweeps |
 | `HOOK_DIRECTORY` | `run` inside the data directory — the hook socket's own directory; a socket path may be 104 bytes at most |
 | `TRASH_DIRECTORY` | `~/.Trash` |
 | `SCRATCH_ROOT` | `/private/tmp` |

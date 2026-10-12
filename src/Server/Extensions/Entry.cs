@@ -35,7 +35,7 @@ public static class Entry
             case "install-hooks" when args is [_, "--forwarder", var forwarder, ..]:
                 if (!Path.IsPathFullyQualified(forwarder) || !File.Exists(forwarder))
                 {
-                    await Console.Error.WriteLineAsync($"the forwarder must be the full path of the published snail-mcp-cleanup-hook, not '{forwarder}'");
+                    await Console.Error.WriteLineAsync($"the forwarder must be the full path of the published s3l-mcp-cleanup-hook, not '{forwarder}'");
 
                     return 1;
                 }

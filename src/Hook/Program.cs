@@ -3,7 +3,7 @@ using System.Net.Sockets;
 
 if (args.Length < 2)
 {
-    await Console.Error.WriteLineAsync("usage: snail-mcp-cleanup-hook <socket> <command> [arguments...]");
+    await Console.Error.WriteLineAsync("usage: s3l-mcp-cleanup-hook <socket> <command> [arguments...]");
 
     return 2;
 }

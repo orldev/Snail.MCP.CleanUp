@@ -129,9 +129,9 @@ public sealed class HookSocketTests : IAsyncDisposable
     [Fact]
     public void Hook_ThroughTheForwarder_IsStillThisServersOwn()
     {
-        var command = Invocation.Forwarded("/opt/snail/snail-mcp-cleanup-hook", "/Users/me/.snail-mcp-cleanup/run/hooks.sock", Hooks.Verb);
+        var command = Invocation.Forwarded("/opt/snail/s3l-mcp-cleanup-hook", "/Users/me/.s3l-mcp-cleanup/run/hooks.sock", Hooks.Verb);
 
-        Assert.StartsWith("/opt/snail/snail-mcp-cleanup-hook /Users/me/.snail-mcp-cleanup/run/hooks.sock ", command, StringComparison.Ordinal);
+        Assert.StartsWith("/opt/snail/s3l-mcp-cleanup-hook /Users/me/.s3l-mcp-cleanup/run/hooks.sock ", command, StringComparison.Ordinal);
         Assert.EndsWith(" hook", command, StringComparison.Ordinal);
         Assert.True(HookInstallation.IsOwn(new JsonObject { ["hooks"] = new JsonArray(new JsonObject { ["command"] = command }) }));
     }

@@ -7,7 +7,7 @@ public sealed class ServerConfigTests
     [Fact]
     public void DataDirectory_WhenNothingIsSet_IsTheSameForEverySession() =>
         Assert.Equal(
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".snail-mcp-cleanup"),
+            Snail.Sdk.Mcp.Hosting.ServerFolders.DataDirectory("cleanup"),
             ServerConfigExtensions.Read(ServerConfigExtensions.Settings(new Dictionary<string, string>())).DataDirectory);
 
     [Fact]

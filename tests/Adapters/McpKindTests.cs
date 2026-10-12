@@ -39,7 +39,7 @@ public sealed class McpKindTests : IDisposable
     {
         var agent = _table.Add(100, 1, "/bin/claude");
         _table.Add(200, 100, "/bin/zsh -c dotnet test");
-        _table.Add(300, 100, "dotnet /Users/me/.snail-mcp/Snail.MCP.Memory/current/Snail.MCP.Memory.dll");
+        _table.Add(300, 100, "dotnet /Users/me/.s3l-mcp/Snail.MCP.Memory/current/Snail.MCP.Memory.dll");
 
         var server = Assert.Single((await Kind.ObserveAsync([Alive(Me, agent)], CancellationToken.None)).Resources);
 
@@ -70,7 +70,7 @@ public sealed class McpKindTests : IDisposable
     public async Task AChildStartedAMomentAgo_IsNotTakenForAServer()
     {
         var agent = _table.Add(100, 1, "/bin/claude");
-        _table.Add(300, 100, "/x/snail-mcp-cleanup-hook", DateTimeOffset.UnixEpoch.AddDays(2).AddSeconds(-1));
+        _table.Add(300, 100, "/x/s3l-mcp-cleanup-hook", DateTimeOffset.UnixEpoch.AddDays(2).AddSeconds(-1));
 
         Assert.Empty((await Kind.ObserveAsync([Alive(Me, agent)], CancellationToken.None)).Resources);
     }
@@ -102,7 +102,7 @@ public sealed class McpKindTests : IDisposable
 
     [Theory]
     [InlineData("dotnet /x/Snail.MCP.Memory.dll", "Snail.MCP.Memory")]
-    [InlineData("/x/.snail-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp", "Snail.MCP.CleanUp")]
+    [InlineData("/x/.s3l-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp", "Snail.MCP.CleanUp")]
     [InlineData("node --enable-source-maps /x/dist/index.js", "index")]
     [InlineData("npx -y @playwright/mcp", "mcp")]
     public void TheServerIsTheProgram_OrWhatARuntimeWasGiven(string command, string server) =>

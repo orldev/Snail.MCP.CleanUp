@@ -60,7 +60,10 @@ public static class MacPlaces
     public static IReadOnlyList<Rule> Shipped { get; } =
     [
         new("file", "~/.claude/**", RuleAction.Ignore) { Note = "Claude Code's own state: transcripts, settings, memory." },
-        new("file", "~/.snail-mcp-cleanup/**", RuleAction.Ignore) { Note = "This server's own account." },
+        new("file", "~/.s3l-mcp-cleanup/**", RuleAction.Ignore) { Note = "This server's own account." },
+        new("file", "~/.snail-mcp-cleanup/**", RuleAction.Ignore) { Note = "This server's own account under its name of before, a link once it is moved." },
+        new("file", "~/.s3l-mcp/**", RuleAction.Ignore) { Note = "The published programs of the Snail MCP servers, this one among them." },
+        new("file", "~/.snail-mcp/**", RuleAction.Ignore) { Note = "The published programs of the Snail MCP servers under their folder of before." },
         new("file", "~/Library/Application Support/Snail.SleepOf/**", RuleAction.Ignore) { Note = "Snail.SleepOf's account of sessions." },
         new("file", "~/.Trash/**", RuleAction.Ignore) { Note = "What was already thrown away." },
         new("file", "~/Library/Caches/com.apple.*", RuleAction.Ignore) { Note = "The system's own caches." },

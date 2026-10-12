@@ -1,3 +1,5 @@
+using Snail.Sdk.Mcp.Hosting;
+
 namespace Snail.MCP.CleanUp.Configuration;
 
 /// <summary>The settings this server runs on.</summary>
@@ -6,13 +8,18 @@ public sealed class ServerConfig
     /// <summary>The section a settings file may nest these under.</summary>
     public const string SectionName = "Snail";
 
-    /// <summary>Where the ledger, the learned rules and the logs of tracked processes live.</summary>
+    /// <summary>Where the ledger, the learned rules and the logs of tracked processes live; <c>~/.s3l-mcp-cleanup</c> when not set.</summary>
     /// <remarks>
     /// One directory for every session on the machine, because the point of the ledger is that a session
-    /// which died is cleaned up by the next one: a directory per session would die with it.
+    /// which died is cleaned up by the next one: a directory per session would die with it. The default is asked for
+    /// only when nothing names another, so a ~/.snail-mcp-cleanup of before is moved to the new name by the server
+    /// that uses it, never by one told to keep its account elsewhere.
     /// </remarks>
-    public string DataDirectory { get; set; } =
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".snail-mcp-cleanup");
+    public string DataDirectory
+    {
+        get => field ??= ServerFolders.DataDirectory("cleanup");
+        set;
+    }
 
     /// <summary>The private directory the hook socket is made in; <c>run</c> inside <see cref="DataDirectory"/> when not set.</summary>
     /// <remarks>

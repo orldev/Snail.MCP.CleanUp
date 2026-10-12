@@ -50,6 +50,21 @@ public sealed class HookInstallationTests : IDisposable
         Assert.Equal([SleepOf, Command], Commands("Stop"));
     }
 
+    /// <summary>An installation made before the s3l names runs the old program; installing again replaces it rather than adding a second.</summary>
+    [Theory]
+    [InlineData("/Users/dev/.snail-mcp/Snail.MCP.CleanUp/current/snail-mcp-cleanup-hook /Users/dev/.snail-mcp-cleanup/run/hooks.sock /Users/dev/.snail-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp hook")]
+    [InlineData("/opt/tools/snail-mcp-cleanup-hook /tmp/run/hooks.sock /opt/tools/cleanup hook")]
+    [InlineData("snail-mcp-cleanup hook")]
+    [InlineData("s3l-mcp-cleanup hook")]
+    public void Install_OverAnInstallationOfEitherName_ReplacesIt(string before)
+    {
+        Installation.Install(before);
+        Installation.Install(Command);
+
+        Assert.Equal([SleepOf, Command], Commands("Stop"));
+        Assert.Equal([Command], Commands("SessionStart"));
+    }
+
     [Fact]
     public void Uninstall_TakesOutOnlyItsOwn()
     {

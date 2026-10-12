@@ -6,7 +6,7 @@
     -->
     <PropertyGroup>
         <OutputType>Exe</OutputType>
-        <AssemblyName>snail-mcp-cleanup-hook</AssemblyName>
+        <AssemblyName>s3l-mcp-cleanup-hook</AssemblyName>
         <RootNamespace>Snail.MCP.CleanUp.Hook</RootNamespace>
         <PublishAot>true</PublishAot>
         <InvariantGlobalization>true</InvariantGlobalization>

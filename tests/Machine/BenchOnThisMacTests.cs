@@ -189,7 +189,7 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>The native forwarder as published from this repository.</summary>
-    private static string Forwarder => Path.Combine(Root, "src", "Hook", "bin", "Release", "net10.0", "osx-arm64", "publish", "snail-mcp-cleanup-hook");
+    private static string Forwarder => Path.Combine(Root, "src", "Hook", "bin", "Release", "net10.0", "osx-arm64", "publish", "s3l-mcp-cleanup-hook");
 
     /// <summary>
     /// Hooks handed to the running server by the native forwarder. Session starts are six seconds apart, as they are in

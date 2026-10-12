@@ -10,7 +10,7 @@ from its source, is built for the job, and changes only when it is published aga
 ## Where it lives
 
 ```
-~/.snail-mcp/
+~/.s3l-mcp/
   Snail.MCP.CleanUp/
     2026-10-12-1430.988248c/        one publication, never changed afterwards
     2026-10-14-0915.1a2b3c4/
@@ -23,8 +23,8 @@ from its source, is built for the job, and changes only when it is published aga
 1. **One folder per server, named after its project**: `Snail.MCP.CleanUp`, `Snail.MCP.Roslyn`, `Snail.MCP.Memory`
    — the names the repositories and the memory already use, not the short keys of the client configuration
    (`mem1` does not say it is the Vault server).
-2. **Only programs live here.** Each server keeps its data where it always has (`~/.snail-mcp-cleanup`,
-   `~/.csharp-tools-memory`, …), so `~/.snail-mcp` can be deleted and published again without losing anything.
+2. **Only programs live here.** Each server keeps its data in a folder of its own (`~/.s3l-mcp-cleanup`,
+   `~/.csharp-tools-memory`, …), so `~/.s3l-mcp` can be deleted and published again without losing anything.
 3. **Every publication is a folder of its own**, named `<date>-<time>.<commit>`, with `-dirty` after the commit when
    the working tree had uncommitted changes. Nothing is ever written over a program a session is running: macOS may
    end a process whose signed binary is replaced under it, and a dll replaced under a running server breaks it later.
@@ -45,10 +45,10 @@ from its source, is built for the job, and changes only when it is published aga
 
    ```bash
    # a native server: the program itself
-   claude mcp add -s user clean -- /Users/<you>/.snail-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp
+   claude mcp add -s user clean -- /Users/<you>/.s3l-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp
 
    # a framework-dependent server: dotnet and the dll
-   claude mcp add -s user roslyn -- dotnet /Users/<you>/.snail-mcp/Snail.MCP.Roslyn/current/Snail.MCP.Roslyn.dll
+   claude mcp add -s user roslyn -- dotnet /Users/<you>/.s3l-mcp/Snail.MCP.Roslyn/current/Snail.MCP.Roslyn.dll
    ```
 
    The path must be absolute: Claude Code does not expand `~` (it does expand `${HOME}`). `claude mcp add` refuses a
@@ -64,7 +64,7 @@ from its source, is built for the job, and changes only when it is published aga
    easily. Claude Code asks once to approve a project's servers; `enabledMcpjsonServers` in the settings approves
    them ahead.
 9. **Hooks go through `current` too.** Snail.MCP.CleanUp's hooks run its native forwarder,
-   `…/Snail.MCP.CleanUp/current/snail-mcp-cleanup-hook`, which falls back to `…/current/Snail.MCP.CleanUp hook`.
+   `…/Snail.MCP.CleanUp/current/s3l-mcp-cleanup-hook`, which falls back to `…/current/Snail.MCP.CleanUp hook`.
    `install-hooks --forwarder` writes them.
 
 ## How it is published
@@ -92,13 +92,13 @@ from its source, is built for the job, and changes only when it is published aga
       second or three — and not when the first session starts it;
     - points `current` at the new publication;
     - removes the publications beyond the three newest that no running process uses.
-12. **Registration and hooks are the owner's to run.** Publishing writes only under `~/.snail-mcp`; the commands that
+12. **Registration and hooks are the owner's to run.** Publishing writes only under `~/.s3l-mcp`; the commands that
     change `~/.claude.json` and `~/.claude/settings.json` are given, not run.
 13. **A publication is checked like a build.** The stdio contract tests start whatever `SNAIL_CLEANUP_SERVER` names
     and call every tool once:
 
     ```bash
-    SNAIL_CLEANUP_SERVER=~/.snail-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp \
+    SNAIL_CLEANUP_SERVER=~/.s3l-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp \
       SNAIL_CLEANUP_MACHINE=1 dotnet test tests --filter "FullyQualifiedName~StdioContract"
     ```
 
@@ -106,7 +106,7 @@ from its source, is built for the job, and changes only when it is published aga
 
 ## How it reaches NuGet
 
-14. **Two channels from one project file.** The owner's Mac runs `~/.snail-mcp`, published from any commit in twenty
+14. **Two channels from one project file.** The owner's Mac runs `~/.s3l-mcp`, published from any commit in twenty
     seconds; NuGet carries releases, for every other machine and for the MCP registry. Nothing is installed on the
     owner's Mac from NuGet: a change would reach the sessions only through a release.
 15. **A native package per platform, and a portable one for the rest** — .NET 10's platform-specific tools. The
