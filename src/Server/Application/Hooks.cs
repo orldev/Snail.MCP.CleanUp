@@ -129,63 +129,7 @@ public static class Invocation
         var process = Environment.ProcessPath ?? "dotnet";
         var assembly = Path.Combine(AppContext.BaseDirectory, $"{typeof(Invocation).Assembly.GetName().Name}.dll");
 
-        return Path.GetFileNameWithoutExtension(process) == "dotnet" ? (process, [Stable(assembly)]) : (Stable(process), []);
-    }
-
-    /// <summary>
-    /// A file of this program named the way that outlives an update: through <c>current</c> when it runs from the
-    /// publication <c>current</c> points at, through the tool's command when it runs from a dotnet tool's store.
-    /// </summary>
-    /// <remarks>
-    /// The path the system reports for a running program has every link resolved, and both ways of installing it keep a
-    /// folder per version behind a link: a publication of <c>~/.snail-mcp</c> behind <c>current</c> (docs/publishing.md),
-    /// a native tool package in <c>.store/&lt;id&gt;/&lt;version&gt;/</c> behind the command <c>dotnet tool</c> puts beside
-    /// the store. A hook written with the version's folder breaks when an update removes it; written through the link, it
-    /// follows every update.
-    /// </remarks>
-    public static string Stable(string path) => Command(path) ?? Current(path);
-
-    /// <summary>The command of a dotnet tool that links to this file from beside the tool store; null when there is none.</summary>
-    private static string? Command(string path)
-    {
-        var store = path.IndexOf("/.store/", StringComparison.Ordinal);
-
-        if (store < 0)
-            return null;
-
-        var tools = path[..store];
-
-        try
-        {
-            return new DirectoryInfo(tools).EnumerateFiles()
-                .FirstOrDefault(command => command.LinkTarget is { } target && Path.GetFullPath(target, tools) == path)?.FullName;
-        }
-        catch (Exception unreadable) when (unreadable is IOException or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
-
-    private static string Current(string path)
-    {
-        var folder = Path.GetDirectoryName(path);
-        var home = Path.GetDirectoryName(folder);
-
-        if (folder is null || home is null)
-            return path;
-
-        var current = Path.Combine(home, "current");
-
-        try
-        {
-            return new DirectoryInfo(current).LinkTarget is { } target && Path.GetFileName(Path.TrimEndingDirectorySeparator(target)) == Path.GetFileName(folder)
-                ? Path.Combine(current, Path.GetFileName(path))
-                : path;
-        }
-        catch (Exception unreadable) when (unreadable is IOException or UnauthorizedAccessException)
-        {
-            return path;
-        }
+        return Path.GetFileNameWithoutExtension(process) == "dotnet" ? (process, [Snail.Toolkit.Mcp.Hosting.Invocation.Stable(assembly)]) : (Snail.Toolkit.Mcp.Hosting.Invocation.Stable(process), []);
     }
 
     /// <summary>The same, as one command line for a hook entry.</summary>

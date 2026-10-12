@@ -14,10 +14,7 @@ public sealed class StdioContractTests : IDisposable
     private readonly Scratch _scratch = new();
 
     /// <summary>The server as built here, or the program <c>SNAIL_CLEANUP_SERVER</c> names, such as a native build of it.</summary>
-    private static (string Command, string[] Arguments) Server =>
-        Environment.GetEnvironmentVariable("SNAIL_CLEANUP_SERVER") is { Length: > 0 } native
-            ? (native, [])
-            : ("dotnet", [Path.Combine(AppContext.BaseDirectory, "Snail.MCP.CleanUp.dll")]);
+    private static (string Command, string[] Arguments) Server => Snail.Toolkit.Mcp.Testing.ServerProgram.Command("Snail.MCP.CleanUp", "SNAIL_CLEANUP_SERVER");
 
     [Fact]
     public async Task Server_AsAProgram_AnnouncesItselfAndListsItsTools()

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
+using Snail.Toolkit.Mcp.Hosting;
 
 namespace Snail.MCP.CleanUp.Extensions;
 
@@ -41,10 +42,10 @@ public static class Entry
 
                 var socket = services.GetRequiredService<ServerConfig>().HookSocket;
 
-                await Console.Out.WriteLineAsync(services.GetRequiredService<HookInstallation>().Install(Invocation.Forwarded(forwarder, socket, Hooks.Verb)));
+                await Console.Out.WriteLineAsync(services.GetRequiredService<HookInstallation>().Install(Application.Invocation.Forwarded(forwarder, socket, Hooks.Verb)));
                 break;
             case "install-hooks":
-                await Console.Out.WriteLineAsync(services.GetRequiredService<HookInstallation>().Install(Invocation.CommandLine(Hooks.Verb)));
+                await Console.Out.WriteLineAsync(services.GetRequiredService<HookInstallation>().Install(Application.Invocation.CommandLine(Hooks.Verb)));
                 break;
             default:
                 await Console.Out.WriteLineAsync(services.GetRequiredService<HookInstallation>().Uninstall());
@@ -65,7 +66,7 @@ public static class Entry
         var config = ServerConfigExtensions.Read(ServerConfigExtensions.Settings());
 
         return new ServiceCollection()
-            .AddLogging(logging => logging.SetMinimumLevel(LogLevel.Information).AddProvider(new StderrLogging()))
+            .AddLogging(logging => logging.UseStderr())
             .AddSingleton(config)
             .AddCleanUp()
             .BuildServiceProvider();

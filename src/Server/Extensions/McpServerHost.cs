@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Snail.Toolkit.Mcp.Hosting;
 using Snail.MCP.CleanUp.Configuration;
 
 namespace Snail.MCP.CleanUp.Extensions;
@@ -20,7 +21,7 @@ public static class McpServerHost
     {
         var settings = ServerConfigExtensions.Settings();
         var config = ServerConfigExtensions.Read(settings);
-        var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings { Args = args });
+        var builder = McpHost.CreateBuilder(args);
 
         builder.ConfigureMcpServer(config);
 

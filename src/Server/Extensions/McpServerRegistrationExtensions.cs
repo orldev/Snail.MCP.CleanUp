@@ -12,22 +12,10 @@ public static class McpServerRegistrationExtensions
         /// <summary>Configures the server to speak stdio to the process that started it.</summary>
         public IHostApplicationBuilder ConfigureMcpServer(ServerConfig config)
         {
-            builder.UseStderrLogging();
-
             builder.Services
                 .AddSingleton(config)
                 .AddCleanUp()
                 .AddMcpTransport();
-
-            return builder;
-        }
-
-        /// <summary>stdio carries JSON-RPC, so every log line must go to stderr.</summary>
-        public IHostApplicationBuilder UseStderrLogging()
-        {
-            builder.Logging.ClearProviders();
-            builder.Logging.SetMinimumLevel(LogLevel.Information);
-            builder.Logging.AddProvider(new StderrLogging());
 
             return builder;
         }

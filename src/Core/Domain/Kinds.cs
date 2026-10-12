@@ -14,6 +14,9 @@ public static class Kinds
     /// <summary>A running program.</summary>
     public const string Process = "process";
 
+    /// <summary>An MCP server an agent runs, or one a session left running when it ended.</summary>
+    public const string McpServer = "mcp";
+
     /// <summary>A rule forwarding a port between this machine and a device.</summary>
     public const string Forward = "forward";
 
@@ -58,7 +61,7 @@ public static class Kinds
 
     /// <summary>The order kinds are taken apart in.</summary>
     public static IReadOnlyList<string> Order { get; } =
-        [Process, Forward, Emulator, Simulator, VirtualDevice, Container, Network, Volume, Image, DanglingImages, BuildCache, BuildHistory, Worktree, Editor, File];
+        [Process, McpServer, Forward, Emulator, Simulator, VirtualDevice, Container, Network, Volume, Image, DanglingImages, BuildCache, BuildHistory, Worktree, Editor, File];
 
     private static readonly FrozenDictionary<string, int> Ranks = Order.Select((kind, position) => KeyValuePair.Create(kind, position)).ToFrozenDictionary(StringComparer.Ordinal);
 

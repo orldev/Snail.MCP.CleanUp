@@ -14,7 +14,8 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// </para>
 /// <para>
 /// A program that detached is a child of launchd, and nothing about it says whose it is any more. It is
-/// still listed — without an owner — so that the ledger, which saw it while it was a child, can say.
+/// still listed — without an owner — so that the ledger, which saw it while it was a child, can say. An MCP
+/// server the ledger saw under an agent is the MCP kind's, see <see cref="McpKind"/>.
 /// </para>
 /// </remarks>
 public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger ledger, TimeProvider clock) : IResourceKind
@@ -59,7 +60,9 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
             }
         }
 
-        foreach (var holding in await RecordedAsync(cancellationToken))
+        var holdings = await ledger.HoldingsAsync(cancellationToken);
+
+        foreach (var holding in Recorded(holdings))
         {
             var root = running.FirstOrDefault(process => $"{Name}:{process.Key}" == holding.ResourceId);
 
@@ -67,7 +70,12 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
                 Add(found, holding.Owner, Evidence.Ancestry, Lineage.Subtree(root, children), listening);
         }
 
-        Add(found, Owner.Nobody, Evidence.None, running.Where(process => IsDetached(process) && !own.Contains(process.Pid)), listening);
+        var servers = holdings
+            .Where(holding => holding.ResourceId.StartsWith($"{Kinds.McpServer}:", StringComparison.Ordinal))
+            .Select(holding => holding.ResourceId[(Kinds.McpServer.Length + 1)..])
+            .ToHashSet(StringComparer.Ordinal);
+
+        Add(found, Owner.Nobody, Evidence.None, running.Where(process => IsDetached(process) && !own.Contains(process.Pid) && !servers.Contains(process.Key)), listening);
 
         var claimed = found.Values
             .Where(resource => resource.Owner.IsKnown)
@@ -97,8 +105,8 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
         return Release.Refused(resource, $"process {pid} survived SIGKILL; it may belong to another user");
     }
 
-    private async Task<IEnumerable<Holding>> RecordedAsync(CancellationToken cancellationToken) =>
-        (await ledger.HoldingsAsync(cancellationToken)).Where(holding => holding.Evidence == Evidence.Ledger && holding.ResourceId.StartsWith($"{Name}:", StringComparison.Ordinal));
+    private IEnumerable<Holding> Recorded(IEnumerable<Holding> holdings) =>
+        holdings.Where(holding => holding.Evidence == Evidence.Ledger && holding.ResourceId.StartsWith($"{Name}:", StringComparison.Ordinal));
 
     private async Task<bool> EndedAsync(int pid, string signal, TimeSpan patience, CancellationToken cancellationToken)
     {

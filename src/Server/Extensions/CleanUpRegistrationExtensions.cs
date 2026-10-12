@@ -42,7 +42,9 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<ITrail, ProcessTrail>();
             services.AddSingleton<ITrail, PortTrail>();
             services.AddSingleton<ITrail, CrontabTrail>();
-            services.AddSingleton<IResourceKind, ProcessKind>();
+            services.AddSingleton<ProcessKind>();
+            services.AddSingleton<IResourceKind>(provider => provider.GetRequiredService<ProcessKind>());
+            services.AddSingleton<IResourceKind, McpKind>();
             services.AddSingleton<IResourceKind, FileKind>();
             services.AddSingleton<IResourceKind, SimulatorKind>();
             services.AddSingleton<ITrail, SimulatorTrail>();

@@ -38,6 +38,7 @@ Every answer is JSON with an `ok` flag; a failure carries `error` and a `hint`, 
 | Kind | Owned by | Released by |
 | --- | --- | --- |
 | process | running under the agent's shells (seen by a census every 30 s), or started with `cleanup_run` | SIGTERM, then SIGKILL after 5 s — after checking it is still the program that was planned |
+| mcp | an MCP server the agent runs as its direct child, written down by a census while the session runs; the copies of one server across sessions are counted | never while its session runs; once the session has ended, as a process — a stdio server without its client serves nobody |
 | file | a session scratchpad `claude-<uid>/<project>/<session>`; caches by rule | the Trash for what cannot be made again; erased when it rebuilds itself |
 | simulator | the name `snail-<session>-N` | the programs driving its UDID first, then `simctl shutdown` and `delete` by UDID — `all` cannot be written |
 | emulator, avd | the device name `snail-<session>-N` | `adb emu kill` when adb already runs, SIGTERM otherwise; the adb server it started; its port file; the device |

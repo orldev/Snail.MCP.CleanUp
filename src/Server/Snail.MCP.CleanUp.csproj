@@ -41,7 +41,7 @@
         resident and 216 KB of binary, for a server that compares and formats everything invariantly.
     -->
 
-    <!-- Published into ~/.snail-mcp with -p:Install=true (docs/publishing.md), the hook forwarder beside it. -->
+    <!-- Published into ~/.snail-mcp with -p:Install=true (Snail.Toolkit.Mcp.Build), the hook forwarder beside it. -->
     <PropertyGroup>
         <SnailMcpName>Snail.MCP.CleanUp</SnailMcpName>
         <!-- A hook with nothing on its input answers at once: the warm-up takes no census. -->
@@ -77,6 +77,8 @@
         <PackageReference Include="Microsoft.Data.Sqlite"/>
         <PackageReference Include="Microsoft.Extensions.Hosting"/>
         <PackageReference Include="ModelContextProtocol"/>
+        <PackageReference Include="Snail.Toolkit.Mcp.Hosting"/>
+        <PackageReference Include="Snail.Toolkit.Mcp.Build" PrivateAssets="all"/>
     </ItemGroup>
 
     <ItemGroup>
