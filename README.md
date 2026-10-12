@@ -82,7 +82,9 @@ Add it to an MCP client — Claude Code's `.mcp.json`:
 }
 ```
 
-or install the tool and use `snail-mcp-cleanup` as the command. The server finds its session through
+or install the tool — `dotnet tool install -g Snail.MCP.CleanUp`, or `dnx Snail.MCP.CleanUp --yes` without
+installing — and use `snail-mcp-cleanup` as the command: on macOS and Linux it is the native program, elsewhere the
+framework-dependent one. The server finds its session through
 [Snail.SleepOf](../../xcode/Snail.SleepOf) when it is installed, and through the process table otherwise.
 
 Published for a runtime, it is a native program — no .NET needed to run it, and a third of the memory. Published

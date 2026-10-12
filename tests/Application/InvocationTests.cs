@@ -28,4 +28,16 @@ public sealed class InvocationTests : IDisposable
         Assert.Equal(Path.Combine(older, "Snail.MCP.CleanUp"), Invocation.Stable(Path.Combine(older, "Snail.MCP.CleanUp")));
         Assert.Equal("/repo/src/Server/bin/Debug/net10.0/Snail.MCP.CleanUp.dll", Invocation.Stable("/repo/src/Server/bin/Debug/net10.0/Snail.MCP.CleanUp.dll"));
     }
+
+    /// <summary>A native tool package is unpacked into a folder per version, and its command links to the program inside.</summary>
+    [Fact]
+    public void Program_RunFromADotnetToolStore_IsNamedByItsCommand()
+    {
+        var inside = Directory.CreateDirectory(_scratch.File(".store/snail.mcp.cleanup/0.1.0/snail.mcp.cleanup.osx-arm64/0.1.0/tools/any/osx-arm64")).FullName;
+        var program = Path.Combine(inside, "Snail.MCP.CleanUp");
+        File.WriteAllText(program, string.Empty);
+        File.CreateSymbolicLink(_scratch.File("snail-mcp-cleanup"), ".store/snail.mcp.cleanup/0.1.0/snail.mcp.cleanup.osx-arm64/0.1.0/tools/any/osx-arm64/Snail.MCP.CleanUp");
+
+        Assert.Equal(_scratch.File("snail-mcp-cleanup"), Invocation.Stable(program));
+    }
 }

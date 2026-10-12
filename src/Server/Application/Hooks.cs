@@ -132,13 +132,41 @@ public static class Invocation
         return Path.GetFileNameWithoutExtension(process) == "dotnet" ? (process, [Stable(assembly)]) : (Stable(process), []);
     }
 
-    /// <summary>A file of this program named through <c>current</c> when it runs from the publication <c>current</c> points at.</summary>
+    /// <summary>
+    /// A file of this program named the way that outlives an update: through <c>current</c> when it runs from the
+    /// publication <c>current</c> points at, through the tool's command when it runs from a dotnet tool's store.
+    /// </summary>
     /// <remarks>
-    /// A published server lives in a folder per publication beside a link named <c>current</c> (docs/publishing.md), and
-    /// the path the system reports for a running program is the folder's, the link already resolved. A hook written with
-    /// that folder would break when a later publication removes it; written through <c>current</c>, it follows every one.
+    /// The path the system reports for a running program has every link resolved, and both ways of installing it keep a
+    /// folder per version behind a link: a publication of <c>~/.snail-mcp</c> behind <c>current</c> (docs/publishing.md),
+    /// a native tool package in <c>.store/&lt;id&gt;/&lt;version&gt;/</c> behind the command <c>dotnet tool</c> puts beside
+    /// the store. A hook written with the version's folder breaks when an update removes it; written through the link, it
+    /// follows every update.
     /// </remarks>
-    public static string Stable(string path)
+    public static string Stable(string path) => Command(path) ?? Current(path);
+
+    /// <summary>The command of a dotnet tool that links to this file from beside the tool store; null when there is none.</summary>
+    private static string? Command(string path)
+    {
+        var store = path.IndexOf("/.store/", StringComparison.Ordinal);
+
+        if (store < 0)
+            return null;
+
+        var tools = path[..store];
+
+        try
+        {
+            return new DirectoryInfo(tools).EnumerateFiles()
+                .FirstOrDefault(command => command.LinkTarget is { } target && Path.GetFullPath(target, tools) == path)?.FullName;
+        }
+        catch (Exception unreadable) when (unreadable is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
+    private static string Current(string path)
     {
         var folder = Path.GetDirectoryName(path);
         var home = Path.GetDirectoryName(folder);

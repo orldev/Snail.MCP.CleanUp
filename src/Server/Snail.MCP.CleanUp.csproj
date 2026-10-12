@@ -14,14 +14,23 @@
     </PropertyGroup>
 
     <!--
-        Published for a runtime, the server is a native program: 51 ms to start instead of 146, 56 MB resident instead of
-        136, a session-start hook 0.28 s instead of 0.57 (measured on 2026-10-12). Optimised for size: speed measured the
-        same, since a census waits on the programs and the kernel it asks, and the binary is 1.4 MB smaller. Packed
-        without a runtime, it stays the framework-dependent dotnet tool.
+        The server is a native program wherever it is published for a runtime: 51 ms to start instead of 146, 56 MB
+        resident instead of 136, a session-start hook 0.28 s instead of 0.57 (measured on 2026-10-12). Optimised for size:
+        speed measured the same, since a census waits on the programs and the kernel it asks, and the binary is 1.4 MB
+        smaller.
+        As a dotnet tool it is a package per platform, each native, and a framework-dependent one for the rest
+        (docs/publishing.md): `dotnet pack` makes the package that points at them, `dotnet pack -r <rid>` each native one
+        on its own system, `dotnet pack -r any -p:PublishAot=false` the fallback. Windows is not among them: the server
+        reads the process table, sockets and changes the unix way.
     -->
-    <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+    <PropertyGroup>
         <PublishAot>true</PublishAot>
         <OptimizationPreference>Size</OptimizationPreference>
+        <ToolPackageRuntimeIdentifiers>osx-arm64;osx-x64;linux-x64;linux-arm64;any</ToolPackageRuntimeIdentifiers>
+        <!-- A publication carries the program, not its debug symbols (57 MB) or its API docs: both stay in obj/. -->
+        <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+        <PublishDocumentationFile>false</PublishDocumentationFile>
+        <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
     </PropertyGroup>
 
     <!--

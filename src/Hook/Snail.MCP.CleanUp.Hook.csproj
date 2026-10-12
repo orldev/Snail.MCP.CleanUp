@@ -14,6 +14,8 @@
         <UseSystemResourceKeys>true</UseSystemResourceKeys>
         <EventSourceSupport>false</EventSourceSupport>
         <IsPackable>false</IsPackable>
+        <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+        <PublishDocumentationFile>false</PublishDocumentationFile>
     </PropertyGroup>
 
     <ItemGroup>
