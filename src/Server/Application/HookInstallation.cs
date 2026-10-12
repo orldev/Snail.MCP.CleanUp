@@ -33,7 +33,7 @@ public sealed class HookInstallation(ServerConfig config)
         {
             var entries = hooks[name] as JsonArray ?? [];
 
-            entries.Add(new JsonObject
+            entries.Add((JsonNode)new JsonObject
             {
                 ["hooks"] = new JsonArray(new JsonObject { ["type"] = "command", ["command"] = command, ["timeout"] = timeout })
             });

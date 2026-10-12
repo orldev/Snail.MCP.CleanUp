@@ -127,9 +127,37 @@ public static class Invocation
     public static (string Program, IReadOnlyList<string> Arguments) Self()
     {
         var process = Environment.ProcessPath ?? "dotnet";
-        var assembly = typeof(Invocation).Assembly.Location;
+        var assembly = Path.Combine(AppContext.BaseDirectory, $"{typeof(Invocation).Assembly.GetName().Name}.dll");
 
-        return Path.GetFileNameWithoutExtension(process) == "dotnet" ? (process, [assembly]) : (process, []);
+        return Path.GetFileNameWithoutExtension(process) == "dotnet" ? (process, [Stable(assembly)]) : (Stable(process), []);
+    }
+
+    /// <summary>A file of this program named through <c>current</c> when it runs from the publication <c>current</c> points at.</summary>
+    /// <remarks>
+    /// A published server lives in a folder per publication beside a link named <c>current</c> (docs/publishing.md), and
+    /// the path the system reports for a running program is the folder's, the link already resolved. A hook written with
+    /// that folder would break when a later publication removes it; written through <c>current</c>, it follows every one.
+    /// </remarks>
+    public static string Stable(string path)
+    {
+        var folder = Path.GetDirectoryName(path);
+        var home = Path.GetDirectoryName(folder);
+
+        if (folder is null || home is null)
+            return path;
+
+        var current = Path.Combine(home, "current");
+
+        try
+        {
+            return new DirectoryInfo(current).LinkTarget is { } target && Path.GetFileName(Path.TrimEndingDirectorySeparator(target)) == Path.GetFileName(folder)
+                ? Path.Combine(current, Path.GetFileName(path))
+                : path;
+        }
+        catch (Exception unreadable) when (unreadable is IOException or UnauthorizedAccessException)
+        {
+            return path;
+        }
     }
 
     /// <summary>The same, as one command line for a hook entry.</summary>

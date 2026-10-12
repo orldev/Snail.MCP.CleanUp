@@ -85,6 +85,18 @@ Add it to an MCP client — Claude Code's `.mcp.json`:
 or install the tool and use `snail-mcp-cleanup` as the command. The server finds its session through
 [Snail.SleepOf](../../xcode/Snail.SleepOf) when it is installed, and through the process table otherwise.
 
+Published for a runtime, it is a native program — no .NET needed to run it, and a third of the memory. Published
+with `-p:Install=true`, it goes into its own folder under `~/.snail-mcp`, with the hook forwarder beside it, and
+`current` points at it ([docs/publishing.md](docs/publishing.md) — the same for every Snail MCP server):
+
+```bash
+dotnet publish src/Server -c Release -r osx-arm64 -p:Install=true
+claude mcp add -s user clean -- /Users/<you>/.snail-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp
+``` Measured on an Apple
+Silicon Mac against `dotnet Snail.MCP.CleanUp.dll`: start 146 → 51 ms, resident 136 → 56 MB, first census 0.58 →
+0.25 s, a session-start hook 0.57 → 0.28 s. macOS looks into a newly built binary the first time it runs, so the
+first start after a publish takes a second longer.
+
 ### Hooks
 
 ```bash
@@ -102,9 +114,10 @@ event to a server that is already running instead, over a socket only your user 
 (`~/.snail-mcp-cleanup/run/hooks.sock`), and runs the hook as above only when no server answers:
 
 ```bash
-dotnet publish src/Hook -c Release -r osx-arm64
-dotnet /path/to/Snail.MCP.CleanUp.dll install-hooks --forwarder "$PWD/src/Hook/bin/Release/net10.0/osx-arm64/publish/snail-mcp-cleanup-hook"
+~/.snail-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp install-hooks --forwarder ~/.snail-mcp/Snail.MCP.CleanUp/current/snail-mcp-cleanup-hook
 ```
+
+Run from a publication, it writes its hooks through `current`, so they follow every later publication.
 
 Measured on an Apple Silicon Mac: a session start 0.57 s → 0.22 s, a stop 0.11 s → 0.03 s. macOS looks into a newly
 built binary the first time it runs, so the first hook after a publish takes about a second longer.
@@ -138,6 +151,14 @@ Every setting is an environment variable under `SNAIL_MCP_CLEANUP_`:
 `src/Core` (`Snail.MCP.CleanUp.Core`) has no dependencies: owners and evidence, the planner, the census and the
 cleaner, behind ports. [Snail.Swarm.Agent](../../Testing/Snail.Swarm.Agent) uses it on its workers, where
 tasks and projects are the owners and their names are the proof.
+
+## Performance
+
+A census reads the machine through its APIs rather than by starting programs, matches rules compiled once, and runs
+when the kernel says something changed rather than every half a minute; one server on the machine takes the
+background census for all, and hooks are handed to it over a socket. Published natively, the server starts in
+51 ms and keeps 56 MB resident. [docs/performance.md](docs/performance.md) has the measurements of all of it, with
+what did nothing — most runtime settings among them — as rules for other servers.
 
 ## Tests
 

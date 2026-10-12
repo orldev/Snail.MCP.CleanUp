@@ -13,7 +13,11 @@ public sealed class StdioContractTests : IDisposable
 {
     private readonly Scratch _scratch = new();
 
-    private static string Server => Path.Combine(AppContext.BaseDirectory, "Snail.MCP.CleanUp.dll");
+    /// <summary>The server as built here, or the program <c>SNAIL_CLEANUP_SERVER</c> names, such as a native build of it.</summary>
+    private static (string Command, string[] Arguments) Server =>
+        Environment.GetEnvironmentVariable("SNAIL_CLEANUP_SERVER") is { Length: > 0 } native
+            ? (native, [])
+            : ("dotnet", [Path.Combine(AppContext.BaseDirectory, "Snail.MCP.CleanUp.dll")]);
 
     [Fact]
     public async Task Server_AsAProgram_AnnouncesItselfAndListsItsTools()
@@ -39,13 +43,49 @@ public sealed class StdioContractTests : IDisposable
         Assert.Equal(_scratch.Path, answer.Data()["dataDirectory"]!.GetValue<string>());
     }
 
+    /// <summary>
+    /// Every tool takes its arguments and answers in JSON. A native build binds arguments with code generated ahead of
+    /// time, and a type it was not given fails at the call, not at the build — so each tool is called once, with
+    /// arguments that change nothing outside the test's own directory.
+    /// </summary>
+    [MachineFact]
+    public async Task EveryTool_AsAProgram_TakesItsArgumentsAndAnswersInJson()
+    {
+        await using var client = await StartedAsync();
+
+        var plan = await client.CallToolAsync("cleanup_plan", new Dictionary<string, object?> { ["scope"] = "caches" });
+        var planId = plan.Data()["planId"]?.GetValue<string>() ?? "none";
+
+        Dictionary<string, Dictionary<string, object?>> calls = new()
+        {
+            ["cleanup_inventory"] = [],
+            ["cleanup_apply"] = new() { ["planId"] = planId, ["only"] = new[] { "nothing:here" } },
+            ["cleanup_release"] = new() { ["id"] = "process:0@0" },
+            ["cleanup_keep"] = new() { ["id"] = "file:/nowhere", ["reason"] = "a test", ["withdraw"] = false },
+            ["cleanup_learn"] = new() { ["trail"] = "file", ["pattern"] = "/nowhere/*", ["action"] = "ignore", ["note"] = "a test" },
+            ["cleanup_run"] = new() { ["command"] = "true", ["directory"] = _scratch.Path },
+            ["cleanup_simulator_acquire"] = new() { ["from"] = "no such device of any kind", ["boot"] = false },
+            ["cleanup_emulator_acquire"] = new() { ["image"] = "no-such-system-image", ["window"] = false },
+            ["cleanup_diagnose"] = [],
+            ["find_tool"] = new() { ["task"] = "remove what docker left", ["limit"] = 3 }
+        };
+
+        foreach (var (tool, arguments) in calls)
+        {
+            var answer = await client.CallToolAsync(tool, arguments);
+            var text = Assert.IsType<ModelContextProtocol.Protocol.TextContentBlock>(Assert.Single(answer.Content)).Text;
+
+            Assert.True(JsonNode.Parse(text)?["ok"] is not null, $"{tool} answered {text}");
+        }
+    }
+
     public void Dispose() => _scratch.Dispose();
 
     private Task<McpClient> StartedAsync() =>
         McpClient.CreateAsync(new StdioClientTransport(new StdioClientTransportOptions
         {
-            Command = "dotnet",
-            Arguments = [Server],
+            Command = Server.Command,
+            Arguments = Server.Arguments,
             EnvironmentVariables = Deployment.Variables(_scratch).ToDictionary(variable => variable.Key, variable => (string?)variable.Value)
         }));
 }

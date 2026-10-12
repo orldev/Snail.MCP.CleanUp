@@ -7,7 +7,41 @@
         <RollForward>LatestMajor</RollForward>
         <!-- libproc and sysctl are called through LibraryImport, whose generated marshalling is unsafe code. -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <!-- Trim and AOT analysis at every build, so that what would break a native build breaks this one first. -->
+        <IsAotCompatible>true</IsAotCompatible>
+        <!-- Settings are bound by generated code, as a native build needs, in every build alike. -->
+        <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     </PropertyGroup>
+
+    <!--
+        Published for a runtime, the server is a native program: 51 ms to start instead of 146, 56 MB resident instead of
+        136, a session-start hook 0.28 s instead of 0.57 (measured on 2026-10-12). Optimised for size: speed measured the
+        same, since a census waits on the programs and the kernel it asks, and the binary is 1.4 MB smaller. Packed
+        without a runtime, it stays the framework-dependent dotnet tool.
+    -->
+    <PropertyGroup Condition="'$(RuntimeIdentifier)' != ''">
+        <PublishAot>true</PublishAot>
+        <OptimizationPreference>Size</OptimizationPreference>
+    </PropertyGroup>
+
+    <!--
+        Feature switches measured on the native build and left as they are (2026-10-12): EventSourceSupport=false is
+        already the native default — the binary came out byte for byte the same; UseSystemResourceKeys=true saved
+        nothing and would turn the system's error messages, which answers pass on to the model, into resource keys;
+        DebuggerSupport=false changed nothing measurable. Culture data instead of InvariantGlobalization cost 11 MB
+        resident and 216 KB of binary, for a server that compares and formats everything invariantly.
+    -->
+
+    <!-- Published into ~/.snail-mcp with -p:Install=true (docs/publishing.md), the hook forwarder beside it. -->
+    <PropertyGroup>
+        <SnailMcpName>Snail.MCP.CleanUp</SnailMcpName>
+        <!-- A hook with nothing on its input answers at once: the warm-up takes no census. -->
+        <SnailMcpWarmUp>hook</SnailMcpWarmUp>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <SnailMcpCompanion Include="..\Hook\Snail.MCP.CleanUp.Hook.csproj"/>
+    </ItemGroup>
 
     <PropertyGroup>
         <PackAsTool>true</PackAsTool>

@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using ModelContextProtocol.Server;
 using Snail.MCP.CleanUp.Application;
@@ -77,16 +78,24 @@ public sealed class ToolIndex
         })])
     };
 
+    /// <remarks>
+    /// The tool classes are named, as they are where the server registers them: a native build keeps the methods of a
+    /// class it is told about, and a search through every type of the assembly finds the ones it removed.
+    /// </remarks>
     private static IReadOnlyList<ToolEntry> Read()
     {
-        var entries = typeof(ToolIndex).Assembly.GetTypes()
-            .Where(type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
-            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-            .Where(method => method.GetCustomAttribute<McpServerToolAttribute>() is not null)
+        var entries = Tools<DiagnosticsTools>()
+            .Concat(Tools<RunTools>())
+            .Concat(Tools<LeaseTools>())
+            .Concat(Tools<AccountTools>())
+            .Concat(Tools<DiscoveryTools>())
             .Select(Entry);
 
         return [.. entries.OrderBy(entry => entry.Name.StartsWith(Prefix, StringComparison.Ordinal) ? 0 : 1).ThenBy(entry => entry.Name, StringComparer.Ordinal)];
     }
+
+    private static IEnumerable<MethodInfo> Tools<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] T>() =>
+        typeof(T).GetMethods(BindingFlags.Public | BindingFlags.Instance).Where(method => method.GetCustomAttribute<McpServerToolAttribute>() is not null);
 
     private static ToolEntry Entry(MethodInfo tool) => new(
         tool.GetCustomAttribute<McpServerToolAttribute>()!.Name!,

@@ -86,6 +86,7 @@ public sealed class KernelChangesTests : IDisposable
         Assert.Equal((1, 1), changes.Followed);
 
         changes.Leave();
+        changes.Take();
 
         Assert.Equal((0, 0), changes.Followed);
 

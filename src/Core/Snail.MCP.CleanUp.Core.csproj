@@ -3,6 +3,7 @@
     <PropertyGroup>
         <RootNamespace>Snail.MCP.CleanUp.Core</RootNamespace>
         <InvariantGlobalization>true</InvariantGlobalization>
+        <IsAotCompatible>true</IsAotCompatible>
         <PackageId>Snail.MCP.CleanUp.Core</PackageId>
         <Version>0.1.0</Version>
         <Authors>orldev</Authors>
