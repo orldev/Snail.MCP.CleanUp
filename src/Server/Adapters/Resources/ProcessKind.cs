@@ -96,10 +96,10 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
         if (!string.Equals(running.Key, resource.Key, StringComparison.Ordinal))
             return Release.NotTheSame(resource, $"process {pid} is now another program, started {running.StartedAt:u}");
 
-        if (await EndedAsync(pid, "TERM", Grace, cancellationToken))
+        if (await TryEndAsync(pid, "TERM", Grace, cancellationToken))
             return Release.Done(resource, Freed(resource, "ended on SIGTERM"));
 
-        if (await EndedAsync(pid, "KILL", TimeSpan.FromSeconds(2), cancellationToken))
+        if (await TryEndAsync(pid, "KILL", TimeSpan.FromSeconds(2), cancellationToken))
             return Release.Done(resource, Freed(resource, $"killed: it outlived SIGTERM by {Grace.TotalSeconds:0} s"));
 
         return Release.Refused(resource, $"process {pid} survived SIGKILL; it may belong to another user");
@@ -108,7 +108,7 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
     private IEnumerable<Holding> Recorded(IEnumerable<Holding> holdings) =>
         holdings.Where(holding => holding.Evidence == Evidence.Ledger && holding.ResourceId.StartsWith($"{Name}:", StringComparison.Ordinal));
 
-    private async Task<bool> EndedAsync(int pid, string signal, TimeSpan patience, CancellationToken cancellationToken)
+    private async Task<bool> TryEndAsync(int pid, string signal, TimeSpan patience, CancellationToken cancellationToken)
     {
         await programs.RunAsync("kill", [$"-{signal}", $"{pid}"], TimeSpan.FromSeconds(5), cancellationToken);
         table.Refresh();

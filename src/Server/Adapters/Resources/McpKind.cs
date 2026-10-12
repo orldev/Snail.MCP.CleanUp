@@ -53,12 +53,11 @@ public sealed class McpKind(IProcessTable table, ProcessKind processes, ILedger 
         var recorded = (await ledger.HoldingsAsync(cancellationToken))
             .Where(holding => holding.ResourceId.StartsWith($"{Name}:", StringComparison.Ordinal))
             .ToDictionary(holding => holding.ResourceId, StringComparer.Ordinal);
-        var orphans = running
-            .Where(process => process.ParentPid == 1 && !own.Contains(process.Pid))
+        var parentless = running.Where(process => process.ParentPid == 1 && !own.Contains(process.Pid));
+        var held = parentless
             .Select(process => (Process: process, Holding: recorded.GetValueOrDefault($"{Name}:{process.Key}")))
-            .Where(pair => pair.Holding is not null)
-            .Select(pair => Described(pair.Process, pair.Holding!.Owner))
-            .ToList();
+            .Where(pair => pair.Holding is not null);
+        var orphans = held.Select(pair => Described(pair.Process, pair.Holding!.Owner)).ToList();
 
         found.AddRange(orphans);
 

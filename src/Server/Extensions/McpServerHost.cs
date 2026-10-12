@@ -1,5 +1,5 @@
 using Microsoft.Extensions.Hosting;
-using Snail.Toolkit.Mcp.Hosting;
+using Snail.Sdk.Mcp.Hosting;
 using Snail.MCP.CleanUp.Configuration;
 
 namespace Snail.MCP.CleanUp.Extensions;

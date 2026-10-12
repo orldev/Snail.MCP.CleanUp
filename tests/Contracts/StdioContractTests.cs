@@ -14,7 +14,7 @@ public sealed class StdioContractTests : IDisposable
     private readonly Scratch _scratch = new();
 
     /// <summary>The server as built here, or the program <c>SNAIL_CLEANUP_SERVER</c> names, such as a native build of it.</summary>
-    private static (string Command, string[] Arguments) Server => Snail.Toolkit.Mcp.Testing.ServerProgram.Command("Snail.MCP.CleanUp", "SNAIL_CLEANUP_SERVER");
+    private static (string Command, string[] Arguments) Server => Snail.Sdk.Mcp.Testing.ServerProgram.Command("Snail.MCP.CleanUp", "SNAIL_CLEANUP_SERVER");
 
     [Fact]
     public async Task Server_AsAProgram_AnnouncesItselfAndListsItsTools()
@@ -26,6 +26,20 @@ public sealed class StdioContractTests : IDisposable
         Assert.Equal(ThisAssembly.Name, client.ServerInfo.Name);
         Assert.Equal(ServerGuidance.Instructions, client.ServerInstructions);
         Assert.Equal(Catalog.Names, [.. listed.Select(tool => tool.Name).Order(StringComparer.Ordinal)]);
+    }
+
+    /// <summary>
+    /// The guard rules of every Snail server, on the list a model receives: names in snake case and listed once, the tool
+    /// and every parameter described, read-only or destructive stated, every allowed value named, English.
+    /// </summary>
+    [Fact]
+    public async Task Tools_AsListed_KeepTheGuardRules()
+    {
+        await using var client = await StartedAsync();
+
+        var listed = await client.ListToolsAsync();
+
+        Assert.Empty(Snail.Sdk.Mcp.Testing.ToolGuards.Problems(listed.Select(tool => tool.ProtocolTool)));
     }
 
     [Fact]

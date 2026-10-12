@@ -1,8 +1,8 @@
 name: release to NuGet
 
-# A native dotnet tool package for each platform, built on that platform, a framework-dependent fallback for the
-# rest, and the package that points at them pushed last (docs/publishing.md). A v* tag releases; run by hand, it
-# builds and checks every package and pushes only when asked to.
+# The shared server release of Snail.Sdk (docs/publishing.md): a native tool package per platform, a framework-dependent
+# fallback, the core library, and the package that points at them pushed last. A v* tag releases; run by hand, it builds
+# and checks every package and pushes only when asked to.
 
 on:
   push:
@@ -21,145 +21,17 @@ permissions:
   contents: read
 
 jobs:
-  version:
-    runs-on: ubuntu-latest
-    outputs:
-      value: ${{ steps.version.outputs.value }}
-    steps:
-      - id: version
-        env:
-          GIVEN: ${{ inputs.version }}
-        run: |
-          version="${GIVEN:-${GITHUB_REF_NAME#v}}"
-          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-            echo "::error::'$version' is not a version"
-            exit 1
-          fi
-          echo "value=$version" >> "$GITHUB_OUTPUT"
-
-  test:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-      - run: dotnet test Snail.MCP.CleanUp.slnx -c Release
-
-  native:
-    needs: version
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - rid: osx-arm64
-            os: macos-latest
-            runs: true
-          # Native AOT builds for another architecture of the same system; the x64 program cannot be started here.
-          - rid: osx-x64
-            os: macos-latest
-            runs: false
-          - rid: linux-x64
-            os: ubuntu-latest
-            runs: true
-          - rid: linux-arm64
-            os: ubuntu-24.04-arm
-            runs: true
-    runs-on: ${{ matrix.os }}
-    env:
-      VERSION: ${{ needs.version.outputs.value }}
-      RID: ${{ matrix.rid }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
-      - name: Native toolchain
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
-
-      - name: Version in the registry manifest
-        run: jq --arg v "$VERSION" '.version = $v | .packages[].version = $v' .mcp/server.json > server.json.tmp && mv server.json.tmp .mcp/server.json
-
-      - name: Pack
-        run: |
-          dotnet pack src/Server -c Release -r "$RID" -p:PackageVersion="$VERSION" -o artifacts/packages 2>&1 | tee pack.log
-          if grep -E "warning (IL|AOT)[0-9]+" pack.log; then
-            echo "::error::the native build warned; a warning here is a call that fails at run time"
-            exit 1
-          fi
-
-      # The program itself, as a client starts it: every tool listed, the diagnosis answered.
-      - name: Answers over stdio
-        if: matrix.runs
-        env:
-          SNAIL_CLEANUP_SERVER: ${{ github.workspace }}/src/Server/bin/Release/net10.0/${{ matrix.rid }}/publish/Snail.MCP.CleanUp
-        run: dotnet test tests -c Release --filter "FullyQualifiedName~StdioContract"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: packages-${{ matrix.rid }}
-          path: artifacts/packages/*.nupkg
-          retention-days: 7
-
-  portable:
-    needs: version
-    runs-on: ubuntu-latest
-    env:
-      VERSION: ${{ needs.version.outputs.value }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
-      - name: Version in the registry manifest
-        run: jq --arg v "$VERSION" '.version = $v | .packages[].version = $v' .mcp/server.json > server.json.tmp && mv server.json.tmp .mcp/server.json
-
-      - name: Pack the fallback, the pointer and the core
-        run: |
-          dotnet pack src/Server -c Release -r any -p:PublishAot=false -p:PackageVersion="$VERSION" -o artifacts/packages
-          dotnet pack src/Server -c Release -p:PackageVersion="$VERSION" -o artifacts/packages
-          dotnet pack src/Core -c Release -p:PackageVersion="$VERSION" -o artifacts/packages
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: packages-portable
-          path: artifacts/packages/*.nupkg
-          retention-days: 7
-
-  push:
-    needs: [version, test, native, portable]
-    if: github.event_name == 'push' || inputs.push
-    runs-on: ubuntu-latest
+  release:
     permissions:
-      id-token: write
       contents: read
-    env:
-      VERSION: ${{ needs.version.outputs.value }}
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          pattern: packages-*
-          path: artifacts/packages
-          merge-multiple: true
-
-      - name: NuGet login (OIDC, a key for this run only)
-        uses: NuGet/login@v1
-        id: login
-        with:
-          user: ${{ secrets.NUGET_USER }}
-
-      # The pointer names every platform package; pushed before them, it would install nothing for a while.
-      - name: Push, the pointer last
-        env:
-          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
-        run: |
-          pointer="artifacts/packages/Snail.MCP.CleanUp.$VERSION.nupkg"
-          test -f "$pointer"
-          for package in artifacts/packages/*.nupkg; do
-            [ "$package" = "$pointer" ] && continue
-            dotnet nuget push "$package" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
-          done
-          dotnet nuget push "$pointer" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+      id-token: write
+    uses: orldev/Snail.Sdk/.github/workflows/mcp-publish.yml@v1
+    with:
+      name: Snail.MCP.CleanUp
+      project: src/Server
+      test-os: macos-latest
+      contract-variable: SNAIL_CLEANUP_SERVER
+      also-pack: src/Core
+      version: ${{ inputs.version }}
+      push: ${{ github.event_name == 'push' || inputs.push }}
+    secrets: inherit

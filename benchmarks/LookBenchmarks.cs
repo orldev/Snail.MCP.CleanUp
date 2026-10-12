@@ -34,11 +34,11 @@ public class LookBenchmarks
     }
 
     [GlobalSetup]
-    public void Setup()
+    public async Task Setup()
     {
         _host = Machine.Built(_data);
-        _sessions = _host.Services.GetRequiredService<ISessions>().ListAsync(CancellationToken.None).GetAwaiter().GetResult();
-        _rules = _host.Services.GetRequiredService<IRules>().ListAsync(CancellationToken.None).GetAwaiter().GetResult();
+        _sessions = await _host.Services.GetRequiredService<ISessions>().ListAsync(CancellationToken.None);
+        _rules = await _host.Services.GetRequiredService<IRules>().ListAsync(CancellationToken.None);
     }
 
     [Benchmark]

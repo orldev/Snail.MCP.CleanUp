@@ -45,17 +45,13 @@ public sealed class Android(ServerConfig config, IPrograms programs)
         if (!Directory.Exists(root))
             return [];
 
-        return
-        [
-            .. Directory.EnumerateDirectories(root)
-                .SelectMany(Directory.EnumerateDirectories)
-                .SelectMany(Directory.EnumerateDirectories)
-                .Where(path => File.Exists(Path.Combine(path, "system.img")))
-                .Select(path => Path.GetRelativePath(config.AndroidSdk, path).Split('/'))
-                .Select(parts => new Image($"{string.Join('/', parts)}/", parts[1], parts[2], parts[3]))
-                .OrderByDescending(image => Api(image.Api))
-                .ThenBy(image => image.Tag.Contains("playstore", StringComparison.Ordinal))
-        ];
+        var abis = Directory.EnumerateDirectories(root).SelectMany(Directory.EnumerateDirectories).SelectMany(Directory.EnumerateDirectories);
+        var installed = abis.Where(path => File.Exists(Path.Combine(path, "system.img")));
+        var images = installed
+            .Select(path => Path.GetRelativePath(config.AndroidSdk, path).Split('/'))
+            .Select(parts => new Image($"{string.Join('/', parts)}/", parts[1], parts[2], parts[3]));
+
+        return [.. images.OrderByDescending(image => Api(image.Api)).ThenBy(image => image.Tag.Contains("playstore", StringComparison.Ordinal))];
     }
 
     /// <summary>Writes the definition of a virtual device the way <c>avdmanager</c> would: an ini that points at a directory with its config.</summary>

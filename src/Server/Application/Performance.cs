@@ -75,8 +75,7 @@ public sealed class Performance(TimeProvider clock)
     {
         var memory = GC.GetGCMemoryInfo();
         using var process = Process.GetCurrentProcess();
-
-        return new JsonObject
+        var report = new JsonObject
         {
             ["censuses"] = _censuses,
             ["lastCensus"] = _last is { } last ? Shown(last) : null,
@@ -94,6 +93,8 @@ public sealed class Performance(TimeProvider clock)
                 ["assemblies"] = AppDomain.CurrentDomain.GetAssemblies().Length
             }
         };
+
+        return report;
     }
 
     private Dictionary<string, Spent> Delta(Dictionary<string, Spent> before) =>

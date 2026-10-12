@@ -21,7 +21,11 @@ public sealed class McpKindTests : IDisposable
 
     public McpKindTests() => _file = new LedgerFile(_scratch.File("ledger.db"));
 
-    public void Dispose() => _scratch.Dispose();
+    public void Dispose()
+    {
+        _file.Dispose();
+        _scratch.Dispose();
+    }
 
     private SqliteLedger Ledger => new(_file);
 

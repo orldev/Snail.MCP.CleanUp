@@ -88,7 +88,7 @@ public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans pl
     public async Task<Answer> KeepAsync(string id, string? reason, bool withdraw, CancellationToken cancellationToken)
     {
         if (withdraw)
-            return Answer.Ok(new JsonObject { ["id"] = id, ["isKept"] = false, ["wasKept"] = await ledger.UnkeepAsync(id, cancellationToken) });
+            return Answer.Ok(new JsonObject { ["id"] = id, ["isKept"] = false, ["wasKept"] = await ledger.TryUnkeepAsync(id, cancellationToken) });
 
         if (string.IsNullOrWhiteSpace(reason))
             return Answer.Failed("a resource is kept for a reason, and none was given", Messages.KeepHint);

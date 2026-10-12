@@ -98,7 +98,7 @@ public sealed class Hooks(MeasuredCensus census, Cleaner cleaner, ServerConfig c
         }
         catch (System.ComponentModel.Win32Exception failure)
         {
-            logger.LogWarning(failure, "could not start a detached {Verb}", verb);
+            Log.DetachedNotStarted(logger, failure, verb);
         }
     }
 
@@ -129,7 +129,7 @@ public static class Invocation
         var process = Environment.ProcessPath ?? "dotnet";
         var assembly = Path.Combine(AppContext.BaseDirectory, $"{typeof(Invocation).Assembly.GetName().Name}.dll");
 
-        return Path.GetFileNameWithoutExtension(process) == "dotnet" ? (process, [Snail.Toolkit.Mcp.Hosting.Invocation.Stable(assembly)]) : (Snail.Toolkit.Mcp.Hosting.Invocation.Stable(process), []);
+        return Path.GetFileNameWithoutExtension(process) == "dotnet" ? (process, [Snail.Sdk.Mcp.Hosting.Invocation.Stable(assembly)]) : (Snail.Sdk.Mcp.Hosting.Invocation.Stable(process), []);
     }
 
     /// <summary>The same, as one command line for a hook entry.</summary>

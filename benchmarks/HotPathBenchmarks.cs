@@ -25,12 +25,12 @@ public class HotPathBenchmarks
     private Inventory _inventory = null!;
 
     [GlobalSetup]
-    public void Setup()
+    public async Task Setup()
     {
         _ps = Run("ps", "-axww", "-o", "pid=,ppid=,lstart=,command=");
         _lsof = Run("lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-Fpcn");
         _rules = MacPlaces.Shipped;
-        _traces = new FileTrail(new Sizes(TimeProvider.System)).FollowAsync(_rules, CancellationToken.None).GetAwaiter().GetResult();
+        _traces = await new FileTrail(new Sizes(TimeProvider.System)).FollowAsync(_rules, CancellationToken.None);
 
         var owner = Owner.Session("bench");
         List<Resource> resources = [.. Enumerable.Range(0, 5_000).Select(index => new Resource

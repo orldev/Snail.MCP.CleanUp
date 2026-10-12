@@ -100,7 +100,7 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
         }
         catch (Exception refused) when (refused is SocketException or IOException or UnauthorizedAccessException or ArgumentException)
         {
-            logger.LogInformation("hooks are not taken on {Socket}: {Reason}", path, refused.Message);
+            Log.HooksNotTaken(logger, path, refused.Message);
 
             return null;
         }
@@ -124,7 +124,7 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
 
     private async Task ServeAsync(Socket listener, CancellationToken stoppingToken)
     {
-        logger.LogInformation("taking hooks on {Socket}", config.HookSocket);
+        Log.TakingHooks(logger, config.HookSocket);
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -162,7 +162,7 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
             }
             catch (Exception failure) when (failure is not OperationCanceledException)
             {
-                logger.LogWarning(failure, "a hook handed over could not be handled");
+                Log.HookNotHandled(logger, failure);
                 said = $"failed: {failure.Message}";
             }
 
@@ -172,7 +172,7 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
             }
             catch (Exception gone) when (gone is IOException or OperationCanceledException)
             {
-                logger.LogDebug(gone, "the hook left before its answer");
+                Log.HookLeft(logger, gone);
             }
         }
     }
@@ -183,7 +183,7 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
         var buffer = new byte[4096];
 
         while (read.Length < Largest && await stream.ReadAsync(buffer, cancellationToken) is var count and > 0)
-            read.Write(buffer, 0, count);
+            await read.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
 
         return Encoding.UTF8.GetString(read.GetBuffer(), 0, (int)read.Length);
     }
@@ -202,7 +202,7 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
             }
             catch (Exception failure) when (failure is not OperationCanceledException)
             {
-                logger.LogWarning(failure, "the census a stop asked for failed");
+                Log.StopCensusFailed(logger, failure);
             }
             finally
             {
@@ -219,7 +219,7 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
         }
         catch (Exception refused) when (refused is IOException or UnauthorizedAccessException)
         {
-            logger.LogDebug(refused, "the hook socket could not be removed");
+            Log.HookSocketNotRemoved(logger, refused);
         }
     }
 }

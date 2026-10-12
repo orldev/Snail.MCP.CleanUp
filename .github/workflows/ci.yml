@@ -1,64 +1,21 @@
 name: build and tests
 
-# Every push, on every branch: the tests on a Mac — the server reads ps, lsof, simctl and the keychain the way macOS
-# prints them — and the native program built for each platform it ships to, without a trim or AOT warning, then
-# started and asked over stdio where it can run. A release only packs what this proved.
+# The shared server CI of Snail.Sdk. The tests run on a Mac: the server reads ps, lsof, simctl and the keychain the way
+# macOS prints them. The native program is built for each platform it ships to and asked over stdio where it runs.
 
 on:
   push:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-      - name: Tests
-        run: >
-          dotnet test Snail.MCP.CleanUp.slnx -c Release
-          --logger "trx;LogFileName=tests.trx" --results-directory artifacts/tests
-      - if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: test results
-          path: artifacts/tests
-
-  native:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { rid: osx-arm64, os: macos-latest, runs: true }
-          - { rid: osx-x64, os: macos-latest, runs: false }
-          - { rid: linux-x64, os: ubuntu-latest, runs: true }
-          - { rid: linux-arm64, os: ubuntu-24.04-arm, runs: true }
-    runs-on: ${{ matrix.os }}
-    env:
-      RID: ${{ matrix.rid }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-dotnet@v6
-        with:
-          global-json-file: global.json
-
-      - name: Native toolchain
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
-
-      - name: Publish native
-        run: |
-          dotnet publish src/Server -c Release -r "$RID" -o published 2>&1 | tee publish.log
-          if grep -E "warning (IL|AOT)[0-9]+" publish.log; then
-            echo "::error::the native build warned; a warning here is a call that fails at run time"
-            exit 1
-          fi
-
-      - name: Answers over stdio
-        if: matrix.runs
-        env:
-          SNAIL_CLEANUP_SERVER: ${{ github.workspace }}/published/Snail.MCP.CleanUp
-        run: dotnet test tests -c Release --filter "FullyQualifiedName~StdioContract"
+  ci:
+    uses: orldev/Snail.Sdk/.github/workflows/mcp-ci.yml@v1
+    with:
+      name: Snail.MCP.CleanUp
+      project: src/Server
+      test-os: macos-latest
+      contract-variable: SNAIL_CLEANUP_SERVER

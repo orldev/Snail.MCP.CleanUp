@@ -119,11 +119,11 @@ public sealed class HookSocketTests : IAsyncDisposable
     [Fact]
     public async Task Forwarder_HandsTheEventToAServer_AndSaysWhenNoneAnswers()
     {
-        Assert.False(await Forwarding.HandedAsync(Config.HookSocket, Encoding.UTF8.GetBytes(Event("Notification", Me.Id))));
+        Assert.False(await Forwarding.WasHandedAsync(Config.HookSocket, Encoding.UTF8.GetBytes(Event("Notification", Me.Id))));
 
         await ListeningAsync();
 
-        Assert.True(await Forwarding.HandedAsync(Config.HookSocket, Encoding.UTF8.GetBytes(Event("Notification", Me.Id))));
+        Assert.True(await Forwarding.WasHandedAsync(Config.HookSocket, Encoding.UTF8.GetBytes(Event("Notification", Me.Id))));
     }
 
     [Fact]

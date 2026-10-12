@@ -100,7 +100,7 @@ public sealed partial class KernelChanges : IChanges, IDisposable
                 if (descriptor < 0)
                     continue;
 
-                if (Register(new Event((nuint)descriptor, VnodeFilter, Add | Clear, Written | Removed | Renamed)))
+                if (TryRegister(new Event((nuint)descriptor, VnodeFilter, Add | Clear, Written | Removed | Renamed)))
                     _directories[directory] = descriptor;
                 else
                     _ = Close(descriptor);
@@ -108,20 +108,20 @@ public sealed partial class KernelChanges : IChanges, IDisposable
 
             foreach (var gone in _agents.Where(agent => !agents.Contains(agent)).ToList())
             {
-                Register(new Event((nuint)gone, ProcessFilter, Delete, 0));
+                TryRegister(new Event((nuint)gone, ProcessFilter, Delete, 0));
                 _agents.Remove(gone);
             }
 
             foreach (var agent in agents.Where(agent => agent > 0 && !_agents.Contains(agent)))
             {
-                if (Register(new Event((nuint)agent, ProcessFilter, Add | Clear, Forked | Exited)))
+                if (TryRegister(new Event((nuint)agent, ProcessFilter, Add | Clear, Forked | Exited)))
                     _agents.Add(agent);
             }
         }
     }
 
     /// <inheritdoc/>
-    public bool Take() => Interlocked.Exchange(ref _isChanged, 0) == 1;
+    public bool TryTake() => Interlocked.Exchange(ref _isChanged, 0) == 1;
 
     /// <inheritdoc/>
     public async Task WaitAsync(TimeSpan most, CancellationToken cancellationToken)
@@ -160,6 +160,7 @@ public sealed partial class KernelChanges : IChanges, IDisposable
         }
 
         _ = Close(_queue);
+        _woken.Dispose();
     }
 
     private void Read()
@@ -188,7 +189,7 @@ public sealed partial class KernelChanges : IChanges, IDisposable
                 {
                     _woken.Release();
                 }
-                catch (SemaphoreFullException)
+                catch (Exception missed) when (missed is SemaphoreFullException or ObjectDisposedException)
                 {
                 }
             }
@@ -215,7 +216,7 @@ public sealed partial class KernelChanges : IChanges, IDisposable
             _heard.TryDequeue(out _);
     }
 
-    private bool Register(Event change)
+    private bool TryRegister(Event change)
     {
         var none = new TimeSpec(0, 0);
 

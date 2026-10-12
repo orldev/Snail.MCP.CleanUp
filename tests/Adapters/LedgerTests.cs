@@ -52,8 +52,8 @@ public sealed class LedgerTests : IDisposable
         await Ledger.KeepAsync("process:7@1", "my dev server", CancellationToken.None);
 
         Assert.Equal("my dev server", (await Ledger.KeptAsync(CancellationToken.None))["process:7@1"]);
-        Assert.True(await Ledger.UnkeepAsync("process:7@1", CancellationToken.None));
-        Assert.False(await Ledger.UnkeepAsync("process:7@1", CancellationToken.None));
+        Assert.True(await Ledger.TryUnkeepAsync("process:7@1", CancellationToken.None));
+        Assert.False(await Ledger.TryUnkeepAsync("process:7@1", CancellationToken.None));
         Assert.Empty(await Ledger.KeptAsync(CancellationToken.None));
     }
 

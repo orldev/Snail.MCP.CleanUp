@@ -104,10 +104,10 @@ public static class Glob
                 return false;
             }
 
-            return on < path.Length && Segment(parts, text[path[on]]) && Matches(at + 1, text, path, on + 1);
+            return on < path.Length && MatchesSegment(parts, text[path[on]]) && Matches(at + 1, text, path, on + 1);
         }
 
-        private static bool Segment(string[] parts, ReadOnlySpan<char> segment)
+        private static bool MatchesSegment(string[] parts, ReadOnlySpan<char> segment)
         {
             if (parts.Length == 1)
                 return segment.SequenceEqual(parts[0]);

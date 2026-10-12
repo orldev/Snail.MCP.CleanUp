@@ -62,7 +62,8 @@ public sealed class SqliteDiscoveries(LedgerFile file) : IDiscoveries
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            var trace = new Trace(reader.GetString(0), reader.GetString(1), reader.GetString(2), reader.IsDBNull(3) ? null : reader.GetInt64(3));
+            long? bytes = await reader.IsDBNullAsync(3, cancellationToken) ? null : reader.GetInt64(3);
+            var trace = new Trace(reader.GetString(0), reader.GetString(1), reader.GetString(2), bytes);
 
             discoveries.Add(new Discovery(
                 trace,

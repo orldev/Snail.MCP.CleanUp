@@ -37,16 +37,15 @@ public sealed class ToolIndex
     };
 
     /// <summary>The tools that answer a question, best first.</summary>
-    public IReadOnlyList<ToolEntry> Find(string? task, int limit) =>
-    [
-        .. All
+    public IReadOnlyList<ToolEntry> Find(string? task, int limit)
+    {
+        var scored = All
             .Select(entry => (Entry: entry, Score: Vocabulary.Score(task ?? string.Empty, entry.Name, Meanings.GetValueOrDefault(entry.Name), entry.Description)))
-            .Where(scored => scored.Score > 0)
-            .OrderByDescending(scored => scored.Score)
-            .ThenBy(scored => scored.Entry.Name, StringComparer.Ordinal)
-            .Take(Math.Clamp(limit, 1, All.Count))
-            .Select(scored => scored.Entry)
-    ];
+            .Where(candidate => candidate.Score > 0);
+        var ranked = scored.OrderByDescending(candidate => candidate.Score).ThenBy(candidate => candidate.Entry.Name, StringComparer.Ordinal);
+
+        return [.. ranked.Take(Math.Clamp(limit, 1, All.Count)).Select(candidate => candidate.Entry)];
+    }
 
     /// <summary>The answer <c>find_tool</c> gives: what matched, or the whole catalog when nothing did.</summary>
     public JsonObject Answer(string? task, int limit)
@@ -84,12 +83,8 @@ public sealed class ToolIndex
     /// </remarks>
     private static IReadOnlyList<ToolEntry> Read()
     {
-        var entries = Tools<DiagnosticsTools>()
-            .Concat(Tools<RunTools>())
-            .Concat(Tools<LeaseTools>())
-            .Concat(Tools<AccountTools>())
-            .Concat(Tools<DiscoveryTools>())
-            .Select(Entry);
+        IEnumerable<MethodInfo>[] classes = [Tools<DiagnosticsTools>(), Tools<RunTools>(), Tools<LeaseTools>(), Tools<AccountTools>(), Tools<DiscoveryTools>()];
+        var entries = classes.SelectMany(tools => tools).Select(Entry);
 
         return [.. entries.OrderBy(entry => entry.Name.StartsWith(Prefix, StringComparison.Ordinal) ? 0 : 1).ThenBy(entry => entry.Name, StringComparer.Ordinal)];
     }

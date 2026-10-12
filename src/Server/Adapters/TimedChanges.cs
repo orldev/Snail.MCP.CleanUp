@@ -18,7 +18,7 @@ public sealed class TimedChanges(TimeProvider clock) : IChanges
     public IReadOnlyList<string> Heard => [];
 
     /// <inheritdoc/>
-    public bool Take() => true;
+    public bool TryTake() => true;
 
     /// <inheritdoc/>
     public Task WaitAsync(TimeSpan most, CancellationToken cancellationToken) => Task.Delay(most, clock, cancellationToken);

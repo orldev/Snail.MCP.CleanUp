@@ -9,26 +9,21 @@ namespace Snail.MCP.CleanUp.Adapters.Trails;
 /// levels down is useless if the trail never goes three levels down. Links are listed but never followed,
 /// so a link into a volume of millions of files costs one entry, not the census.
 /// </remarks>
-public sealed class FileTrail : ITrail
+/// <param name="watched">The places the trail walks, each with how many levels down it looks.</param>
+/// <param name="sizes">How the size of what it finds is counted.</param>
+public sealed class FileTrail(IReadOnlyList<(string Directory, int Depth)> watched, Sizes sizes) : ITrail
 {
-    private readonly Sizes _sizes;
+    private readonly Sizes _sizes = sizes;
 
     /// <summary>How many entries one census reads at most; past it the trail says it stopped short.</summary>
     public const int MostEntries = 50_000;
 
-    private readonly IReadOnlyList<(string Directory, int Depth)> _watched;
+    private readonly IReadOnlyList<(string Directory, int Depth)> _watched = watched;
 
     /// <summary>A trail over the places of a Mac.</summary>
     public FileTrail(Sizes sizes)
         : this(MacPlaces.Watched, sizes)
     {
-    }
-
-    /// <summary>A trail over the given places.</summary>
-    public FileTrail(IReadOnlyList<(string Directory, int Depth)> watched, Sizes sizes)
-    {
-        _watched = watched;
-        _sizes = sizes;
     }
 
     /// <inheritdoc/>

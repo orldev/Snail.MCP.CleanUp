@@ -13,7 +13,7 @@ public interface IChanges
     IReadOnlyList<string> Heard { get; }
 
     /// <summary>Whether something changed since the last call, forgetting it.</summary>
-    bool Take();
+    bool TryTake();
 
     /// <summary>Waits until something changes or this long has passed, whichever is first; at once when a change is waiting.</summary>
     Task WaitAsync(TimeSpan most, CancellationToken cancellationToken);

@@ -1,0 +1,12 @@
+{
+  "intro": [
+    "Look, decide, then act: `cleanup_inventory` says what is there and whose, `cleanup_plan` decides a cleanup and shows it, `cleanup_apply` carries out exactly that plan. Something merely seen appearing during a session is reported, never removed."
+  ],
+  "families": [
+    { "type": "AccountTools", "slug": "account", "title": "The account: inventory, plan, apply" },
+    { "type": "LeaseTools", "slug": "lease", "title": "Simulators and emulators of your own" },
+    { "type": "RunTools", "slug": "run", "title": "Programs started on the record" },
+    { "type": "DiscoveryTools", "slug": "discovery", "title": "Finding a tool" },
+    { "type": "DiagnosticsTools", "slug": "diagnostics", "title": "Diagnostics" }
+  ]
+}

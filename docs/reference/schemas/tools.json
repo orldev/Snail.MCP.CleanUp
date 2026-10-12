@@ -1,0 +1,315 @@
+[
+  {
+    "name": "cleanup_inventory",
+    "description": "Say what is on this machine that agents may have left: what is yours, what sessions that ended left,\ncaches, discoveries \u2014 new things no known kind covers \u2014 and how full the disk is. Changes nothing.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "skill": null
+  },
+  {
+    "name": "cleanup_plan",
+    "description": "Decide a cleanup and show it before anything is done: what will be removed and why, what is only\nreported because nothing proves it is an agent\u0027s, what is kept. Pass the planId to cleanup_apply\nwithin 10 minutes; after that the plan is stale.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope": {
+          "description": "mine (this session\u0027s), orphans (left by ended sessions), caches (shared caches that rebuild themselves) or everything; mine by default.",
+          "type": "string",
+          "default": "mine"
+        }
+      }
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "skill": null
+  },
+  {
+    "name": "cleanup_apply",
+    "description": "Carry out the removals of a plan cleanup_plan showed, in its order. Each thing is checked again first and left alone if it changed.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "planId": {
+          "description": "The planId cleanup_plan returned.",
+          "type": "string"
+        },
+        "only": {
+          "description": "Ids of the plan\u0027s removals to carry out; all of them when omitted.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default": null
+        }
+      },
+      "required": [
+        "planId"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "cleanup_release",
+    "description": "Release one thing now, such as a simulator or an emulator you acquired, if it is proven yours or an ended session\u0027s.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Its id as cleanup_inventory printed it, such as simulator:\u003Cudid\u003E.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": true,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "cleanup_keep",
+    "description": "Ask for something to be left alone by every cleanup, with the reason, or withdraw that.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "description": "Its id as cleanup_inventory printed it.",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why it stays; required unless withdrawing.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "withdraw": {
+          "description": "True to let cleanups have it again.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "id"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "cleanup_learn",
+    "description": "Turn a discovery into a known kind: a rule written to rules.json covering every trace like it from now\non. ignore says it is harmless, report shows it as a leftover, cache makes it a shared cache.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "pattern": {
+          "description": "Keys it covers: * is one path segment, ** any number, ~ is home; such as ~/Library/Caches/tool/*.",
+          "type": "string"
+        },
+        "action": {
+          "description": "ignore, report or cache.",
+          "type": "string"
+        },
+        "trail": {
+          "description": "The trail of the discovery, the part of its id before the colon; file by default.",
+          "type": "string",
+          "default": "file"
+        },
+        "note": {
+          "description": "Why the rule exists, for the person who reads rules.json.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "blockedWhileRunning": {
+          "description": "A program that keeps what it covers open, such as Code; nothing covered is removed while it runs.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "pattern",
+        "action"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "cleanup_simulator_acquire",
+    "description": "Get an iOS simulator of your own: a clone of a shut-down device, or a new device of a type, named for\nthis session so that no other agent uses it and only this session\u0027s cleanup removes it. Use it instead\nof booting a simulator somebody may already be using, and drive it by the udid it returns.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "description": "A shut-down device to clone, by name or udid, or a device type such as iPhone 17 Pro; the newest iPhone Pro when omitted.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "boot": {
+          "description": "Whether to boot it and wait until it is ready; false by default.",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "cleanup_emulator_acquire",
+    "description": "Get an Android emulator of your own: a new virtual device from an installed system image, started on a\nfree console port without saving a snapshot, named for this session so that only its cleanup removes\nit. It returns the adb serial at once; the device needs a minute or two to boot.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "description": "Part of an installed system image path, such as android-37.0 or google_apis; the newest image without the Play Store when omitted.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "window": {
+          "description": "Whether to show the emulator\u0027s window; false runs it headless.",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "cleanup_run",
+    "description": "Start a program that keeps running \u2014 a dev server, a watcher, a worker \u2014 written down as yours from its\nfirst second, so that cleaning up after this session ends it for certain and nothing of anyone else\u0027s.\nIt returns at once with the process id and a log file; read the log for its output. Prefer it to\nstarting such a program in the background from a shell.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "command": {
+          "description": "The whole command line, run by zsh, such as npm run dev -- --port 3000.",
+          "type": "string"
+        },
+        "directory": {
+          "description": "Directory to run it in; the server\u0027s own working directory when omitted.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "command"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": false
+    },
+    "skill": null
+  },
+  {
+    "name": "find_tool",
+    "description": "Find which of this server\u0027s tools does a thing, described in your own words, with every argument each one takes.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "description": "What you want to do, such as \u00ABfree the port my dev server held\u00BB.",
+          "type": "string"
+        },
+        "limit": {
+          "description": "How many tools to return at most; 5 by default.",
+          "type": "integer",
+          "default": 5
+        }
+      },
+      "required": [
+        "task"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "skill": null
+  },
+  {
+    "name": "cleanup_diagnose",
+    "description": "Say what state this server is in: its version, the session it counts as yours, and which of the\nprograms it works through (simctl, adb, docker) it can reach. Call it when another tool reports that\nsomething is unavailable, not before every task.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "skill": null
+  }
+]

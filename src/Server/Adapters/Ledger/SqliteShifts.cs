@@ -5,7 +5,7 @@ namespace Snail.MCP.CleanUp.Adapters.Ledger;
 public sealed class SqliteShifts(LedgerFile file, TimeProvider clock) : IShifts
 {
     /// <inheritdoc/>
-    public async Task<bool> TakeAsync(string duty, string watcher, TimeSpan length, CancellationToken cancellationToken)
+    public async Task<bool> TryTakeAsync(string duty, string watcher, TimeSpan length, CancellationToken cancellationToken)
     {
         var now = clock.GetUtcNow();
 

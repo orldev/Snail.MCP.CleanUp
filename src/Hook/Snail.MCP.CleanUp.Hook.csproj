@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Snail.Sdk">
 
     <!--
         The hook Claude Code runs at every session start, stop and session end: a native program that hands the event to

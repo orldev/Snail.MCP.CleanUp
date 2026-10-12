@@ -1,16 +1,12 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Snail.Sdk.Mcp">
 
+    <!--
+        A native stdio server (Snail.Sdk.Mcp: SnailMcpNative and SnailMcpTransport at their defaults): published with
+        Native AOT, settings bound by generated code, a dotnet tool of the McpServer kind, Install into ~/.s3l-mcp.
+    -->
     <PropertyGroup>
-        <OutputType>Exe</OutputType>
-        <RootNamespace>Snail.MCP.CleanUp</RootNamespace>
-        <InvariantGlobalization>true</InvariantGlobalization>
-        <RollForward>LatestMajor</RollForward>
         <!-- libproc and sysctl are called through LibraryImport, whose generated marshalling is unsafe code. -->
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <!-- Trim and AOT analysis at every build, so that what would break a native build breaks this one first. -->
-        <IsAotCompatible>true</IsAotCompatible>
-        <!-- Settings are bound by generated code, as a native build needs, in every build alike. -->
-        <EnableConfigurationBindingGenerator>true</EnableConfigurationBindingGenerator>
     </PropertyGroup>
 
     <!--
@@ -24,13 +20,7 @@
         reads the process table, sockets and changes the unix way.
     -->
     <PropertyGroup>
-        <PublishAot>true</PublishAot>
-        <OptimizationPreference>Size</OptimizationPreference>
         <ToolPackageRuntimeIdentifiers>osx-arm64;osx-x64;linux-x64;linux-arm64;any</ToolPackageRuntimeIdentifiers>
-        <!-- A publication carries the program, not its debug symbols (57 MB) or its API docs: both stay in obj/. -->
-        <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
-        <PublishDocumentationFile>false</PublishDocumentationFile>
-        <PublishReferencesDocumentationFiles>false</PublishReferencesDocumentationFiles>
     </PropertyGroup>
 
     <!--
@@ -41,9 +31,8 @@
         resident and 216 KB of binary, for a server that compares and formats everything invariantly.
     -->
 
-    <!-- Published into ~/.snail-mcp with -p:Install=true (Snail.Toolkit.Mcp.Build), the hook forwarder beside it. -->
+    <!-- Published with -p:Install=true, the hook forwarder beside it. -->
     <PropertyGroup>
-        <SnailMcpName>Snail.MCP.CleanUp</SnailMcpName>
         <!-- A hook with nothing on its input answers at once: the warm-up takes no census. -->
         <SnailMcpWarmUp>hook</SnailMcpWarmUp>
     </PropertyGroup>
@@ -53,32 +42,17 @@
     </ItemGroup>
 
     <PropertyGroup>
-        <PackAsTool>true</PackAsTool>
-        <ToolCommandName>snail-mcp-cleanup</ToolCommandName>
-        <PackageType>McpServer</PackageType>
-        <PackageId>Snail.MCP.CleanUp</PackageId>
         <Version>0.1.0</Version>
-        <Authors>orldev</Authors>
         <Description>Local MCP server that keeps account of what AI agents leave behind on a Mac — processes, ports, temporary files, Docker objects, iOS simulators, Android emulators, editor state — and removes what is proven theirs, reporting everything it cannot prove.</Description>
         <PackageTags>mcp;mcp-server;modelcontextprotocol;ai;claude;cleanup;simulator;emulator;dotnet-tool</PackageTags>
-        <PackageReadmeFile>README.md</PackageReadmeFile>
-        <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageProjectUrl>https://github.com/orldev/Snail.MCP.CleanUp</PackageProjectUrl>
         <RepositoryUrl>https://github.com/orldev/Snail.MCP.CleanUp</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
     </PropertyGroup>
-
-    <ItemGroup>
-        <None Include="..\..\README.md" Pack="true" PackagePath="/" Visible="false"/>
-        <None Include="..\..\.mcp\server.json" Pack="true" PackagePath="/.mcp/" Visible="false"/>
-    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Data.Sqlite"/>
         <PackageReference Include="Microsoft.Extensions.Hosting"/>
         <PackageReference Include="ModelContextProtocol"/>
-        <PackageReference Include="Snail.Toolkit.Mcp.Hosting"/>
-        <PackageReference Include="Snail.Toolkit.Mcp.Build" PrivateAssets="all"/>
     </ItemGroup>
 
     <ItemGroup>

@@ -54,7 +54,7 @@ public sealed class EmulatorKind(Android android, IProcessTable table, IPrograms
 
         Forget(port, running.Min(process => process.StartedAt));
 
-        return Release.Done(resource, await AdbStoppedAsync(running, cancellationToken) ? $"{how}; the adb server it started was stopped too" : how);
+        return Release.Done(resource, await TryStopAdbAsync(running, cancellationToken) ? $"{how}; the adb server it started was stopped too" : how);
     }
 
     /// <summary>Whether a program is the machine an emulator runs a device in, rather than the program that started it.</summary>
@@ -99,23 +99,23 @@ public sealed class EmulatorKind(Android android, IProcessTable table, IPrograms
         {
             await programs.RunAsync(android.Adb, ["-s", Android.Serial(console), "emu", "kill"], TimeSpan.FromSeconds(15), cancellationToken);
 
-            if (await GoneAsync(running, Grace, cancellationToken))
+            if (await AreGoneAsync(running, Grace, cancellationToken))
                 return "shut down through adb emu kill";
         }
 
         foreach (var process in running)
             await programs.RunAsync("kill", ["-TERM", $"{process.Pid}"], TimeSpan.FromSeconds(5), cancellationToken);
 
-        if (await GoneAsync(running, Grace, cancellationToken))
+        if (await AreGoneAsync(running, Grace, cancellationToken))
             return "shut down on SIGTERM";
 
         foreach (var process in running)
             await programs.RunAsync("kill", ["-KILL", $"{process.Pid}"], TimeSpan.FromSeconds(5), cancellationToken);
 
-        return await GoneAsync(running, TimeSpan.FromSeconds(5), cancellationToken) ? $"killed: it outlived SIGTERM by {Grace.TotalSeconds:0} s" : null;
+        return await AreGoneAsync(running, TimeSpan.FromSeconds(5), cancellationToken) ? $"killed: it outlived SIGTERM by {Grace.TotalSeconds:0} s" : null;
     }
 
-    private async Task<bool> GoneAsync(IReadOnlyList<RunningProcess> running, TimeSpan patience, CancellationToken cancellationToken)
+    private async Task<bool> AreGoneAsync(IReadOnlyList<RunningProcess> running, TimeSpan patience, CancellationToken cancellationToken)
     {
         var deadline = clock.GetUtcNow() + patience;
 
@@ -140,7 +140,7 @@ public sealed class EmulatorKind(Android android, IProcessTable table, IPrograms
     /// the server itself on boot — measured on 2026-10-11, when one started at 21:19:20 under a test emulator
     /// on a Mac that had none — so a server younger than the emulator is the emulator's, and leaves with it.
     /// </summary>
-    private async Task<bool> AdbStoppedAsync(IReadOnlyList<RunningProcess> ended, CancellationToken cancellationToken)
+    private async Task<bool> TryStopAdbAsync(IReadOnlyList<RunningProcess> ended, CancellationToken cancellationToken)
     {
         table.Refresh();
 

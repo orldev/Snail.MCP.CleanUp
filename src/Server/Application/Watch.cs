@@ -56,14 +56,14 @@ public sealed class Watch(MeasuredCensus census, ISessions sessions, IShifts shi
             if (!await HoldsTheWatchAsync(stoppingToken))
             {
                 changes.Leave();
-                changes.Take();
+                changes.TryTake();
 
                 continue;
             }
 
             changes.Follow(agents);
 
-            var isChanged = changes.Take();
+            var isChanged = changes.TryTake();
             var since = clock.GetUtcNow() - last;
 
             if (!isChanged && since < Fallback)
@@ -72,7 +72,7 @@ public sealed class Watch(MeasuredCensus census, ISessions sessions, IShifts shi
             if (isChanged)
                 await Task.Delay(Settle > Quiet - since ? Settle : Quiet - since, clock, stoppingToken);
 
-            changes.Take();
+            changes.TryTake();
             agents = await TakeAsync(stoppingToken);
             last = clock.GetUtcNow();
             changes.Follow(agents);
@@ -90,7 +90,7 @@ public sealed class Watch(MeasuredCensus census, ISessions sessions, IShifts shi
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
         {
-            logger.LogDebug(failure, "the watch could not be handed back; it passes on when it runs out");
+            Log.WatchNotHandedBack(logger, failure);
         }
     }
 
@@ -98,11 +98,11 @@ public sealed class Watch(MeasuredCensus census, ISessions sessions, IShifts shi
     {
         try
         {
-            return await shifts.TakeAsync(Duty, _watcher, Interval * 2, cancellationToken);
+            return await shifts.TryTakeAsync(Duty, _watcher, Interval * 2, cancellationToken);
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
         {
-            logger.LogWarning(failure, "the watch could not be asked for; this server takes the census itself");
+            Log.WatchNotAskedFor(logger, failure);
 
             return true;
         }
@@ -118,13 +118,13 @@ public sealed class Watch(MeasuredCensus census, ISessions sessions, IShifts shi
             var alive = inventory.Alive;
             var orphans = inventory.Resources.Count(resource => resource.Owner.IsKnown && resource.Owner != asker && !alive.Contains(resource.Owner));
 
-            logger.LogDebug("census for {Asker}: {Resources} resources, {Orphans} left by ended sessions", asker, inventory.Resources.Count, orphans);
+            Log.CensusTaken(logger, asker, inventory.Resources.Count, orphans);
 
             return [.. inventory.Sessions.Where(session => session.IsAlive && session.Pid is > 0).Select(session => session.Pid!.Value)];
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
         {
-            logger.LogWarning(failure, "census failed; the next one is in {Interval}", Interval);
+            Log.CensusFailed(logger, failure, Interval);
 
             return [];
         }

@@ -20,36 +20,36 @@ public sealed class ShiftsTests : IDisposable
     [Fact]
     public async Task Duty_HeldByOne_IsRefusedToAnother_AndKeptByItsHolder()
     {
-        Assert.True(await Shifts.TakeAsync("census", "a", Length, CancellationToken.None));
-        Assert.False(await Shifts.TakeAsync("census", "b", Length, CancellationToken.None));
-        Assert.True(await Shifts.TakeAsync("census", "a", Length, CancellationToken.None));
-        Assert.True(await Shifts.TakeAsync("other", "b", Length, CancellationToken.None));
+        Assert.True(await Shifts.TryTakeAsync("census", "a", Length, CancellationToken.None));
+        Assert.False(await Shifts.TryTakeAsync("census", "b", Length, CancellationToken.None));
+        Assert.True(await Shifts.TryTakeAsync("census", "a", Length, CancellationToken.None));
+        Assert.True(await Shifts.TryTakeAsync("other", "b", Length, CancellationToken.None));
     }
 
     /// <summary>A server that died holding the watch keeps it only until its shift runs out.</summary>
     [Fact]
     public async Task Shift_NotRenewed_PassesToTheNextWhenItRunsOut()
     {
-        await Shifts.TakeAsync("census", "a", Length, CancellationToken.None);
+        await Shifts.TryTakeAsync("census", "a", Length, CancellationToken.None);
 
         _clock.Advance(Length - TimeSpan.FromSeconds(1));
-        Assert.False(await Shifts.TakeAsync("census", "b", Length, CancellationToken.None));
+        Assert.False(await Shifts.TryTakeAsync("census", "b", Length, CancellationToken.None));
 
         _clock.Advance(TimeSpan.FromSeconds(2));
-        Assert.True(await Shifts.TakeAsync("census", "b", Length, CancellationToken.None));
-        Assert.False(await Shifts.TakeAsync("census", "a", Length, CancellationToken.None));
+        Assert.True(await Shifts.TryTakeAsync("census", "b", Length, CancellationToken.None));
+        Assert.False(await Shifts.TryTakeAsync("census", "a", Length, CancellationToken.None));
     }
 
     [Fact]
     public async Task Shift_Left_PassesAtOnce_AndOnlyItsHolderCanLeaveIt()
     {
-        await Shifts.TakeAsync("census", "a", Length, CancellationToken.None);
+        await Shifts.TryTakeAsync("census", "a", Length, CancellationToken.None);
 
         await Shifts.LeaveAsync("census", "b", CancellationToken.None);
-        Assert.False(await Shifts.TakeAsync("census", "b", Length, CancellationToken.None));
+        Assert.False(await Shifts.TryTakeAsync("census", "b", Length, CancellationToken.None));
 
         await Shifts.LeaveAsync("census", "a", CancellationToken.None);
-        Assert.True(await Shifts.TakeAsync("census", "b", Length, CancellationToken.None));
+        Assert.True(await Shifts.TryTakeAsync("census", "b", Length, CancellationToken.None));
     }
 
     public void Dispose()

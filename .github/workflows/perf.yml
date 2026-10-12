@@ -1,0 +1,18 @@
+name: performance
+
+# Every two months: the benchmarks against benchmarks/baseline/ on a Mac, where the census they measure reads the machine, and
+# Stryker.NET on the tests.
+
+on:
+  schedule:
+    - cron: '0 4 1 */2 *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  perf:
+    uses: orldev/Snail.Sdk/.github/workflows/perf.yml@v1
+    with:
+      os: macos-latest

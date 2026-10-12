@@ -54,6 +54,8 @@ public sealed class SqliteLedger(LedgerFile file) : ILedger
 
         while (await reader.ReadAsync(cancellationToken))
         {
+            string? keptBecause = await reader.IsDBNullAsync(5, cancellationToken) ? null : reader.GetString(5);
+
             holdings.Add(new Holding(
                 reader.GetString(0),
                 Owner.Parse(reader.GetString(1)),
@@ -61,7 +63,7 @@ public sealed class SqliteLedger(LedgerFile file) : ILedger
                 Moments.Read(reader.GetString(3)),
                 reader.GetString(4))
             {
-                KeptBecause = reader.IsDBNull(5) ? null : reader.GetString(5)
+                KeptBecause = keptBecause
             });
         }
 
@@ -82,7 +84,7 @@ public sealed class SqliteLedger(LedgerFile file) : ILedger
     }
 
     /// <inheritdoc/>
-    public async Task<bool> UnkeepAsync(string resourceId, CancellationToken cancellationToken)
+    public async Task<bool> TryUnkeepAsync(string resourceId, CancellationToken cancellationToken)
     {
         await using var connection = await file.OpenAsync(cancellationToken);
 

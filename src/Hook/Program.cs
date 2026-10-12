@@ -15,7 +15,7 @@ await using (var input = Console.OpenStandardInput())
 
 var hook = read.ToArray();
 
-if (await Forwarding.HandedAsync(args[0], hook))
+if (await Forwarding.WasHandedAsync(args[0], hook))
     return 0;
 
 var start = new ProcessStartInfo(args[1], args[2..]) { RedirectStandardInput = true };
@@ -39,7 +39,7 @@ internal static class Forwarding
 
     /// <summary>Whether a server took the event and answered; when none did, the caller runs the hook itself.</summary>
     /// <remarks>Any answer counts, a failure too: the server has tried, and doing it a second time would sweep twice.</remarks>
-    public static async Task<bool> HandedAsync(string path, byte[] hook)
+    public static async Task<bool> WasHandedAsync(string path, byte[] hook)
     {
         using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
 

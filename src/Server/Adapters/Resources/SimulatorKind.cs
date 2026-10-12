@@ -74,8 +74,7 @@ public sealed class SimulatorKind(IPrograms programs, IProcessTable table, Sizes
     {
         var owner = Simulators.OwnerOf(device.Name);
         var drivers = Drivers(device.Udid, running);
-
-        return new Resource
+        var resource = new Resource
         {
             Kind = Name,
             Key = device.Udid,
@@ -92,6 +91,8 @@ public sealed class SimulatorKind(IPrograms programs, IProcessTable table, Sizes
                 ["drivers"] = string.Join(',', drivers.Select(driver => driver.Pid))
             }
         };
+
+        return resource;
     }
 
     /// <summary>The programs whose command line names the simulator: test runners, video recordings, log streams.</summary>

@@ -22,7 +22,7 @@ public sealed class KernelChangesTests : IDisposable
         var changes = new KernelChanges(trail);
 
         changes.Follow(agents);
-        changes.Take();
+        changes.TryTake();
 
         return changes;
     }
@@ -35,12 +35,12 @@ public sealed class KernelChangesTests : IDisposable
 
         using var changes = await FollowingAsync();
 
-        Assert.False(changes.Take());
+        Assert.False(changes.TryTake());
 
         await File.WriteAllTextAsync(_scratch.File("new"), "x");
         await changes.WaitAsync(Patience, CancellationToken.None);
 
-        Assert.True(changes.Take());
+        Assert.True(changes.TryTake());
     }
 
     /// <summary>What happens below a followed directory is not a change of it: only what a census would list is.</summary>
@@ -57,7 +57,7 @@ public sealed class KernelChangesTests : IDisposable
         await File.WriteAllTextAsync(Path.Combine(inside, "deep"), "x");
         await changes.WaitAsync(TimeSpan.FromMilliseconds(500), CancellationToken.None);
 
-        Assert.False(changes.Take());
+        Assert.False(changes.TryTake());
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class KernelChangesTests : IDisposable
         agent.Kill();
         await changes.WaitAsync(Patience, CancellationToken.None);
 
-        Assert.True(changes.Take());
+        Assert.True(changes.TryTake());
     }
 
     [Fact]
@@ -86,13 +86,13 @@ public sealed class KernelChangesTests : IDisposable
         Assert.Equal((1, 1), changes.Followed);
 
         changes.Leave();
-        changes.Take();
+        changes.TryTake();
 
         Assert.Equal((0, 0), changes.Followed);
 
         await File.WriteAllTextAsync(_scratch.File("unseen"), "x");
         await changes.WaitAsync(TimeSpan.FromMilliseconds(500), CancellationToken.None);
 
-        Assert.False(changes.Take());
+        Assert.False(changes.TryTake());
     }
 }

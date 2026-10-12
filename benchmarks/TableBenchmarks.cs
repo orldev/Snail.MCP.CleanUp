@@ -30,9 +30,9 @@ public class TableBenchmarks
     private string[] _kinds = [];
 
     [GlobalSetup]
-    public void Setup()
+    public async Task Setup()
     {
-        var running = new NativeProcessTable(TimeProvider.System).ListAsync(CancellationToken.None).GetAwaiter().GetResult();
+        var running = await new NativeProcessTable(TimeProvider.System).ListAsync(CancellationToken.None);
 
         _commands = [.. running.Select(process => process.Command)];
         _programs = [.. running.Select(process => process.Program)];
