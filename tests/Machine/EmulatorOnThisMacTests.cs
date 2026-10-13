@@ -83,7 +83,6 @@ public sealed class EmulatorOnThisMacTests : IDisposable
             File.Delete(Path.Combine(home, $"{_device}.ini"));
         }
 
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 }

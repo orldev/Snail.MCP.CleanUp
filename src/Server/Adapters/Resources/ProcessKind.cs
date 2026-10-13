@@ -55,9 +55,11 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
             {
                 var age = now - process.StartedAt;
 
-                found.TryAdd(process.Key, Described(process, owner, Evidence.Ancestry, listening.GetValueOrDefault(process.Pid) ?? []) with
+                var resource = Described(process, owner, Evidence.Ancestry, listening.GetValueOrDefault(process.Pid) ?? []);
+
+                found.TryAdd(process.Key, resource with
                 {
-                    Blocker = age < Fresh ? $"started {age.TotalSeconds:0} s ago under a running agent: it may be the command the agent is running right now" : null
+                    Blocker = resource.Blocker ?? (age < Fresh ? $"started {age.TotalSeconds:0} s ago under a running agent: it may be the command the agent is running right now" : null)
                 });
             }
         }
@@ -146,7 +148,9 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
                 ? $"an application, started under {owner}: a person may be using it now, so it is left for them to close"
                 : alive.Contains(owner) && age < Fresh ? $"started {age.TotalSeconds:0} s ago by a running agent: it may be part of the command the agent is running right now" : null;
 
-            found.Add(process.Key, Described(process, owner, Evidence.Environment, listening.GetValueOrDefault(process.Pid) ?? []) with { Blocker = blocker });
+            var resource = Described(process, owner, Evidence.Environment, listening.GetValueOrDefault(process.Pid) ?? []);
+
+            found.Add(process.Key, resource with { Blocker = resource.Blocker ?? blocker });
         }
     }
 
@@ -219,7 +223,18 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
         return own;
     }
 
-    private Resource Described(RunningProcess process, Owner owner, Evidence evidence, IReadOnlyList<int> ports) => new()
+    /// <remarks>
+    /// A server builds and editors share (see <see cref="SharedServers"/>) is nobody's whatever made it be found, and is
+    /// blocked, so that not even an owner the ledger wrote down before makes a plan end it.
+    /// </remarks>
+    private Resource Described(RunningProcess process, Owner owner, Evidence evidence, IReadOnlyList<int> ports)
+    {
+        var resource = Listed(process, owner, evidence, ports);
+
+        return SharedServers.Is(process) ? resource with { Owner = Owner.Nobody, Evidence = Evidence.None, Blocker = SharedServers.Why } : resource;
+    }
+
+    private Resource Listed(RunningProcess process, Owner owner, Evidence evidence, IReadOnlyList<int> ports) => new()
     {
         Kind = Name,
         Key = process.Key,

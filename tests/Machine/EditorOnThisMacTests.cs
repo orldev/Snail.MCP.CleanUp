@@ -37,7 +37,6 @@ public sealed class EditorOnThisMacTests : IDisposable
 
     public void Dispose()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 }

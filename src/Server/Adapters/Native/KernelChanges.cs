@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Configuration;
@@ -124,12 +125,23 @@ public sealed partial class KernelChanges : IChanges, IDisposable
     public bool TryTake() => Interlocked.Exchange(ref _isChanged, 0) == 1;
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// A wake-up can outlive its word: the reading thread wakes the waiter on every word, and a wait that ended at once on
+    /// a change already marked never spent that wake-up, so it is still there after the caller took the change with
+    /// <see cref="TryTake"/>. Such a wake-up is spent and the wait goes on for what is left of its time: only a change
+    /// marked now ends it early.
+    /// </remarks>
     public async Task WaitAsync(TimeSpan most, CancellationToken cancellationToken)
     {
-        if (Volatile.Read(ref _isChanged) == 1)
-            return;
+        var started = Stopwatch.GetTimestamp();
 
-        await _woken.WaitAsync(most, cancellationToken);
+        while (Volatile.Read(ref _isChanged) == 0)
+        {
+            var left = most - Stopwatch.GetElapsedTime(started);
+
+            if (left <= TimeSpan.Zero || !await _woken.WaitAsync(left, cancellationToken))
+                return;
+        }
     }
 
     /// <inheritdoc/>
@@ -178,10 +190,8 @@ public sealed partial class KernelChanges : IChanges, IDisposable
             if (count <= 0)
                 continue;
 
-            for (var index = 0; index < count; index++)
-                Remember(received[index]);
-
-            Interlocked.Exchange(ref _isChanged, 1);
+            if (!IsHeard(received, count))
+                continue;
 
             if (_woken.CurrentCount == 0)
             {
@@ -196,20 +206,52 @@ public sealed partial class KernelChanges : IChanges, IDisposable
         }
     }
 
-    private void Remember(Event heard)
+    /// <summary>Writes down what the kernel said and marks a change, when any of it is about something still followed.</summary>
+    /// <remarks>
+    /// The kernel may hand word over a moment before <see cref="Leave"/> and this thread mark it a moment after, when the
+    /// caller has already taken stock with <see cref="TryTake"/>: a server that left would be told of a change all the same.
+    /// So word is weighed under the lock that changes what is followed — it is either marked before the leaving, where the
+    /// caller's next <see cref="TryTake"/> forgets it, or found to be about what is no longer followed, and dropped.
+    /// </remarks>
+    private bool IsHeard(Event[] received, int count)
     {
-        string said;
+        var isChanged = false;
 
+        lock (_following)
+        {
+            for (var index = 0; index < count; index++)
+            {
+                if (Said(received[index]) is not { } said)
+                    continue;
+
+                Remember(said);
+                isChanged = true;
+            }
+
+            if (isChanged)
+                Interlocked.Exchange(ref _isChanged, 1);
+        }
+
+        return isChanged;
+    }
+
+    /// <summary>What a word of the kernel is about, or nothing when that is no longer followed.</summary>
+    private string? Said(Event heard)
+    {
         if (heard.Filter == ProcessFilter)
+            return _agents.Contains((int)heard.Identity) ? $"agent {heard.Identity}" : null;
+
+        foreach (var (directory, descriptor) in _directories)
         {
-            said = $"agent {heard.Identity}";
-        }
-        else
-        {
-            lock (_following)
-                said = _directories.FirstOrDefault(pair => (nuint)pair.Value == heard.Identity).Key ?? $"descriptor {heard.Identity}";
+            if ((nuint)descriptor == heard.Identity)
+                return directory;
         }
 
+        return null;
+    }
+
+    private void Remember(string said)
+    {
         _heard.Enqueue(said);
 
         while (_heard.Count > 20)

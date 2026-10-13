@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Time.Testing;
+using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Core.Application;
@@ -235,6 +236,54 @@ public sealed class ProcessKindTests : IDisposable
         Assert.All(Planner.Decide(Inventory([.. observed.Resources]), Scope.Orphans, "plan").Decisions, decision => Assert.Equal(Verdict.Report, decision.Verdict));
     }
 
+    /// <summary>The build servers of 2026-10-13: detached, carrying this session's id an hour on, reused by every window's builds.</summary>
+    [Fact]
+    public async Task SharedBuildServers_CarryingAnEndedSession_AreNotItsOrphans_OnlyNamed()
+    {
+        _table.Add(57178, 1, "/Users/me/.dotnet/sdk/10.0.302/Roslyn/bincore/VBCSCompiler -pipename:WdTTuu", executable: "/Users/me/.dotnet/sdk/10.0.302/Roslyn/bincore/VBCSCompiler", session: Gone.Id, agent: 100);
+        _table.Add(57626, 1, "/Users/me/.dotnet/dotnet /Users/me/.dotnet/sdk/10.0.302/MSBuild.dll /noautoresponse /nologo /nodemode:1 /nodeReuse:true /low:false", session: Gone.Id, agent: 100);
+        _table.Add(57700, 1, "/Users/me/.dotnet/dotnet /Users/me/.dotnet/sdk/10.0.302/Sdks/Microsoft.NET.Sdk.Razor/tools/rzc.dll server -p abc", session: Gone.Id, agent: 100);
+
+        var observed = await Kind.ObserveAsync([Dead(Gone)], CancellationToken.None);
+        var inventory = Inventory([.. observed.Resources]);
+
+        Assert.Equal(3, observed.Resources.Count);
+        Assert.All(observed.Resources, resource =>
+        {
+            Assert.False(resource.Owner.IsKnown);
+            Assert.Equal(SharedServers.Why, resource.Blocker);
+        });
+        Assert.Empty(Planner.Decide(inventory, Scope.Orphans, "plan").Decisions);
+        Assert.Empty(Planner.Decide(inventory, Scope.Everything, "plan").Removals);
+    }
+
+    /// <summary>Seen under the agent's shell the moment a build started it, a compiler server is still everybody's.</summary>
+    [Fact]
+    public async Task SharedBuildServer_UnderARunningAgentsShell_IsNotTheAgents()
+    {
+        var agent = _table.Add(100, 1, "/bin/claude", DateTimeOffset.UnixEpoch);
+        _table.Add(200, 100, "/bin/zsh -c dotnet build");
+        _table.Add(300, 200, "/Users/me/.dotnet/dotnet /Users/me/.dotnet/sdk/10.0.302/MSBuild.dll -nodemode:1 -nodeReuse:true", session: Me.Id, agent: 100);
+
+        var observed = await Kind.ObserveAsync([SessionOf(agent)], CancellationToken.None);
+        var node = observed.Resources.Single(resource => resource.Facts["pid"] == "300");
+
+        Assert.Equal((Owner.Nobody, Evidence.None), (node.Owner, node.Evidence));
+        Assert.DoesNotContain(Planner.Decide(Inventory([.. observed.Resources]), Scope.Mine, "plan").Removals, decision => decision.Resource.Facts["pid"] == "300");
+    }
+
+    /// <summary>The ledger may hold a node a census saw under a shell before builds were known to be shared: the plan still only names it.</summary>
+    [Fact]
+    public async Task SharedBuildServer_WhoseOwnerTheLedgerWroteDown_IsStillOnlyNamed()
+    {
+        _table.Add(57178, 1, "/Users/me/.dotnet/sdk/10.0.302/Roslyn/bincore/VBCSCompiler -pipename:x", executable: "/Users/me/.dotnet/sdk/10.0.302/Roslyn/bincore/VBCSCompiler");
+
+        var listed = Assert.Single((await Kind.ObserveAsync([], CancellationToken.None)).Resources);
+        var settled = listed with { Owner = Gone, Evidence = Evidence.Ancestry };
+
+        Assert.Equal(Verdict.Report, Assert.Single(Planner.Decide(Inventory([settled]), Scope.Orphans, "plan").Decisions).Verdict);
+    }
+
     [Fact]
     public async Task Release_EndsTheProgramOnSigterm_AndSaysThePortIsFree()
     {
@@ -280,7 +329,6 @@ public sealed class ProcessKindTests : IDisposable
     public void Dispose()
     {
         _file.Dispose();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 }

@@ -95,4 +95,32 @@ public sealed class KernelChangesTests : IDisposable
 
         Assert.False(changes.TryTake());
     }
+
+    /// <summary>Word the caller already took is spent: the wait after it runs its length unless something changes again.</summary>
+    [Fact]
+    public async Task Word_AlreadyTaken_DoesNotCutTheNextWaitShort()
+    {
+        if (!OperatingSystem.IsMacOS())
+            return;
+
+        using var changes = await FollowingAsync();
+
+        await File.WriteAllTextAsync(_scratch.File("new"), "x");
+
+        var heard = Stopwatch.StartNew();
+
+        while (changes.Heard.Count == 0 && heard.Elapsed < Patience)
+            await Task.Delay(10);
+
+        await Task.Delay(100);
+        await changes.WaitAsync(Patience, CancellationToken.None);
+        changes.TryTake();
+
+        var waited = Stopwatch.StartNew();
+
+        await changes.WaitAsync(TimeSpan.FromMilliseconds(500), CancellationToken.None);
+
+        Assert.True(waited.Elapsed >= TimeSpan.FromMilliseconds(400), $"woke after {waited.Elapsed.TotalMilliseconds:0} ms");
+        Assert.False(changes.TryTake());
+    }
 }

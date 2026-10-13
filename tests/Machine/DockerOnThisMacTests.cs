@@ -56,7 +56,6 @@ public sealed class DockerOnThisMacTests : IDisposable
         if (!_hadImage)
             Run("docker", "image", "rm", Image);
 
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 

@@ -145,7 +145,6 @@ public sealed class HookSocketTests : IAsyncDisposable
         }
 
         _file.Dispose();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
 
         if (Directory.Exists(_run))

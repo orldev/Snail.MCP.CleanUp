@@ -7,7 +7,8 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// nothing but its environment left to say whose it was. The environment is proof of the same kind as a label — written
 /// when the program was made — and it outlives the agent, so a program whose session has ended is that session's orphan.
 /// <para>
-/// Three things are never taken on it. The agents themselves. What runs under the MCP servers of a running agent — its
+/// Four things are never taken on it. The servers builds and editors share (<see cref="SharedServers"/>), which carry
+/// whichever session started them while every window reuses them. The agents themselves. What runs under the MCP servers of a running agent — its
 /// direct children other than shells, and everything below them: they carry the session too, and they are its tools (see
 /// <see cref="Lineage"/>). And the session's name as it was: after <c>/clear</c> the agent goes on under a new session id,
 /// while the programs it started before still name the old one, so a program whose agent — <c>CLAUDE_PID</c>, or the agent
@@ -41,7 +42,7 @@ public static class Carriers
 
         foreach (var process in carriers)
         {
-            if (agents.ContainsKey(process.Pid) || IsUnderAServer(process, byPid, agents))
+            if (agents.ContainsKey(process.Pid) || SharedServers.Is(process) || IsUnderAServer(process, byPid, agents))
                 continue;
 
             owners[process.Pid] = OwnerOf(process, agents, aliveIds, aliveByPid, spokenFor);

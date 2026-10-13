@@ -275,7 +275,6 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
 
     public void Dispose()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
 
         if (Directory.Exists(_run))

@@ -47,7 +47,6 @@ public sealed class ServerOnThisMacTests(ITestOutputHelper output) : IDisposable
 
     public void Dispose()
     {
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 }

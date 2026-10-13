@@ -183,7 +183,6 @@ public sealed class ScenariosOnThisMacTests : IDisposable
             }
         }
 
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 }

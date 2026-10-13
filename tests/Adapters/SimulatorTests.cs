@@ -197,7 +197,6 @@ public sealed class SimulatorTests : IDisposable
     public void Dispose()
     {
         _file.Dispose();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 }

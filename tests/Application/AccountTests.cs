@@ -166,7 +166,6 @@ public sealed class AccountTests : IDisposable
     public void Dispose()
     {
         _file.Dispose();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 }

@@ -63,6 +63,8 @@ public sealed class LedgerFile(string path) : IDisposable
 
     private readonly SemaphoreSlim _preparing = new(1, 1);
 
+    private readonly string _connection = new SqliteConnectionStringBuilder { DataSource = path, DefaultTimeout = 30 }.ToString();
+
     private bool _isPrepared;
 
     /// <summary>Where the file is.</summary>
@@ -73,7 +75,7 @@ public sealed class LedgerFile(string path) : IDisposable
     {
         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(Path)!);
 
-        var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path, DefaultTimeout = 30 }.ToString());
+        var connection = new SqliteConnection(_connection);
 
         await connection.OpenAsync(cancellationToken);
         await PrepareAsync(connection, cancellationToken);
@@ -128,8 +130,18 @@ public sealed class LedgerFile(string path) : IDisposable
         }
     }
 
-    /// <inheritdoc/>
-    public void Dispose() => _preparing.Dispose();
+    /// <summary>Lets go of the file: the connections kept open for it are closed, and nobody else's.</summary>
+    /// <remarks>
+    /// The pool of one file, never all of them: <see cref="SqliteConnection.ClearAllPools"/> reaches every file this
+    /// process has open and can dispose a connection another file's owner is opening at that very moment.
+    /// </remarks>
+    public void Dispose()
+    {
+        using (var connection = new SqliteConnection(_connection))
+            SqliteConnection.ClearPool(connection);
+
+        _preparing.Dispose();
+    }
 }
 
 /// <summary>Running a statement with its parameters in one call.</summary>

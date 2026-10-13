@@ -63,7 +63,6 @@ public sealed class SimulatorOnThisMacTests : IDisposable
             delete.WaitForExit();
         }
 
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 }

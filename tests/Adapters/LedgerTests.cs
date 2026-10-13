@@ -96,7 +96,7 @@ public sealed class LedgerTests : IDisposable
     [Fact]
     public async Task Discovery_CountedShort_IsReadBackAsAtLeast_FromAFileWrittenBeforeThat()
     {
-        await using (var before = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_file.Path}"))
+        await using (var before = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_file.Path};Pooling=False"))
         {
             await before.OpenAsync();
 
@@ -110,8 +110,6 @@ public sealed class LedgerTests : IDisposable
                 """;
             await schema.ExecuteNonQueryAsync();
         }
-
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
         var now = DateTimeOffset.Parse("2026-10-13T00:00:00+00:00", System.Globalization.CultureInfo.InvariantCulture);
         var discoveries = new SqliteDiscoveries(_file);
@@ -127,10 +125,28 @@ public sealed class LedgerTests : IDisposable
         Assert.Equal(5, read["/tmp/old"].Trace.Bytes);
     }
 
+    /// <summary>
+    /// A file let go closes the connections kept for it and only those: clearing every pool of the process disposed a
+    /// connection another test was opening on a file of its own.
+    /// </summary>
+    [Fact]
+    public async Task File_LetGo_ClosesItsOwnConnections_AndNoOtherFiles()
+    {
+        var let = new LedgerFile(_scratch.File("let.db"));
+
+        await Ledger.RecordAsync(new Holding("process:7@1", Me, Evidence.Ancestry, DateTimeOffset.UnixEpoch, "kept"), CancellationToken.None);
+        await new SqliteLedger(let).RecordAsync(new Holding("process:8@1", Me, Evidence.Ancestry, DateTimeOffset.UnixEpoch, "let go"), CancellationToken.None);
+
+        let.Dispose();
+
+        Assert.False(File.Exists($"{let.Path}-wal"));
+        Assert.True(File.Exists($"{_file.Path}-wal"));
+        Assert.Single(await Ledger.HoldingsAsync(CancellationToken.None));
+    }
+
     public void Dispose()
     {
         _file.Dispose();
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         _scratch.Dispose();
     }
 }
