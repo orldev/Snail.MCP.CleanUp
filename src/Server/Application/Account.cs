@@ -1,3 +1,4 @@
+using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Core.Application;
 using Snail.MCP.CleanUp.Tools.Prompts;
 
@@ -9,7 +10,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// id is carried out — so what is removed is exactly what was shown, never what a second census happens to
 /// find a moment later.
 /// </remarks>
-public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans plans, Cleaner cleaner, ILedger ledger, IDiscoveries discoveries, IRules rules, TimeProvider clock)
+public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans plans, Cleaner cleaner, ILedger ledger, IDiscoveries discoveries, IRules rules, DiskTrend disk, ServerConfig config, TimeProvider clock)
 {
     /// <summary>What is on the machine, grouped by whose it is.</summary>
     public async Task<Answer> InventoryAsync(CancellationToken cancellationToken)
@@ -22,7 +23,7 @@ public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans pl
         var others = inventory.Resources.Count(resource => resource.Owner.IsKnown && resource.Owner != asker && alive.Contains(resource.Owner));
         var caches = inventory.Resources.Where(resource => resource.IsShared).OrderByDescending(resource => resource.Bytes ?? 0).ToList();
 
-        return Answer.Ok(new JsonObject
+        var shown = new JsonObject
         {
             ["session"] = asker.ToString(),
             ["mine"] = Views.Listed(mine, Views.Of),
@@ -31,9 +32,14 @@ public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans pl
             ["caches"] = Views.Listed(caches, Views.Of),
             ["unowned"] = inventory.Resources.Count(resource => !resource.Owner.IsKnown && !resource.IsShared),
             ["discoveries"] = Views.Listed([.. inventory.Discoveries.OrderByDescending(discovery => discovery.IsPresent)], Views.Of),
-            ["disk"] = Disk.Report(),
+            ["disk"] = await disk.ReportAsync(cancellationToken),
             ["notes"] = new JsonObject([.. inventory.Notes.Select(note => KeyValuePair.Create(note.Key, (JsonNode?)note.Value))])
-        });
+        };
+
+        if (Warned(inventory) is { } warnings)
+            shown.Insert(1, "warnings", warnings);
+
+        return Answer.Ok(shown);
     }
 
     /// <summary>The plan for a scope, kept under an id until it is carried out or goes stale.</summary>
@@ -44,11 +50,17 @@ public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans pl
         if (!asker.IsKnown && scope == Scope.Mine)
             return Answer.Failed(Messages.NoSession, Messages.NoSessionHint);
 
-        var plan = Planner.Decide(await census.TakeAsync(asker, cancellationToken), scope, Guid.NewGuid().ToString("n")[..10]);
+        var inventory = await census.TakeAsync(asker, cancellationToken);
+        var plan = Planner.Decide(inventory, scope, Guid.NewGuid().ToString("n")[..10]);
 
         await plans.SaveAsync(plan, cancellationToken);
 
-        return Answer.Ok(Shown(plan));
+        var shown = Shown(plan);
+
+        if (Warned(inventory) is { } warnings)
+            shown.Insert(0, "warnings", warnings);
+
+        return Answer.Ok(shown);
     }
 
     /// <summary>Carries out the removals of a plan that was shown, or only the ones named.</summary>
@@ -116,12 +128,20 @@ public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans pl
         });
     }
 
+    /// <summary>The warnings of an inventory as an answer shows them; null when there are none, so that the field is left out.</summary>
+    private JsonArray? Warned(Inventory inventory)
+    {
+        var warnings = Warnings.Of(inventory, Warnings.Bytes(config.ScratchpadWarningGigabytes));
+
+        return warnings.Count == 0 ? null : new JsonArray([.. warnings.Select(warning => (JsonNode)warning)]);
+    }
+
     private static JsonObject Shown(Plan plan) => new()
     {
         ["planId"] = plan.Id,
         ["scope"] = plan.Scope.ToString().ToLowerInvariant(),
         ["expiresAt"] = (plan.MadeAt + Plan.Lifetime).ToString("u", System.Globalization.CultureInfo.InvariantCulture),
-        ["frees"] = Views.Size(plan.Removals.Sum(removal => removal.Resource.Bytes ?? 0)),
+        ["frees"] = Views.Size(plan.Removals.Sum(removal => removal.Resource.Bytes ?? 0), plan.Removals.Any(removal => removal.Resource.IsAtLeast)),
         ["remove"] = Views.Listed(plan.Removals, Views.Of),
         ["report"] = Views.Listed([.. plan.Decisions.Where(decision => decision.Verdict == Verdict.Report)], Views.Of),
         ["keep"] = Views.Listed([.. plan.Decisions.Where(decision => decision.Verdict == Verdict.Keep)], Views.Of),
@@ -130,7 +150,9 @@ public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans pl
 
     private static JsonObject Released(IReadOnlyList<Release> releases) => new()
     {
-        ["freed"] = Views.Size(releases.Where(release => release.Outcome == Outcome.Released).Sum(release => release.Bytes ?? 0)),
+        ["freed"] = Views.Size(
+            releases.Where(release => release.Outcome == Outcome.Released).Sum(release => release.Bytes ?? 0),
+            releases.Any(release => release.Outcome == Outcome.Released && release.IsAtLeast)),
         ["released"] = releases.Count(release => release.Outcome == Outcome.Released),
         ["results"] = new JsonArray([.. releases.Select(release => (JsonNode)new JsonObject
         {

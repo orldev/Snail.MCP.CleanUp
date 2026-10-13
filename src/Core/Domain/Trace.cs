@@ -21,6 +21,9 @@ public sealed record Trace(string Trail, string Key, string Title, long? Bytes =
     /// <remarks>Fixed once made, not even changed by <c>with</c>, because <see cref="Id"/> is made from it.</remarks>
     public string Key { get; } = Key;
 
+    /// <summary>Whether the count of <c>Bytes</c> stopped short, so that it takes at least that much and maybe far more.</summary>
+    public bool IsAtLeast { get; init; }
+
     /// <summary>Its identity across all trails.</summary>
     /// <remarks>
     /// Made the first time it is asked for, then kept: a census asks a trace for its id several times, and each asking
@@ -35,8 +38,9 @@ public sealed record Trace(string Trail, string Key, string Title, long? Bytes =
             && string.Equals(Trail, other.Trail, StringComparison.Ordinal)
             && string.Equals(Key, other.Key, StringComparison.Ordinal)
             && string.Equals(Title, other.Title, StringComparison.Ordinal)
-            && Bytes == other.Bytes);
+            && Bytes == other.Bytes
+            && IsAtLeast == other.IsAtLeast);
 
     /// <inheritdoc/>
-    public override int GetHashCode() => HashCode.Combine(Trail, Key, Title, Bytes);
+    public override int GetHashCode() => HashCode.Combine(Trail, Key, Title, Bytes, IsAtLeast);
 }

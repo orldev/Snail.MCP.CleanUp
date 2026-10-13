@@ -36,6 +36,18 @@ public sealed class NativeProcessTableOnThisMacTests
         Assert.All(agents, process => Assert.Equal(process.Command, native[process.Pid].Command));
     }
 
+    /// <summary>Run under Claude Code, this test process carries its session as every program the agent starts does; Apple's programs hide theirs.</summary>
+    [MachineFact]
+    public async Task KernelTable_ReadsTheSessionFromTheEnvironment_OfThisUsersProcesses()
+    {
+        var native = (await new NativeProcessTable(TimeProvider.System).ListAsync(CancellationToken.None)).ToDictionary(process => process.Pid);
+        var self = native[Environment.ProcessId];
+
+        Assert.Equal(Environment.GetEnvironmentVariable(ProcessArguments.SessionVariable), self.SessionId);
+        Assert.Equal(int.TryParse(Environment.GetEnvironmentVariable(ProcessArguments.AgentVariable), out var agent) ? agent : null, self.AgentPid);
+        Assert.Null(native[1].SessionId);
+    }
+
     private static HashSet<int> Mine()
     {
         using var ps = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ps", ["-U", Environment.UserName, "-o", "pid="]) { RedirectStandardOutput = true })!;

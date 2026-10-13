@@ -7,8 +7,8 @@ be an agent's. Everything it cannot prove, it reports.
 Three ideas carry it:
 
 - **Proof, not coincidence.** Something that merely appeared while an agent worked may be the developer's own.
-  A thing is removed on ownership only when its name or label carries the session, this server started it, or a
-  census saw it run under the agent's own shells.
+  A thing is removed on ownership only when its name or label carries the session, a program's environment names it,
+  this server started it, or a census saw it run under the agent's own shells.
 - **Look, decide, act.** A cleanup is planned and shown first, kept under an id for ten minutes, and only that
   plan is carried out. Each resource is checked again right before it goes, and left alone if it changed.
 - **Nobody knows every kind of leftover.** Trails over files, detached processes, ports, crontab, simulators,
@@ -37,19 +37,47 @@ Every answer is JSON with an `ok` flag; a failure carries `error` and a `hint`, 
 
 | Kind | Owned by | Released by |
 | --- | --- | --- |
-| process | running under the agent's shells (seen by a census every 30 s), or started with `cleanup_run` | SIGTERM, then SIGKILL after 5 s — after checking it is still the program that was planned |
+| process | running under the agent's shells (seen by a census every 30 s), started with `cleanup_run`, or naming the session in its environment — `CLAUDE_CODE_SESSION_ID`, which Claude Code gives every program it starts and a detached one keeps; read only of your own user's processes, never of what runs under a running agent's MCP servers, and an application's own program is named and left | SIGTERM, then SIGKILL after 5 s — after checking it is still the program that was planned |
 | mcp | an MCP server the agent runs as its direct child, written down by a census while the session runs; the copies of one server across sessions are counted | never while its session runs; once the session has ended, as a process — a stdio server without its client serves nobody |
-| file | a session scratchpad `claude-<uid>/<project>/<session>`; caches by rule | the Trash for what cannot be made again; erased when it rebuilds itself |
+| file | a session scratchpad `claude-<uid>/<project>/<session>`; inside a running session's, its build outputs — `bin` and `obj` beside a `*.csproj`, `TestResults`, `BenchmarkDotNet.Artifacts`, `node_modules` beside a `package.json`, never a Python environment (`pyvenv.cfg`), a folder of tools (`.store`) or a hidden folder; caches by rule | the Trash for what cannot be made again; erased when it rebuilds itself. A running session's scratchpad stays whole; its outputs go only in a `mine` plan of that session, and not while anything in one was written within two hours or a running program was started from it, judged again right before |
 | simulator | the name `snail-<session>-N` | the programs driving its UDID first, then `simctl shutdown` and `delete` by UDID — `all` cannot be written |
 | emulator, avd | the device name `snail-<session>-N` | `adb emu kill` when adb already runs, SIGTERM otherwise; the adb server it started; its port file; the device |
 | container, network, volume, image | the label `snail.owner=<session>` | `docker rm` and friends, containers before their networks and volumes |
 | buildcache | shared | `docker builder prune`, only when caches are asked for |
 | editor | VS Code state of a folder that no longer exists | erased, only when caches are asked for |
+| testresults | the repository it is in: `TestResults` folders up to four levels into the repositories sessions work in and VS Code keeps state for — hang and crash dumps, coverage, trx; the next test run makes them again | erased, only when caches are asked for, never when anything in it was written within the hour, judged again right before |
+| remains | nobody: the debugger pipes and diagnostic sockets .NET leaves in `$TMPDIR` (`clr-debug-pipe-<pid>-<start>-in`/`-out`, `dotnet-diagnostic-<pid>-<start>-socket`), and the folders of Snail test runs (`s3l-test-<pid>-<start>-<random>`, with their size), once no process has that id and start | erased, only when caches are asked for, after reading the process table again; a running process's are never touched, nor any of a process started within two minutes |
+| outside | nobody: places servers write outside their data folders — ONNX Runtime's `~/Library/Application Support/Microsoft/DeveloperTools/.onnxruntime` and NuGet's `$TMPDIR/NuGetScratch` — listed with the caches, with their size | never: reported, with why — what they hold is their library's to say, and a restore works in NuGet's |
 | worktree | — | never: listed, because it may hold work nobody committed |
 | forward | — | never on ownership: `adb forward`/`reverse` say nothing about who made them |
 
+A program whose environment names a session that has ended is that session's orphan, and so are the ports it listens on:
+a `python -m http.server` an agent started with `( … & )` once lived seven hours as a child of launchd with nothing else
+saying whose it was. After `/clear` the agent goes on under a new id while what it started still names the old one, so a
+program whose agent (`CLAUDE_PID`, or the agent whose children name the same session) still runs belongs to the session
+that agent runs now. macOS shows the environment of a process to its own user only, and Apple's programs hide theirs.
+
 Shipped rules make VS Code's `WebStorage`, `Service Worker` and `CachedData`, and Xcode's `DerivedData`,
 shared caches that are never touched while their program runs.
+
+A running session's scratchpad larger than 10 GB (`SCRATCHPAD_WARNING_GIGABYTES`) is named in `warnings`, first in the
+inventory and in every plan, with its size and what its session could give back of it: one grew to 50 GB in a day while
+the inventory said only that its session ran.
+
+Every census writes down the free space of the volume home lives on — a row per ten minutes, kept two weeks — and the
+sizes of the thirty largest things it measures that grow, scratchpads, test results and caches of 100 MB or more — a row
+per hour, kept two days. The inventory's `disk` says how far the free space fell within a day, and past 20 GB
+(`DISK_FALL_WARNING_GIGABYTES`) warns, naming what grew most in that day and by how much: on 2026-10-13 it fell by 50 GB
+without a word.
+
+The runtime's endpoints and the test runs' folders are not listed by the file trail either, so they are never
+discoveries: a busy Mac's temporary folder holds them by the ten thousand. `MSBuildTemp*` folders and the empty folders
+of six random letters some tools leave there name no process, so nothing proves them ended: they stay discoveries.
+
+A size is the space the blocks of a tree take, as `du` counts it and as a removal gives it back, read by macOS a
+directory at a time. A count stops after a million entries and then says so — `at least 3.76 GB` — rather than passing
+what it reached off as the size; a directory's size is counted again when an entry of its own changes, and at least
+every ten minutes.
 
 ### Discoveries and rules
 
@@ -157,6 +185,8 @@ registration, which travel wherever they are copied. In the file a variable is a
 | `AVD_DIRECTORY` | `$ANDROID_AVD_HOME` or `~/.android/avd` |
 | `EDITOR_USER_DIRECTORY` | `~/Library/Application Support/Code/User` |
 | `CLAUDE_SETTINGS` | `~/.claude/settings.json` |
+| `SCRATCHPAD_WARNING_GIGABYTES` | `10` — a running session's scratchpad this large is a warning |
+| `DISK_FALL_WARNING_GIGABYTES` | `20` — free space falling this far within a day is a warning |
 
 ## What it never does
 

@@ -8,6 +8,10 @@ namespace Snail.MCP.CleanUp.Adapters.Trails;
 /// Besides the places every Mac has, it looks wherever a rule points: a rule learned for a cache three
 /// levels down is useless if the trail never goes three levels down. Links are listed but never followed,
 /// so a link into a volume of millions of files costs one entry, not the census.
+/// <para>
+/// The debugger pipes and diagnostic sockets of .NET processes and the folders of test runs are not listed:
+/// <see cref="Resources.RemainsKind"/> accounts for them, and a temporary folder holds them by the ten thousand.
+/// </para>
 /// </remarks>
 /// <param name="watched">The places the trail walks, each with how many levels down it looks.</param>
 /// <param name="sizes">How the size of what it finds is counted.</param>
@@ -51,8 +55,12 @@ public sealed class FileTrail(IReadOnlyList<(string Directory, int Depth)> watch
     }
 
     /// <inheritdoc/>
-    public Task<Trace> MeasureAsync(Trace trace, CancellationToken cancellationToken) =>
-        Task.FromResult(trace with { Bytes = _sizes.Of(trace.Key) });
+    public Task<Trace> MeasureAsync(Trace trace, CancellationToken cancellationToken)
+    {
+        var size = _sizes.Of(trace.Key);
+
+        return Task.FromResult(trace with { Bytes = size?.Bytes, IsAtLeast = size is { IsAtLeast: true } });
+    }
 
     private static IEnumerable<(string Directory, int Depth)> Pointed(IReadOnlyList<Rule> rules) =>
         rules
@@ -92,6 +100,9 @@ public sealed class FileTrail(IReadOnlyList<(string Directory, int Depth)> watch
                     directory,
                     (ref entry) => (entry.ToFullPath(), entry.IsDirectory && (entry.Attributes & FileAttributes.ReparsePoint) == 0),
                     Listing)
+                {
+                    ShouldIncludePredicate = static (ref entry) => !Resources.RemainsKind.IsRemains(entry.FileName)
+                }
             ];
         }
         catch (Exception refused) when (refused is IOException or UnauthorizedAccessException or System.Security.SecurityException)

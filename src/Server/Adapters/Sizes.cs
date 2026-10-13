@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO.Enumeration;
+using Snail.MCP.CleanUp.Adapters.Native;
 
 namespace Snail.MCP.CleanUp.Adapters;
 
@@ -10,11 +11,21 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// is unchanged, and for <see cref="Kept"/> at most — that time moves when an entry is added to or removed from the
 /// directory itself, not when a file deep inside it grows, so the ceiling bounds how old a size can be. A size only
 /// says what a cleanup would give back, and one a few minutes old says it honestly.
+/// <para>
+/// A count that stops at <see cref="MostCounted"/> says so: its size is «at least», never the size. It once stopped at
+/// 200 000 files without a word, and a scratchpad of 50 GB — copies of repositories with their build trees and hang
+/// dumps of 1–2 GB each — was reported as 3.76 GB (2026-10-13), because the dumps lay past the files it had counted.
+/// On macOS the count is the space the blocks take, read a directory at a time (<see cref="BulkSizes"/>); elsewhere, and
+/// where that cannot open a directory, it is the length of every file.
+/// </para>
 /// </remarks>
 public sealed class Sizes(TimeProvider clock)
 {
     /// <summary>How many entries are counted before the count stops and says «at least».</summary>
-    public const int MostCounted = 200_000;
+    /// <remarks>About 1.4 s of a census on an Apple Silicon Mac, once per <see cref="Kept"/> for a tree that large.</remarks>
+    public const int MostCounted = 1_000_000;
+
+    private readonly long _mostCounted = MostCounted;
 
     private readonly ConcurrentDictionary<string, Counted> _counted = new(StringComparer.Ordinal);
 
@@ -23,13 +34,17 @@ public sealed class Sizes(TimeProvider clock)
     /// <summary>How long a directory's size is believed while its own write time stays the same.</summary>
     public static TimeSpan Kept { get; } = TimeSpan.FromMinutes(10);
 
-    /// <summary>The bytes under a path; null when it cannot be read at all.</summary>
-    public long? Of(string path)
+    /// <summary>Sizes that stop counting after <paramref name="mostCounted"/> entries rather than <see cref="MostCounted"/>.</summary>
+    internal Sizes(TimeProvider clock, long mostCounted)
+        : this(clock) => _mostCounted = mostCounted;
+
+    /// <summary>The bytes under a path, and whether the count stopped short of them; null when it cannot be read at all.</summary>
+    public Measured? Of(string path)
     {
         try
         {
             if (File.Exists(path))
-                return new FileInfo(path).Length;
+                return new Measured(new FileInfo(path).Length, IsAtLeast: false);
 
             if (!Directory.Exists(path))
                 return Forgotten(path);
@@ -40,13 +55,13 @@ public sealed class Sizes(TimeProvider clock)
             Sweep(now);
 
             if (_counted.TryGetValue(path, out var known) && known.Written == written && now - known.At < Kept)
-                return known.Bytes;
+                return known.Size;
 
-            var bytes = Total(path);
+            var size = Total(path);
 
-            _counted[path] = new Counted(written, now, bytes);
+            _counted[path] = new Counted(written, now, size);
 
-            return bytes;
+            return size;
         }
         catch (Exception refused) when (refused is IOException or UnauthorizedAccessException)
         {
@@ -54,20 +69,36 @@ public sealed class Sizes(TimeProvider clock)
         }
     }
 
-    /// <summary>The bytes of the files under a directory, read from its listing without a <see cref="FileInfo"/> per file.</summary>
-    private static long Total(string directory)
+    /// <summary>The bytes of the files under a directory: the kernel's count on macOS, the lengths in the listing elsewhere.</summary>
+    private Measured Total(string directory)
     {
-        var lengths = new FileSystemEnumerable<long>(directory, (ref entry) => entry.Length, Everything)
-        {
-            ShouldIncludePredicate = (ref entry) => !entry.IsDirectory
-        };
+        if (OperatingSystem.IsMacOS() && BulkSizes.Of(directory, _mostCounted) is { } counted)
+            return new Measured(counted.Bytes, !counted.IsComplete);
 
-        return lengths.Take(MostCounted).Sum();
+        return Listed(directory);
+    }
+
+    /// <summary>The lengths of the files under a directory, read from its listing without a <see cref="FileInfo"/> per file.</summary>
+    private Measured Listed(string directory)
+    {
+        var entries = 0L;
+        var bytes = 0L;
+        var lengths = new FileSystemEnumerable<long>(directory, (ref entry) => entry.IsDirectory ? 0 : entry.Length, Everything);
+
+        foreach (var length in lengths)
+        {
+            if (++entries > _mostCounted)
+                return new Measured(bytes, IsAtLeast: true);
+
+            bytes += length;
+        }
+
+        return new Measured(bytes, IsAtLeast: false);
     }
 
     private static readonly EnumerationOptions Everything = new() { RecurseSubdirectories = true, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
 
-    private long? Forgotten(string path)
+    private Measured? Forgotten(string path)
     {
         _counted.TryRemove(path, out _);
 
@@ -89,5 +120,5 @@ public sealed class Sizes(TimeProvider clock)
         }
     }
 
-    private sealed record Counted(DateTime Written, DateTimeOffset At, long Bytes);
+    private sealed record Counted(DateTime Written, DateTimeOffset At, Measured Size);
 }

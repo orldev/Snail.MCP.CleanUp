@@ -46,6 +46,8 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<IResourceKind>(provider => provider.GetRequiredService<ProcessKind>());
             services.AddSingleton<IResourceKind, McpKind>();
             services.AddSingleton<IResourceKind, FileKind>();
+            services.AddSingleton<IResourceKind, RemainsKind>();
+            services.AddSingleton<IResourceKind, OutsideKind>();
             services.AddSingleton<IResourceKind, SimulatorKind>();
             services.AddSingleton<ITrail, SimulatorTrail>();
             services.AddSingleton<Android>();
@@ -63,6 +65,7 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<IResourceKind, BuildHistoryKind>();
             services.AddSingleton<ITrail, DockerTrail>();
             services.AddSingleton<IResourceKind, EditorKind>();
+            services.AddSingleton<IResourceKind, TestResultsKind>();
             services.AddSingleton<IResourceKind, WorktreeKind>();
             services.AddSingleton<ITrail, CertificateTrail>();
 
@@ -78,6 +81,7 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<IBaselines, SqliteBaselines>();
             services.AddSingleton<IShifts, SqliteShifts>();
             services.AddSingleton<IDiscoveries, SqliteDiscoveries>();
+            services.AddSingleton<IDiskHistory, SqliteDiskHistory>();
             services.AddSingleton<IRules>(provider => new JsonRules(
                 Path.Combine(provider.GetRequiredService<ServerConfig>().DataDirectory, "rules.json"),
                 MacPlaces.Shipped));
@@ -89,6 +93,8 @@ public static class CleanUpRegistrationExtensions
         internal IServiceCollection AddAccount()
         {
             services.AddSingleton<Census>();
+            services.AddSingleton<IVolume, HomeVolume>();
+            services.AddSingleton<DiskTrend>();
             services.AddSingleton<MeasuredCensus>();
             services.AddSingleton<Cleaner>();
             services.AddSingleton<Health>();

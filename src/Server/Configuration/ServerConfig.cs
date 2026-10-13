@@ -38,6 +38,14 @@ public sealed class ServerConfig
     /// <summary>Where Claude Code makes its per-user scratch root, <c>claude-&lt;uid&gt;</c>, with a scratchpad per session inside.</summary>
     public string ScratchRoot { get; set; } = "/private/tmp";
 
+    /// <summary>How large the scratchpad of a running session may grow, in gigabytes, before the inventory and every plan say so; 10 when not set.</summary>
+    /// <remarks>A running session's scratchpad is never released, and one grew to 50 GB in a day unseen (2026-10-13).</remarks>
+    public double ScratchpadWarningGigabytes { get; set; } = 10;
+
+    /// <summary>How far the free space may fall within a day, in gigabytes, before the inventory says so and names what grew; 20 when not set.</summary>
+    /// <remarks>Free space fell by 50 GB in a day without a word on 2026-10-13.</remarks>
+    public double DiskFallWarningGigabytes { get; set; } = 20;
+
     /// <summary>The Android SDK, with <c>emulator/emulator</c>, <c>platform-tools/adb</c> and <c>system-images</c> inside.</summary>
     public string AndroidSdk { get; set; } =
         Environment.GetEnvironmentVariable("ANDROID_HOME")

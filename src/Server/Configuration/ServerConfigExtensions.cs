@@ -45,6 +45,12 @@ public static class ServerConfigExtensions
         if (!Path.IsPathFullyQualified(config.TrashDirectory))
             faults.Add($"TrashDirectory must be an absolute path, not '{config.TrashDirectory}'");
 
+        if (!(config.ScratchpadWarningGigabytes > 0))
+            faults.Add($"ScratchpadWarningGigabytes must be a number of gigabytes above zero, not {config.ScratchpadWarningGigabytes}");
+
+        if (!(config.DiskFallWarningGigabytes > 0))
+            faults.Add($"DiskFallWarningGigabytes must be a number of gigabytes above zero, not {config.DiskFallWarningGigabytes}");
+
         if (faults.Count > 0)
             throw new InvalidOperationException($"invalid configuration: {string.Join("; ", faults)}");
     }

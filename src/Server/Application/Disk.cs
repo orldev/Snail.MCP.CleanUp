@@ -18,8 +18,14 @@ public static class Disk
     public static JsonObject Report()
     {
         var volume = new DriveInfo(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-        var free = volume.AvailableFreeSpace;
-        var share = (double)free / volume.TotalSize;
+
+        return Report(volume.AvailableFreeSpace, volume.TotalSize);
+    }
+
+    /// <summary>The free space of a volume of the given size, with a warning when it is low.</summary>
+    public static JsonObject Report(long free, long total)
+    {
+        var share = total > 0 ? (double)free / total : 0;
 
         return new JsonObject
         {

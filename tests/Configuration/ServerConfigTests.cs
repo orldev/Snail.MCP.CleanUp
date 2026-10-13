@@ -30,6 +30,23 @@ public sealed class ServerConfigTests
         Assert.Throws<InvalidOperationException>(() => ServerConfigExtensions.Read(settings));
     }
 
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-3")]
+    public void Warning_OfNoSize_StopsTheServer(string gigabytes)
+    {
+        foreach (var variable in (string[])["SCRATCHPAD_WARNING_GIGABYTES", "DISK_FALL_WARNING_GIGABYTES"])
+        {
+            var settings = ServerConfigExtensions.Settings(new Dictionary<string, string> { [$"{EnvironmentSettings.Prefix}{variable}"] = gigabytes });
+
+            Assert.Throws<InvalidOperationException>(() => ServerConfigExtensions.Read(settings));
+        }
+    }
+
+    [Fact]
+    public void ScratchpadWarning_FromItsVariable_IsTaken() =>
+        Assert.Equal(25, ServerConfigExtensions.Read(ServerConfigExtensions.Settings(new Dictionary<string, string> { [$"{EnvironmentSettings.Prefix}SCRATCHPAD_WARNING_GIGABYTES"] = "25" })).ScratchpadWarningGigabytes);
+
     [Fact]
     public void Variable_WithoutThePrefix_IsNotASetting()
     {

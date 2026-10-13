@@ -212,7 +212,7 @@ public sealed class Census(
 
             seenAgain.Add(discovery with
             {
-                Trace = discovery.Trace with { Bytes = again.Trace.Bytes ?? discovery.Trace.Bytes },
+                Trace = again.Trace.Bytes is null ? discovery.Trace : discovery.Trace with { Bytes = again.Trace.Bytes, IsAtLeast = again.Trace.IsAtLeast },
                 LastSeen = again.LastSeen,
                 Sightings = discovery.Sightings + 1,
                 IsPresent = true

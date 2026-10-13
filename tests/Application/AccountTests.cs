@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Application;
+using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Core.Adapters;
 using Snail.MCP.CleanUp.Core.Application;
@@ -18,6 +19,8 @@ public sealed class AccountTests : IDisposable
 
     private readonly FakeTimeProvider _clock = new(DateTimeOffset.UnixEpoch.AddDays(1));
 
+    private readonly FakeVolume _volume = new();
+
     public AccountTests() => _file = new LedgerFile(_scratch.File("ledger.db"));
 
     private Account Account
@@ -30,7 +33,10 @@ public sealed class AccountTests : IDisposable
             var discoveries = new SqliteDiscoveries(_file);
             var census = new Census([_processes], [], sessions, ledger, rules, new SqliteBaselines(_file), discoveries, _clock);
 
-            return new Account(new MeasuredCensus(census, new Performance(_clock)), sessions, new SqlitePlans(_file, _clock), new Cleaner([_processes], ledger), ledger, discoveries, rules, _clock);
+            var config = new ServerConfig { DataDirectory = _scratch.Path };
+            var trend = new DiskTrend(_volume, new SqliteDiskHistory(_file), config, _clock);
+
+            return new Account(new MeasuredCensus(census, new Performance(_clock), trend), sessions, new SqlitePlans(_file, _clock), new Cleaner([_processes], ledger), ledger, discoveries, rules, trend, config, _clock);
         }
     }
 
@@ -50,6 +56,51 @@ public sealed class AccountTests : IDisposable
         Assert.Equal(1, applied.Data!["released"]!.GetValue<int>());
         Assert.Equal(["process:1@1"], _processes.Released);
     }
+
+    /// <summary>A running session's scratchpad past the size is the first thing both answers say.</summary>
+    [Fact]
+    public async Task Inventory_AndPlan_WarnOfARunningSessionsScratchpadPastTheSize()
+    {
+        _processes.Present.Add(Of(Kinds.File, "/private/tmp/claude-501/p/me", Me, Evidence.Label) with
+        {
+            Bytes = 12_000_000_000,
+            Facts = new Dictionary<string, string> { [Snail.MCP.CleanUp.Adapters.Resources.FileKind.SessionFact] = Me.Id }
+        });
+
+        var inventory = await Account.InventoryAsync(CancellationToken.None);
+        var plan = await Account.PlanAsync(Scope.Orphans, CancellationToken.None);
+
+        Assert.Contains("running session me holds 12 GB", inventory.Data!["warnings"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Contains("running session me holds 12 GB", plan.Data!["warnings"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+    }
+
+    /// <summary>Every census writes the free space down; the inventory of a day later says how far it fell, and what grew.</summary>
+    [Fact]
+    public async Task Inventory_AfterTheDiskFellFarWithinADay_SaysSo_AndNamesWhatGrew()
+    {
+        var scratchpad = Of(Kinds.File, "/private/tmp/claude-501/p/me", Me, Evidence.Label) with
+        {
+            Bytes = 2_000_000_000,
+            Facts = new Dictionary<string, string> { [Snail.MCP.CleanUp.Adapters.Resources.FileKind.SessionFact] = Me.Id }
+        };
+
+        _processes.Present.Add(scratchpad);
+        await Account.InventoryAsync(CancellationToken.None);
+
+        _clock.Advance(TimeSpan.FromHours(20));
+        _volume.Free -= 50_000_000_000;
+        _processes.Present[0] = scratchpad with { Bytes = 49_000_000_000 };
+
+        var disk = (await Account.InventoryAsync(CancellationToken.None)).Data!["disk"]!;
+
+        Assert.Equal("50 GB", disk["fellWithinADay"]!.GetValue<string>());
+        Assert.Contains("fell by 50 GB within a day", disk["trend"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Equal("47 GB", disk["growers"]![0]!["grew"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Inventory_WithNothingToWarnOf_HasNoWarnings() =>
+        Assert.Null((await Account.InventoryAsync(CancellationToken.None)).Data!["warnings"]);
 
     [Fact]
     public async Task Plan_CarriedOutAfterItWentStale_DoesNothing()

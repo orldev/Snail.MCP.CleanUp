@@ -45,6 +45,7 @@ public sealed class EditorKind(ServerConfig config, Disposal disposal, Sizes siz
             return null;
 
         var written = Directory.EnumerateFiles(directory).Select(File.GetLastWriteTimeUtc).DefaultIfEmpty(Directory.GetLastWriteTimeUtc(directory)).Max();
+        var size = sizes.Of(directory);
 
         return new Resource
         {
@@ -53,7 +54,8 @@ public sealed class EditorKind(ServerConfig config, Disposal disposal, Sizes siz
             Title = $"VS Code state of {folder}, which no longer exists",
             IsShared = true,
             IsRegenerable = true,
-            Bytes = sizes.Of(directory),
+            Bytes = size?.Bytes,
+            IsAtLeast = size is { IsAtLeast: true },
             Blocker = clock.GetUtcNow().UtcDateTime - written < InUse ? "written in the last hour: a window may still be open on it" : null
         };
     }

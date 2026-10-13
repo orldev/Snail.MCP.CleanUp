@@ -40,6 +40,7 @@ public sealed class LedgerFile(string path) : IDisposable
             key TEXT NOT NULL,
             title TEXT NOT NULL,
             bytes INTEGER NULL,
+            at_least INTEGER NOT NULL DEFAULT 0,
             owner TEXT NOT NULL,
             first_seen TEXT NOT NULL,
             last_seen TEXT NOT NULL,
@@ -48,6 +49,16 @@ public sealed class LedgerFile(string path) : IDisposable
             duty TEXT PRIMARY KEY,
             watcher TEXT NOT NULL,
             until TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS disk (
+            at TEXT PRIMARY KEY,
+            free INTEGER NOT NULL,
+            total INTEGER NOT NULL);
+        CREATE TABLE IF NOT EXISTS growth (
+            resource_id TEXT NOT NULL,
+            at TEXT NOT NULL,
+            title TEXT NOT NULL,
+            bytes INTEGER NOT NULL,
+            PRIMARY KEY (resource_id, at));
         """;
 
     private readonly SemaphoreSlim _preparing = new(1, 1);
@@ -84,11 +95,36 @@ public sealed class LedgerFile(string path) : IDisposable
                 return;
 
             await connection.RunAsync(Schema, cancellationToken);
+            await AddedAsync(connection, "discoveries", "at_least INTEGER NOT NULL DEFAULT 0", cancellationToken);
             _isPrepared = true;
         }
         finally
         {
             _preparing.Release();
+        }
+    }
+
+    /// <summary>A column a file written by an earlier version lacks, added in place; rows written before it take its default.</summary>
+    /// <remarks>
+    /// Servers of several versions share the file, so two may add the same column at once: the one that comes second is told
+    /// the column is already there, which is what it wanted. A server of before writes its rows without the column and gets
+    /// the default.
+    /// </remarks>
+    private static async Task AddedAsync(SqliteConnection connection, string table, string column, CancellationToken cancellationToken)
+    {
+        var name = column[..column.IndexOf(' ', StringComparison.Ordinal)];
+
+        await using var present = connection.Prepared($"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = $name;", ("$name", name));
+
+        if (Convert.ToInt64(await present.ExecuteScalarAsync(cancellationToken), System.Globalization.CultureInfo.InvariantCulture) > 0)
+            return;
+
+        try
+        {
+            await connection.RunAsync($"ALTER TABLE {table} ADD COLUMN {column};", cancellationToken);
+        }
+        catch (SqliteException added) when (added.Message.Contains("duplicate column", StringComparison.OrdinalIgnoreCase))
+        {
         }
     }
 

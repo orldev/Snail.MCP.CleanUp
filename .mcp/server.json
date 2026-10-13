@@ -66,6 +66,18 @@
           "description": "Claude Code's settings, where install-hooks writes this server's hooks.",
           "isRequired": false,
           "default": "~/.claude/settings.json"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_SCRATCHPAD_WARNING_GIGABYTES",
+          "description": "How large a running session's scratchpad may grow, in gigabytes, before the inventory and every plan warn of it.",
+          "isRequired": false,
+          "default": "10"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_DISK_FALL_WARNING_GIGABYTES",
+          "description": "How far the free space may fall within a day, in gigabytes, before the inventory warns and names what grew most.",
+          "isRequired": false,
+          "default": "20"
         }
       ]
     }

@@ -8,7 +8,8 @@ public sealed class SqliteLedger(LedgerFile file) : ILedger
     /// <inheritdoc/>
     /// <remarks>
     /// The condition on the update is what keeps a weaker sighting from overwriting a stronger one: a process
-    /// recorded at birth by this server stays recorded so even when a later census sees it only as a child.
+    /// recorded at birth by this server stays recorded so even when a later census sees it only as a child. It compares
+    /// strengths, not codes: the environment's code is the newest, its strength between ancestry and a label.
     /// </remarks>
     public async Task RecordAsync(Holding holding, CancellationToken cancellationToken)
     {
@@ -20,12 +21,12 @@ public sealed class SqliteLedger(LedgerFile file) : ILedger
             VALUES ($id, $owner, $evidence, $at, $title)
             ON CONFLICT (resource_id) DO UPDATE SET
                 owner = excluded.owner, evidence = excluded.evidence, recorded_at = excluded.recorded_at, title = excluded.title
-            WHERE excluded.evidence >= holdings.evidence;
+            WHERE (CASE excluded.evidence WHEN 5 THEN 2.5 ELSE excluded.evidence END) >= (CASE holdings.evidence WHEN 5 THEN 2.5 ELSE holdings.evidence END);
             """,
             cancellationToken,
             ("$id", holding.ResourceId),
             ("$owner", holding.Owner.ToString()),
-            ("$evidence", (int)holding.Evidence),
+            ("$evidence", EvidenceCodes.Write(holding.Evidence)),
             ("$at", Moments.Write(holding.RecordedAt)),
             ("$title", holding.Title));
     }
@@ -59,7 +60,7 @@ public sealed class SqliteLedger(LedgerFile file) : ILedger
             holdings.Add(new Holding(
                 reader.GetString(0),
                 Owner.Parse(reader.GetString(1)),
-                (Evidence)reader.GetInt32(2),
+                EvidenceCodes.Read(reader.GetInt32(2)),
                 Moments.Read(reader.GetString(3)),
                 reader.GetString(4))
             {
@@ -105,6 +106,34 @@ public sealed class SqliteLedger(LedgerFile file) : ILedger
 
         return kept;
     }
+}
+
+/// <summary>Evidence as the codes it is stored under, which never change: a value added to <see cref="Evidence"/> takes a new code, whatever its place in the order.</summary>
+internal static class EvidenceCodes
+{
+    /// <summary>The code of the environment, the newest; its strength is between ancestry's (2) and a label's (3).</summary>
+    public const int Environment = 5;
+
+    public static int Write(Evidence evidence) => evidence switch
+    {
+        Evidence.None => 0,
+        Evidence.Appeared => 1,
+        Evidence.Ancestry => 2,
+        Evidence.Label => 3,
+        Evidence.Ledger => 4,
+        Evidence.Environment => Environment,
+        _ => 0
+    };
+
+    public static Evidence Read(int code) => code switch
+    {
+        1 => Evidence.Appeared,
+        2 => Evidence.Ancestry,
+        3 => Evidence.Label,
+        4 => Evidence.Ledger,
+        Environment => Evidence.Environment,
+        _ => Evidence.None
+    };
 }
 
 /// <summary>Moments as the text they are stored in: round-trip ISO 8601, so they sort as they compare.</summary>

@@ -20,7 +20,7 @@ public static class Views
         ["title"] = resource.Title,
         ["owner"] = resource.Owner.ToString(),
         ["evidence"] = resource.Evidence.ToString().ToLowerInvariant(),
-        ["size"] = Size(resource.Bytes),
+        ["size"] = Size(resource.Bytes, resource.IsAtLeast),
         ["blocker"] = resource.Blocker
     });
 
@@ -30,7 +30,7 @@ public static class Views
         ["id"] = decision.Resource.Id,
         ["title"] = decision.Resource.Title,
         ["reason"] = decision.Reason,
-        ["size"] = Size(decision.Resource.Bytes)
+        ["size"] = Size(decision.Resource.Bytes, decision.Resource.IsAtLeast)
     });
 
     /// <summary>A discovery as one line of an answer.</summary>
@@ -39,7 +39,7 @@ public static class Views
         ["id"] = discovery.Trace.Id,
         ["title"] = discovery.Trace.Title,
         ["session"] = discovery.Owner.ToString(),
-        ["size"] = Size(discovery.Trace.Bytes),
+        ["size"] = Size(discovery.Trace.Bytes, discovery.Trace.IsAtLeast),
         ["firstSeen"] = discovery.FirstSeen.ToString("u", CultureInfo.InvariantCulture),
         ["isPresent"] = discovery.IsPresent
     });
@@ -60,6 +60,9 @@ public static class Views
 
         return shown;
     }
+
+    /// <summary>A size in the unit a person reads it in, «at least» when the count stopped short of it: a partial sum is never shown as the size.</summary>
+    public static string? Size(long? bytes, bool isAtLeast) => isAtLeast && bytes is not null ? $"at least {Size(bytes)}" : Size(bytes);
 
     /// <summary>A size in the unit a person reads it in.</summary>
     public static string? Size(long? bytes) => bytes switch

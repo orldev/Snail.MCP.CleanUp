@@ -15,7 +15,9 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// <para>
 /// A program that detached is a child of launchd, and nothing about it says whose it is any more. It is
 /// still listed — without an owner — so that the ledger, which saw it while it was a child, can say. An MCP
-/// server the ledger saw under an agent is the MCP kind's, see <see cref="McpKind"/>.
+/// server the ledger saw under an agent is the MCP kind's, see <see cref="McpKind"/>. One whose environment names the
+/// session that started it is that session's, by the environment (see <see cref="Carriers"/>), and so is every program
+/// it started in turn.
 /// </para>
 /// </remarks>
 public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger ledger, TimeProvider clock) : IResourceKind
@@ -75,6 +77,8 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
             .Select(holding => holding.ResourceId[(Kinds.McpServer.Length + 1)..])
             .ToHashSet(StringComparer.Ordinal);
 
+        Carried(found, running, sessions, own, servers, listening, now);
+
         Add(found, Owner.Nobody, Evidence.None, running.Where(process => IsDetached(process) && !own.Contains(process.Pid) && !servers.Contains(process.Key)), listening);
 
         var claimed = found.Values
@@ -104,6 +108,61 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
 
         return Release.Refused(resource, $"process {pid} survived SIGKILL; it may belong to another user");
     }
+
+    /// <summary>The programs whose environment names their session: the agent started them, detached or not, its session running or ended.</summary>
+    /// <remarks>
+    /// What already has an owner keeps it, so a program under a running agent's shell stays its ancestry's. A program of a
+    /// running session started a moment ago may be the command it is running, as under its shells; and an application's
+    /// own program — <c>/Applications/Name.app</c> — may be one a person now uses, whoever started it, so it is named and
+    /// left. Xcode's tools live inside Xcode.app and are not applications in that sense.
+    /// </remarks>
+    private void Carried(
+        Dictionary<string, Resource> found,
+        IReadOnlyList<RunningProcess> running,
+        IReadOnlyList<Session> sessions,
+        HashSet<int> own,
+        HashSet<string> servers,
+        IReadOnlyDictionary<int, IReadOnlyList<int>> listening,
+        DateTimeOffset now)
+    {
+        var owners = Carriers.Of(running, sessions);
+
+        if (owners.Count == 0)
+            return;
+
+        var alive = sessions.Where(session => session.IsAlive).Select(session => session.Owner).ToHashSet();
+
+        foreach (var process in running)
+        {
+            if (!owners.TryGetValue(process.Pid, out var owner)
+                || own.Contains(process.Pid)
+                || servers.Contains(process.Key)
+                || found.ContainsKey(process.Key)
+                || Android.DeviceOf(process.Command) is not null)
+                continue;
+
+            var age = now - process.StartedAt;
+            var blocker = IsApplication(process)
+                ? $"an application, started under {owner}: a person may be using it now, so it is left for them to close"
+                : alive.Contains(owner) && age < Fresh ? $"started {age.TotalSeconds:0} s ago by a running agent: it may be part of the command the agent is running right now" : null;
+
+            found.Add(process.Key, Described(process, owner, Evidence.Environment, listening.GetValueOrDefault(process.Pid) ?? []) with { Blocker = blocker });
+        }
+    }
+
+    /// <summary>Whether a program is an installed application's own, rather than a tool that lives inside a bundle such as Xcode's.</summary>
+    internal static bool IsApplication(RunningProcess process)
+    {
+        var path = process.Executable ?? process.Command;
+
+        if (path.Contains(".app/Contents/Developer/", StringComparison.Ordinal))
+            return false;
+
+        return Applications.Any(place => path.StartsWith(place, StringComparison.Ordinal) && path.IndexOf(".app/", place.Length, StringComparison.Ordinal) > 0);
+    }
+
+    private static readonly string[] Applications =
+        ["/Applications/", "/System/Applications/", $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}/Applications/"];
 
     private IEnumerable<Holding> Recorded(IEnumerable<Holding> holdings) =>
         holdings.Where(holding => holding.Evidence == Evidence.Ledger && holding.ResourceId.StartsWith($"{Name}:", StringComparison.Ordinal));

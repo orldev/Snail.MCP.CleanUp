@@ -37,6 +37,30 @@ public sealed class LedgerTests : IDisposable
         Assert.Equal(Evidence.Ledger, holding.Evidence);
     }
 
+    /// <summary>The environment came after the label in the order of strength, and before it in no row: rows written before keep what they said.</summary>
+    [Fact]
+    public async Task Evidence_IsStoredUnderCodesThatNeverMove_AndComparedByStrength()
+    {
+        await using (var connection = await _file.OpenAsync(CancellationToken.None))
+        {
+            await using var command = connection.CreateCommand();
+
+            command.CommandText = "INSERT INTO holdings VALUES ('file:/label', 'session:me', 3, '1970-01-01T00:00:00.0000000Z', 'l'), ('process:1@1', 'session:me', 4, '1970-01-01T00:00:00.0000000Z', 'p');";
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        await Ledger.RecordAsync(new Holding("process:1@1", Neighbour, Evidence.Environment, DateTimeOffset.UnixEpoch, "seen"), CancellationToken.None);
+        await Ledger.RecordAsync(new Holding("process:2@1", Me, Evidence.Ancestry, DateTimeOffset.UnixEpoch, "child"), CancellationToken.None);
+        await Ledger.RecordAsync(new Holding("process:2@1", Neighbour, Evidence.Environment, DateTimeOffset.UnixEpoch, "carried"), CancellationToken.None);
+        await Ledger.RecordAsync(new Holding("process:2@1", Me, Evidence.Ancestry, DateTimeOffset.UnixEpoch, "child again"), CancellationToken.None);
+
+        var holdings = (await Ledger.HoldingsAsync(CancellationToken.None)).ToDictionary(holding => holding.ResourceId);
+
+        Assert.Equal(Evidence.Label, holdings["file:/label"].Evidence);
+        Assert.Equal((Me, Evidence.Ledger), (holdings["process:1@1"].Owner, holdings["process:1@1"].Evidence));
+        Assert.Equal((Neighbour, Evidence.Environment), (holdings["process:2@1"].Owner, holdings["process:2@1"].Evidence));
+    }
+
     [Fact]
     public async Task Holding_Forgotten_IsGone()
     {
@@ -66,6 +90,41 @@ public sealed class LedgerTests : IDisposable
         await Ledger.RecordAsync(new Holding("simulator:udid", Me, Evidence.Label, DateTimeOffset.UnixEpoch, "clone"), CancellationToken.None);
 
         Assert.Single(await new SqliteLedger(other).HoldingsAsync(CancellationToken.None));
+    }
+
+    /// <summary>A file written before discoveries said «at least» gains the column, keeps its rows, and says it from then on.</summary>
+    [Fact]
+    public async Task Discovery_CountedShort_IsReadBackAsAtLeast_FromAFileWrittenBeforeThat()
+    {
+        await using (var before = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={_file.Path}"))
+        {
+            await before.OpenAsync();
+
+            await using var schema = before.CreateCommand();
+
+            schema.CommandText =
+                """
+                CREATE TABLE discoveries (trace_id TEXT PRIMARY KEY, trail TEXT NOT NULL, key TEXT NOT NULL, title TEXT NOT NULL, bytes INTEGER NULL,
+                    owner TEXT NOT NULL, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, sightings INTEGER NOT NULL);
+                INSERT INTO discoveries VALUES ('file:/tmp/old', 'file', '/tmp/old', '/tmp/old', 5, 'session:me', '2026-10-13T00:00:00.0000000+00:00', '2026-10-13T00:00:00.0000000+00:00', 1);
+                """;
+            await schema.ExecuteNonQueryAsync();
+        }
+
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        var now = DateTimeOffset.Parse("2026-10-13T00:00:00+00:00", System.Globalization.CultureInfo.InvariantCulture);
+        var discoveries = new SqliteDiscoveries(_file);
+        var big = new Trace("file", "/tmp/big", "/tmp/big", 3_760_000_000) { IsAtLeast = true };
+
+        await discoveries.NoteAsync([new Discovery(big, Me, now, now, 1)], CancellationToken.None);
+
+        var read = (await discoveries.ListAsync(new HashSet<string>(["file:/tmp/old", "file:/tmp/big"]), now, CancellationToken.None)).ToDictionary(discovery => discovery.Trace.Key);
+
+        Assert.True(read["/tmp/big"].Trace.IsAtLeast);
+        Assert.Equal(3_760_000_000, read["/tmp/big"].Trace.Bytes);
+        Assert.False(read["/tmp/old"].Trace.IsAtLeast);
+        Assert.Equal(5, read["/tmp/old"].Trace.Bytes);
     }
 
     public void Dispose()

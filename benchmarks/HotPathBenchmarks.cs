@@ -49,6 +49,10 @@ public class HotPathBenchmarks
     [Benchmark]
     public int ParsePs() => ProcessTable.Parse(_ps).Count;
 
+    /// <summary>The whole process table read from the kernel, as a census reads it on macOS.</summary>
+    [Benchmark]
+    public int ReadProcessTable() => Adapters.Native.LibProc.List().Count;
+
     [Benchmark]
     public int ParseLsof() => PortTrail.Parse(_lsof).Count;
 

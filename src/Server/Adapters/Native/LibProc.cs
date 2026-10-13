@@ -13,7 +13,9 @@ namespace Snail.MCP.CleanUp.Adapters.Native;
 /// <para>
 /// The full record of a process, its start included, is given only for the processes of the same user. The
 /// system's own get the short record — parent and name — and the start of the epoch, which keeps their keys
-/// stable from one census to the next; nothing of another user is ever this server's to release.
+/// stable from one census to the next; nothing of another user is ever this server's to release. The environment, which
+/// names the session that started a program, is read only of a process whose user and real user are both this server's:
+/// the kernel shows root every process's, and another user's says nothing this server may act on.
 /// </para>
 /// </remarks>
 internal static partial class LibProc
@@ -31,6 +33,9 @@ internal static partial class LibProc
     private const int KernelControl = 1;
 
     private const int ProcessArgumentsTwo = 49;
+
+    /// <summary>The user this server runs as: the environment of a process is read only when it runs as that user too, in full.</summary>
+    private static readonly uint Self = EffectiveUser();
 
     /// <summary>Every process the kernel lists; empty when it cannot be asked.</summary>
     public static IReadOnlyList<RunningProcess> List()
@@ -65,15 +70,16 @@ internal static partial class LibProc
             return Others(pid, info, path);
 
         var parent = (int)BinaryPrimitives.ReadUInt32LittleEndian(info.AsSpan(16));
+        var isMine = BinaryPrimitives.ReadUInt32LittleEndian(info.AsSpan(20)) == Self && BinaryPrimitives.ReadUInt32LittleEndian(info.AsSpan(28)) == Self;
         var seconds = (long)BinaryPrimitives.ReadUInt64LittleEndian(info.AsSpan(120));
         var microseconds = (long)BinaryPrimitives.ReadUInt64LittleEndian(info.AsSpan(128));
         var executable = PidPath(pid, path, PathMaxSize) > 0 ? Text(path) : null;
-        var words = Arguments(pid, arguments);
+        var (words, session, agent) = Arguments(pid, arguments, withEnvironment: isMine);
         var command = words is { Count: > 0 } ? string.Join(' ', words) : executable ?? Text(info.AsSpan(48, 16));
         var started = DateTimeOffset.FromUnixTimeSeconds(seconds).AddTicks(microseconds * 10);
         var name = words is { Count: > 0 } ? Path.GetFileName(words[0]) : null;
 
-        return new RunningProcess(pid, parent, started.ToLocalTime(), command) { Executable = executable, Name = name };
+        return new RunningProcess(pid, parent, started.ToLocalTime(), command) { Executable = executable, Name = name, SessionId = session, AgentPid = agent };
     }
 
     /// <summary>A process of another user, from the short record: its parent and its name, its program's path when the kernel tells it.</summary>
@@ -89,39 +95,19 @@ internal static partial class LibProc
     }
 
     /// <summary>
-    /// The arguments of a process from <c>KERN_PROCARGS2</c>: a count, the path it was started from, padding, then the
-    /// arguments one after another, each ended by a zero. Only the processes of the same user answer; for the rest the
-    /// path of the program stands in, which is all a census needs of the system's own processes.
+    /// The arguments of a process from <c>KERN_PROCARGS2</c>, and the session its environment names when
+    /// <paramref name="withEnvironment"/> lets it be read (see <see cref="ProcessArguments"/>). Only the processes of the same
+    /// user answer; for the rest the path of the program stands in, which is all a census needs of the system's own processes.
     /// </summary>
-    private static List<string>? Arguments(int pid, byte[] buffer)
+    private static ProcessArguments.Parsed Arguments(int pid, byte[] buffer, bool withEnvironment)
     {
         Span<int> name = [KernelControl, ProcessArgumentsTwo, pid];
         nint size = buffer.Length;
 
-        if (Sysctl(name, (uint)name.Length, buffer, ref size, nint.Zero, 0) != 0 || size < sizeof(int))
-            return null;
+        if (Sysctl(name, (uint)name.Length, buffer, ref size, nint.Zero, 0) != 0)
+            return default;
 
-        var bytes = buffer.AsSpan(0, (int)size);
-        var count = BinaryPrimitives.ReadInt32LittleEndian(bytes);
-        var at = sizeof(int);
-
-        at += Math.Max(bytes[at..].IndexOf((byte)0), 0);
-
-        while (at < bytes.Length && bytes[at] == 0)
-            at++;
-
-        var words = new List<string>(count);
-
-        while (words.Count < count && at < bytes.Length)
-        {
-            var end = bytes[at..].IndexOf((byte)0);
-            var length = end < 0 ? bytes.Length - at : end;
-
-            words.Add(Encoding.UTF8.GetString(bytes.Slice(at, length)));
-            at += length + 1;
-        }
-
-        return words.Count > 0 ? words : null;
+        return ProcessArguments.Parse(buffer.AsSpan(0, (int)Math.Min(size, buffer.Length)), withEnvironment);
     }
 
     private static string Text(ReadOnlySpan<byte> bytes)
@@ -139,6 +125,9 @@ internal static partial class LibProc
 
     [LibraryImport("libproc", EntryPoint = "proc_pidpath")]
     private static partial int PidPath(int pid, [Out] byte[] buffer, uint size);
+
+    [LibraryImport("libc", EntryPoint = "geteuid")]
+    private static partial uint EffectiveUser();
 
     [LibraryImport("libc", EntryPoint = "sysctl")]
     private static partial int Sysctl(ReadOnlySpan<int> name, uint length, [Out] byte[] old, ref nint oldLength, nint replacement, nint replacementLength);

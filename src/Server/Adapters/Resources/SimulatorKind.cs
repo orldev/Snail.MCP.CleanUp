@@ -74,6 +74,7 @@ public sealed class SimulatorKind(IPrograms programs, IProcessTable table, Sizes
     {
         var owner = Simulators.OwnerOf(device.Name);
         var drivers = Drivers(device.Udid, running);
+        var size = device.DataPath is null ? null : sizes.Of(Path.GetDirectoryName(device.DataPath)!);
         var resource = new Resource
         {
             Kind = Name,
@@ -81,7 +82,8 @@ public sealed class SimulatorKind(IPrograms programs, IProcessTable table, Sizes
             Title = $"{device.Name} ({Simulators.Spoken(device.Runtime)}, {device.State.ToLowerInvariant()})",
             Owner = owner,
             Evidence = owner.IsKnown ? Evidence.Label : Evidence.None,
-            Bytes = device.DataPath is null ? null : sizes.Of(Path.GetDirectoryName(device.DataPath)!),
+            Bytes = size?.Bytes,
+            IsAtLeast = size is { IsAtLeast: true },
             Blocker = device.IsAvailable ? null : "its runtime is no longer installed; simctl can still delete it by UDID",
             After = [.. drivers.Select(driver => $"{Kinds.Process}:{driver.Key}")],
             Facts = new Dictionary<string, string>

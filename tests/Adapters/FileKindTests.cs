@@ -4,6 +4,7 @@ using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Core.Adapters;
+using Snail.MCP.CleanUp.Core.Application;
 using Snail.MCP.CleanUp.Core.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
@@ -119,6 +120,122 @@ public sealed class FileKindTests : IDisposable
         Assert.NotNull(followed);
         Assert.Equal("file", followed.Trail);
         Assert.Contains(followed.Traces, trace => trace.Key == _scratch.File("apps/NewTool"));
+    }
+
+    private static Session Running => new(SessionId, 1, DateTimeOffset.UnixEpoch, "/work", IsAlive: true);
+
+    /// <summary>A folder with a file in it, both made now — a day before the test's clock.</summary>
+    private static string Made(string folder, string file = "blob")
+    {
+        Directory.CreateDirectory(folder);
+        File.WriteAllBytes(Path.Combine(folder, file), new byte[2_048]);
+
+        return folder;
+    }
+
+    /// <summary>The scratchpad of 2026-10-13, in small: copies of repositories with their build trees, a venv, a folder of tools.</summary>
+    private (string Bin, string Obj, string Results, string Artifacts, string Modules) Repositories(string scratchpad)
+    {
+        var server = Path.Combine(scratchpad, "scratchpad/copy/src/Server");
+
+        Made(server, "Server.csproj");
+
+        var outputs = (
+            Made(Path.Combine(server, "bin/Release/net10.0")).Replace("/Release/net10.0", string.Empty, StringComparison.Ordinal),
+            Made(Path.Combine(server, "obj/Debug")).Replace("/Debug", string.Empty, StringComparison.Ordinal),
+            Made(Path.Combine(scratchpad, "scratchpad/copy/tests/TestResults/run")).Replace("/run", string.Empty, StringComparison.Ordinal),
+            Made(Path.Combine(scratchpad, "scratchpad/copy/benchmarks/BenchmarkDotNet.Artifacts/results")).Replace("/results", string.Empty, StringComparison.Ordinal),
+            Made(Path.Combine(scratchpad, "scratchpad/site/node_modules/left-pad")).Replace("/left-pad", string.Empty, StringComparison.Ordinal));
+
+        Made(Path.Combine(scratchpad, "scratchpad/site"), "package.json");
+        Made(Path.Combine(scratchpad, "scratchpad/site-venv"), "pyvenv.cfg");
+        Made(Path.Combine(scratchpad, "scratchpad/site-venv/lib/node_modules/x"));
+        Made(Path.Combine(scratchpad, "scratchpad/site-venv/TestResults"));
+        Made(Path.Combine(scratchpad, "scratchpad/tools/.store/some-tool"));
+        Made(Path.Combine(scratchpad, "scratchpad/tools/TestResults"));
+        Made(Path.Combine(scratchpad, "scratchpad/scripts/bin"));
+        Made(Path.Combine(scratchpad, "scratchpad/.hidden/TestResults"));
+        Made(Path.Combine(scratchpad, "scratchpad/global/lib/node_modules/some-cli"));
+
+        return outputs;
+    }
+
+    /// <summary>A running session's scratchpad stays; what a build makes again inside it is offered to that session alone.</summary>
+    [Fact]
+    public async Task Outputs_InARunningSessionsScratchpad_AreItsOwn_RebuiltByTheNextBuild_VenvsAndToolsAreNot()
+    {
+        var scratchpad = Scratchpad();
+        var outputs = Repositories(scratchpad);
+
+        var found = (await Kind().ObserveAsync([Running], CancellationToken.None)).Resources;
+        var offered = found.Where(resource => resource.Facts.ContainsKey(FileKind.OutputFact)).ToList();
+
+        Assert.Equal(
+            new[] { outputs.Artifacts, outputs.Bin, outputs.Modules, outputs.Obj, outputs.Results }.Order(StringComparer.Ordinal),
+            offered.Select(resource => resource.Key).Order(StringComparer.Ordinal));
+        Assert.All(offered, resource =>
+        {
+            Assert.Equal((Owner.Session(SessionId), Evidence.Label), (resource.Owner, resource.Evidence));
+            Assert.True(resource.IsRegenerable && !resource.IsShared);
+            Assert.Null(resource.Blocker);
+            Assert.True(resource.Bytes > 0);
+        });
+        Assert.NotNull(found.Single(resource => resource.Key == scratchpad).Blocker);
+    }
+
+    [Fact]
+    public async Task Outputs_ArePlannedForTheirSessionAlone_AndNeverForAnother()
+    {
+        var scratchpad = Scratchpad();
+        Repositories(scratchpad);
+
+        var found = (await Kind().ObserveAsync([Running], CancellationToken.None)).Resources;
+        var mine = new Inventory(DateTimeOffset.UnixEpoch, Owner.Session(SessionId), found, [Running], new Dictionary<string, string>(), [], new Dictionary<string, string>());
+        var other = mine with { Asker = Owner.Session("another") };
+
+        Assert.Equal(5, Planner.Decide(mine, Scope.Mine, "plan").Removals.Count);
+        Assert.DoesNotContain(Planner.Decide(mine, Scope.Mine, "plan").Removals, decision => decision.Resource.Key == scratchpad);
+        Assert.Empty(Planner.Decide(other, Scope.Everything, "plan").Removals);
+        Assert.Empty(Planner.Decide(other, Scope.Caches, "plan").Decisions);
+    }
+
+    [Fact]
+    public async Task Outputs_OfAnEndedSession_AreNotListedApart_ItsScratchpadGoesWhole()
+    {
+        Repositories(Scratchpad());
+
+        Assert.Single((await Kind().ObserveAsync([Running with { IsAlive = false }], CancellationToken.None)).Resources);
+    }
+
+    [Fact]
+    public async Task Output_WrittenWithinTwoHours_OrRunFrom_IsLeft()
+    {
+        var outputs = Repositories(Scratchpad());
+        File.SetLastWriteTimeUtc(Path.Combine(outputs.Obj, "Debug/blob"), _clock.GetUtcNow().UtcDateTime.AddMinutes(-30));
+        _table.Add(700, 1, $"dotnet {outputs.Bin}/Release/net10.0/Server.dll");
+
+        var offered = (await Kind().ObserveAsync([Running], CancellationToken.None)).Resources.ToDictionary(resource => resource.Key);
+
+        Assert.Contains("30 minutes ago", offered[outputs.Obj].Blocker, StringComparison.Ordinal);
+        Assert.Contains("(700) runs from it", offered[outputs.Bin].Blocker, StringComparison.Ordinal);
+        Assert.Null(offered[outputs.Results].Blocker);
+    }
+
+    /// <summary>A build begun after the plan was shown: the output is judged again before it goes, and stays.</summary>
+    [Fact]
+    public async Task Output_Released_IsErased_UnlessABuildWroteIntoItSinceThePlan()
+    {
+        var outputs = Repositories(Scratchpad());
+        var kind = Kind();
+        var offered = (await kind.ObserveAsync([Running], CancellationToken.None)).Resources.ToDictionary(resource => resource.Key);
+
+        File.SetLastWriteTimeUtc(Path.Combine(outputs.Obj, "Debug/blob"), _clock.GetUtcNow().UtcDateTime.AddMinutes(-1));
+
+        Assert.Equal(Outcome.Changed, (await kind.ReleaseAsync(offered[outputs.Obj], CancellationToken.None)).Outcome);
+        Assert.True(Directory.Exists(outputs.Obj));
+        Assert.Equal(Outcome.Released, (await kind.ReleaseAsync(offered[outputs.Bin], CancellationToken.None)).Outcome);
+        Assert.False(Directory.Exists(outputs.Bin));
+        Assert.False(Directory.Exists(_scratch.File("Trash/bin")));
     }
 
     public void Dispose() => _scratch.Dispose();

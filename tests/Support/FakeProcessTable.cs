@@ -8,9 +8,9 @@ internal sealed class FakeProcessTable : IProcessTable
 {
     public List<RunningProcess> Running { get; } = [];
 
-    public RunningProcess Add(int pid, int parent, string command, DateTimeOffset? started = null, string? executable = null)
+    public RunningProcess Add(int pid, int parent, string command, DateTimeOffset? started = null, string? executable = null, string? session = null, int? agent = null)
     {
-        var process = new RunningProcess(pid, parent, started ?? DateTimeOffset.UnixEpoch.AddDays(1), command) { Executable = executable };
+        var process = new RunningProcess(pid, parent, started ?? DateTimeOffset.UnixEpoch.AddDays(1), command) { Executable = executable, SessionId = session, AgentPid = agent };
 
         Running.Add(process);
 

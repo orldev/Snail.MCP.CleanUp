@@ -23,6 +23,16 @@ public sealed record RunningProcess(int Pid, int ParentPid, DateTimeOffset Start
     /// </remarks>
     public string? Name { get; init; }
 
+    /// <summary>The session of Claude Code its environment names (<c>CLAUDE_CODE_SESSION_ID</c>); null when it names none or could not be read.</summary>
+    /// <remarks>
+    /// Read only of the processes of the user this server runs as, and only where the kernel shows the environment: on macOS,
+    /// where Apple's own programs hide theirs.
+    /// </remarks>
+    public string? SessionId { get; init; }
+
+    /// <summary>The process of the agent its environment names (<c>CLAUDE_PID</c>); null when it names none or could not be read.</summary>
+    public int? AgentPid { get; init; }
+
     /// <summary>The key that names this process and no later one that is given the same id.</summary>
     public string Key => $"{Pid}@{StartedAt.ToUnixTimeSeconds()}";
 

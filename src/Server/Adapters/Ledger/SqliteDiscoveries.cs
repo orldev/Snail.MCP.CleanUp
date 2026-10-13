@@ -15,11 +15,12 @@ public sealed class SqliteDiscoveries(LedgerFile file) : IDiscoveries
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
         await using var upsert = connection.Prepared(
             """
-            INSERT INTO discoveries (trace_id, trail, key, title, bytes, owner, first_seen, last_seen, sightings)
-            VALUES ($id, $trail, $key, $title, $bytes, $owner, $first, $last, 1)
+            INSERT INTO discoveries (trace_id, trail, key, title, bytes, at_least, owner, first_seen, last_seen, sightings)
+            VALUES ($id, $trail, $key, $title, $bytes, $atLeast, $owner, $first, $last, 1)
             ON CONFLICT (trace_id) DO UPDATE SET
                 last_seen = excluded.last_seen,
                 sightings = discoveries.sightings + 1,
+                at_least = CASE WHEN excluded.bytes IS NULL THEN discoveries.at_least ELSE excluded.at_least END,
                 bytes = COALESCE(excluded.bytes, discoveries.bytes);
             """,
             ("$id", null),
@@ -27,6 +28,7 @@ public sealed class SqliteDiscoveries(LedgerFile file) : IDiscoveries
             ("$key", null),
             ("$title", null),
             ("$bytes", null),
+            ("$atLeast", null),
             ("$owner", null),
             ("$first", null),
             ("$last", null));
@@ -40,6 +42,7 @@ public sealed class SqliteDiscoveries(LedgerFile file) : IDiscoveries
             upsert.Parameters["$key"].Value = discovery.Trace.Key;
             upsert.Parameters["$title"].Value = discovery.Trace.Title;
             upsert.Parameters["$bytes"].Value = (object?)discovery.Trace.Bytes ?? DBNull.Value;
+            upsert.Parameters["$atLeast"].Value = discovery.Trace.IsAtLeast;
             upsert.Parameters["$owner"].Value = discovery.Owner.ToString();
             upsert.Parameters["$first"].Value = Moments.Write(discovery.FirstSeen);
             upsert.Parameters["$last"].Value = Moments.Write(discovery.LastSeen);
@@ -65,7 +68,7 @@ public sealed class SqliteDiscoveries(LedgerFile file) : IDiscoveries
         await using var connection = await file.OpenAsync(cancellationToken);
 
         await using (var command = connection.Prepared(
-            "SELECT trace_id, last_seen < $forgotten, trail, key, title, bytes, owner, first_seen, last_seen, sightings FROM discoveries ORDER BY first_seen DESC;",
+            "SELECT trace_id, last_seen < $forgotten, trail, key, title, bytes, owner, first_seen, last_seen, sightings, at_least FROM discoveries ORDER BY first_seen DESC;",
             ("$forgotten", forgotten)))
         await using (var reader = await command.ExecuteReaderAsync(cancellationToken))
         {
@@ -83,7 +86,7 @@ public sealed class SqliteDiscoveries(LedgerFile file) : IDiscoveries
                 long? bytes = await reader.IsDBNullAsync(5, cancellationToken) ? null : reader.GetInt64(5);
 
                 discoveries.Add(new Discovery(
-                    new Trace(reader.GetString(2), reader.GetString(3), reader.GetString(4), bytes),
+                    new Trace(reader.GetString(2), reader.GetString(3), reader.GetString(4), bytes) { IsAtLeast = reader.GetBoolean(10) },
                     Owner.Parse(reader.GetString(6)),
                     Moments.Read(reader.GetString(7)),
                     isPresent ? now : Moments.Read(reader.GetString(8)),

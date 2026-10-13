@@ -52,6 +52,7 @@ public sealed class VirtualDeviceKind(Android android, IProcessTable table, Size
     {
         var owner = Simulators.OwnerOf(name);
         var isRunning = running.Any(process => Android.DeviceOf(process.Command) == name);
+        var size = sizes.Of(Path.Combine(android.Devices, $"{name}.avd"));
 
         return new Resource
         {
@@ -61,7 +62,8 @@ public sealed class VirtualDeviceKind(Android android, IProcessTable table, Size
             Owner = owner,
             Evidence = owner.IsKnown ? Evidence.Label : Evidence.None,
             IsRegenerable = owner.IsKnown,
-            Bytes = sizes.Of(Path.Combine(android.Devices, $"{name}.avd")),
+            Bytes = size?.Bytes,
+            IsAtLeast = size is { IsAtLeast: true },
             After = isRunning ? [$"{Kinds.Emulator}:{name}"] : []
         };
     }
