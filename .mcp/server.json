@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.orldev/snail-mcp-cleanup",
-  "description": "MCP server that keeps account of what AI agents leave behind on a Mac and removes what is proven theirs: processes, ports, temporary files, Docker objects, iOS simulators, Android emulators, editor state.",
+  "description": "Keeps account of what AI agents leave behind on a Mac and removes only what is proven theirs.",
   "version": "0.1.0",
   "packages": [
     {
