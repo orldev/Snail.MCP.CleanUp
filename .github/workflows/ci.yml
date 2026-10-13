@@ -15,7 +15,7 @@ jobs:
   ci:
     uses: orldev/Snail.Sdk/.github/workflows/mcp-ci.yml@v1
     with:
-      name: Snail.MCP.CleanUp
       project: src/Server
-      test-os: macos-latest
+      os: macos-latest
       contract-variable: SNAIL_CLEANUP_SERVER
+      contract-filter: FullyQualifiedName~StdioContract

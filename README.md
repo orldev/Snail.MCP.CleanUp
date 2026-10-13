@@ -89,11 +89,11 @@ framework-dependent one. The server finds its session through
 [Snail.SleepOf](../../xcode/Snail.SleepOf) when it is installed, and through the process table otherwise.
 
 Published for a runtime, it is a native program — no .NET needed to run it, and a third of the memory. Published
-with `-p:Install=true`, it goes into its own folder under `~/.s3l-mcp`, with the hook forwarder beside it, and
-`current` points at it ([docs/publishing.md](docs/publishing.md) — the same for every Snail MCP server):
+with `-p:SnailMcpInstall=true`, it goes into its own folder under `~/.s3l-mcp`, with the hook forwarder beside it, and
+`current` points at it ([installing](https://orldev.github.io/Snail.Sdk/installing/) — the same for every Snail MCP server):
 
 ```bash
-dotnet publish src/Server -c Release -r osx-arm64 -p:Install=true
+dotnet publish src/Server -c Release -r osx-arm64 -p:SnailMcpInstall=true
 claude mcp add -s user clean -- /Users/<you>/.s3l-mcp/Snail.MCP.CleanUp/current/Snail.MCP.CleanUp
 ``` Measured on an Apple
 Silicon Mac against `dotnet Snail.MCP.CleanUp.dll`: start 146 → 51 ms, resident 136 → 56 MB, first census 0.58 →
@@ -162,8 +162,8 @@ tasks and projects are the owners and their names are the proof.
 A census reads the machine through its APIs rather than by starting programs, matches rules compiled once, and runs
 when the kernel says something changed rather than every half a minute; one server on the machine takes the
 background census for all, and hooks are handed to it over a socket. Published natively, the server starts in
-51 ms and keeps 56 MB resident. [docs/performance.md](docs/performance.md) has the measurements of all of it, with
-what did nothing — most runtime settings among them — as rules for other servers.
+51 ms and keeps 56 MB resident. What carried over to the other servers is in
+[the standard](https://orldev.github.io/Snail.Sdk/standard/#performance).
 
 ## Tests
 

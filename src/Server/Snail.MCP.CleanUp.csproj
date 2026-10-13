@@ -15,7 +15,7 @@
         speed measured the same, since a census waits on the programs and the kernel it asks, and the binary is 1.4 MB
         smaller.
         As a dotnet tool it is a package per platform, each native, and a framework-dependent one for the rest
-        (docs/publishing.md): `dotnet pack` makes the package that points at them, `dotnet pack -r <rid>` each native one
+        (Snail.Sdk's docs/workflows.md): `dotnet pack` makes the package that points at them, `dotnet pack -r <rid>` each native one
         on its own system, `dotnet pack -r any -p:PublishAot=false` the fallback. Windows is not among them: the server
         reads the process table, sockets and changes the unix way.
     -->
@@ -31,7 +31,7 @@
         resident and 216 KB of binary, for a server that compares and formats everything invariantly.
     -->
 
-    <!-- Published with -p:Install=true, the hook forwarder beside it. -->
+    <!-- Published with -p:SnailMcpInstall=true, the hook forwarder beside it. -->
     <PropertyGroup>
         <!-- A hook with nothing on its input answers at once: the warm-up takes no census. -->
         <SnailMcpWarmUp>hook</SnailMcpWarmUp>
