@@ -32,7 +32,7 @@ public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules,
 
         List<Resource> found = [.. Scratchpads(sessions), .. Ruled(traces, known, running)];
 
-        return new Observation(Name, found, []);
+        return new Observation(Name, found, []) { Followed = new Walk(trail.Name, traces) };
     }
 
     /// <inheritdoc/>

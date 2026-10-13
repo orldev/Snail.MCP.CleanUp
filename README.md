@@ -71,6 +71,9 @@ Rules live in `~/.s3l-mcp-cleanup/rules.json`, after the shipped ones, so a lear
 one. `*` is one path segment, `**` any number, `~` is home. `cleanup_learn` writes the file and settles the
 discoveries the rule now covers.
 
+A discovery whose thing is still there is seen again by every census and stays in the inventory. One whose thing
+is gone stays written down, marked absent, for three days after it was last seen, and is then crossed off.
+
 ## Run it
 
 Add it to an MCP client — Claude Code's `.mcp.json`:

@@ -6,14 +6,15 @@ namespace Snail.MCP.CleanUp.Adapters.Ledger;
 /// <remarks>
 /// A baseline is written once, when its session first takes part in a census, and never changed after; only the end
 /// of the session removes it. So one read is kept for as long as the session runs, instead of reading its
-/// two and a half thousand rows back at every census.
+/// two and a half thousand rows back at every census. What is kept are the hashes of the ids, not the ids: see
+/// <see cref="Baseline"/> for what that costs.
 /// </remarks>
 public sealed class SqliteBaselines(LedgerFile file) : IBaselines
 {
-    private readonly ConcurrentDictionary<Owner, IReadOnlySet<string>> _read = new();
+    private readonly ConcurrentDictionary<Owner, Baseline> _read = new();
 
     /// <inheritdoc/>
-    public async Task<IReadOnlySet<string>?> FindAsync(Owner owner, CancellationToken cancellationToken)
+    public async Task<Baseline?> FindAsync(Owner owner, CancellationToken cancellationToken)
     {
         if (_read.TryGetValue(owner, out var known))
             return known;
@@ -26,13 +27,13 @@ public sealed class SqliteBaselines(LedgerFile file) : IBaselines
         return found;
     }
 
-    private async Task<IReadOnlySet<string>?> ReadAsync(Owner owner, CancellationToken cancellationToken)
+    private async Task<Baseline?> ReadAsync(Owner owner, CancellationToken cancellationToken)
     {
         await using var connection = await file.OpenAsync(cancellationToken);
         await using var command = connection.Prepared("SELECT trace_id FROM baselines WHERE owner = $owner;", ("$owner", owner.ToString()));
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
-        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var seen = new Baseline();
 
         while (await reader.ReadAsync(cancellationToken))
             seen.Add(reader.GetString(0));

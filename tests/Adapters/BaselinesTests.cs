@@ -24,9 +24,30 @@ public sealed class BaselinesTests : IDisposable
         var first = await baselines.FindAsync(Me, CancellationToken.None);
 
         Assert.NotNull(first);
-        Assert.Contains("file:/a", first);
-        Assert.DoesNotContain("file:/b", first);
+        Assert.True(first.Contains("file:/a"));
+        Assert.False(first.Contains("file:/b"));
         Assert.Same(first, await baselines.FindAsync(Me, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// A baseline is kept as hashes of its ids. Every id it was taken with is still in it, and none of a busy machine's
+    /// worth of others is — the odds of a collision are in <see cref="Baseline"/>.
+    /// </summary>
+    [Fact]
+    public async Task Baseline_KeptAsHashes_HoldsEveryIdItWasTakenWith_AndNoOther()
+    {
+        var baselines = new SqliteBaselines(_file);
+        var taken = Enumerable.Range(0, 50_000).Select(index => $"file:/var/folders/v1/T/clr-debug-pipe-{index}-in").ToList();
+
+        await baselines.SaveAsync(Me, taken, DateTimeOffset.UnixEpoch, CancellationToken.None);
+
+        var found = await new SqliteBaselines(_file).FindAsync(Me, CancellationToken.None);
+
+        Assert.NotNull(found);
+        Assert.Equal(taken.Count + 1, found.Count);
+        Assert.All(taken, id => Assert.True(found.Contains(id), id));
+        Assert.DoesNotContain(Enumerable.Range(50_000, 50_000), index => found.Contains($"file:/var/folders/v1/T/clr-debug-pipe-{index}-in"));
+        Assert.False(found.Contains("file:/var/folders/v1/T/clr-debug-pipe-0-out"));
     }
 
     [Fact]

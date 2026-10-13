@@ -108,5 +108,18 @@ public sealed class FileKindTests : IDisposable
         Assert.Empty((await Kind(new Rule("file", $"{_scratch.Path}/apps/*", RuleAction.Ignore)).ObserveAsync([], CancellationToken.None)).Resources);
     }
 
+    /// <summary>The kind looks by walking the file trail, and hands the walk to the census, which then does not walk it again.</summary>
+    [Fact]
+    public async Task Observation_CarriesTheWalkOfTheFileTrail()
+    {
+        Directory.CreateDirectory(_scratch.File("apps/NewTool"));
+
+        var followed = (await Kind().ObserveAsync([], CancellationToken.None)).Followed;
+
+        Assert.NotNull(followed);
+        Assert.Equal("file", followed.Trail);
+        Assert.Contains(followed.Traces, trace => trace.Key == _scratch.File("apps/NewTool"));
+    }
+
     public void Dispose() => _scratch.Dispose();
 }

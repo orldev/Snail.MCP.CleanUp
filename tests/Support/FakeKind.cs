@@ -51,6 +51,9 @@ internal sealed class FakeTrail(string name) : ITrail
 
     public List<Trace> Present { get; } = [];
 
+    /// <summary>How many times it was followed.</summary>
+    public int Follows { get; private set; }
+
     public Trace Add(string key)
     {
         var trace = new Trace(Name, key, key);
@@ -60,8 +63,12 @@ internal sealed class FakeTrail(string name) : ITrail
         return trace;
     }
 
-    public Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken) =>
-        Task.FromResult<IReadOnlyList<Trace>>([.. Present]);
+    public Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken)
+    {
+        Follows++;
+
+        return Task.FromResult<IReadOnlyList<Trace>>([.. Present]);
+    }
 
     public Task<Trace> MeasureAsync(Trace trace, CancellationToken cancellationToken) => Task.FromResult(trace with { Bytes = 42 });
 }
