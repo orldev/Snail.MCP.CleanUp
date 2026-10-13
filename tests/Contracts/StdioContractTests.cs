@@ -96,6 +96,6 @@ public sealed class StdioContractTests : IDisposable
         {
             Command = Server.Command,
             Arguments = Server.Arguments,
-            EnvironmentVariables = Deployment.Variables(_scratch).ToDictionary(variable => variable.Key, variable => (string?)variable.Value)
+            EnvironmentVariables = Deployment.Variables(_scratch, ("CONFIG", Snail.Sdk.Mcp.Testing.ServerProgram.NoSettingsFile)).ToDictionary(variable => variable.Key, variable => (string?)variable.Value)
         }));
 }

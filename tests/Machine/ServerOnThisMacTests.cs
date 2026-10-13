@@ -22,7 +22,7 @@ public sealed class ServerOnThisMacTests(ITestOutputHelper output) : IDisposable
         {
             Command = "dotnet",
             Arguments = [Server],
-            EnvironmentVariables = new Dictionary<string, string?> { ["SNAIL_MCP_CLEANUP_DATA_DIRECTORY"] = _scratch.Path }
+            EnvironmentVariables = new Dictionary<string, string?> { ["SNAIL_MCP_CLEANUP_DATA_DIRECTORY"] = _scratch.Path, ["SNAIL_MCP_CLEANUP_CONFIG"] = Snail.Sdk.Mcp.Testing.ServerProgram.NoSettingsFile }
         }));
 
         foreach (var (tool, arguments) in new (string, Dictionary<string, object?>)[]

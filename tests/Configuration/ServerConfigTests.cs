@@ -1,3 +1,4 @@
+using System.Collections;
 using Snail.MCP.CleanUp.Configuration;
 
 namespace Snail.MCP.CleanUp.Tests.Configuration;
@@ -35,5 +36,42 @@ public sealed class ServerConfigTests
         var settings = ServerConfigExtensions.Settings(new Dictionary<string, string> { ["DATA_DIRECTORY"] = "/elsewhere" });
 
         Assert.NotEqual("/elsewhere", ServerConfigExtensions.Read(settings).DataDirectory);
+    }
+
+    [Fact]
+    public void DataDirectory_FromTheSettingsFile_IsTaken()
+    {
+        using var scratch = new Scratch();
+        var file = SettingsFile(scratch, new JsonObject { ["DataDirectory"] = scratch.File("FromFile") });
+
+        Assert.Equal(scratch.File("FromFile"), ServerConfigExtensions.Read(ServerConfigExtensions.Settings(new Hashtable(), file)).DataDirectory);
+    }
+
+    [Fact]
+    public void DataDirectory_UnderTheSnailSectionOfTheFile_IsTaken()
+    {
+        using var scratch = new Scratch();
+        var file = SettingsFile(scratch, new JsonObject { [ServerConfig.SectionName] = new JsonObject { ["DataDirectory"] = scratch.File("Nested") } });
+
+        Assert.Equal(scratch.File("Nested"), ServerConfigExtensions.Read(ServerConfigExtensions.Settings(new Hashtable(), file)).DataDirectory);
+    }
+
+    [Fact]
+    public void Variable_OverTheSettingsFile_Wins()
+    {
+        using var scratch = new Scratch();
+        var file = SettingsFile(scratch, new JsonObject { ["DataDirectory"] = scratch.File("FromFile") });
+        var variables = new Hashtable { [$"{EnvironmentSettings.Prefix}DATA_DIRECTORY"] = scratch.File("FromVariable") };
+
+        Assert.Equal(scratch.File("FromVariable"), ServerConfigExtensions.Read(ServerConfigExtensions.Settings(variables, file)).DataDirectory);
+    }
+
+    private static string SettingsFile(Scratch scratch, JsonObject settings)
+    {
+        var file = scratch.File("config.json");
+
+        File.WriteAllText(file, settings.ToJsonString());
+
+        return file;
     }
 }

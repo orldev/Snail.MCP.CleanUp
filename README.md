@@ -132,7 +132,19 @@ built binary the first time it runs, so the first hook after a publish takes abo
 
 ## Configuration
 
-Every setting is an environment variable under `SNAIL_MCP_CLEANUP_`:
+Settings come from the settings file and from environment variables under `SNAIL_MCP_CLEANUP_`; a variable wins
+over the file. The file is the one `SNAIL_MCP_CLEANUP_CONFIG` names, the only one read when it is set, or else the first
+that exists of the chain every Snail MCP server reads ([Snail.Sdk](https://orldev.github.io/Snail.Sdk/)):
+`.s3l-mcp-cleanup.json` or `s3l-mcp-cleanup.json` in the working directory, `~/.config/s3l-mcp-cleanup/config.json`,
+`~/.s3l-mcp-cleanup.json`. A setting of this machine goes into
+`~/.config/s3l-mcp-cleanup/config.json`, readable by you alone (`chmod 600`), never into a launchd job or a client's
+registration, which travel wherever they are copied. In the file a variable is a field: `DATA_DIRECTORY` is
+`"DataDirectory"`, and the fields may also be nested under `"Snail"`:
+
+```json
+{ "DataDirectory": "/Users/you/.s3l-mcp-cleanup", "ScratchRoot": "/private/tmp" }
+```
+
 
 | Variable | Default |
 | --- | --- |

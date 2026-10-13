@@ -36,7 +36,7 @@ public sealed class VerbContractTests : IDisposable
         start.ArgumentList.Add(Server);
         start.ArgumentList.Add(verb);
 
-        foreach (var (name, value) in Deployment.Variables(_scratch, ("CLAUDE_SETTINGS", _scratch.File("settings.json"))))
+        foreach (var (name, value) in Deployment.Variables(_scratch, ("CLAUDE_SETTINGS", _scratch.File("settings.json")), ("CONFIG", Snail.Sdk.Mcp.Testing.ServerProgram.NoSettingsFile)))
             start.Environment[name] = value;
 
         using var process = Process.Start(start)!;

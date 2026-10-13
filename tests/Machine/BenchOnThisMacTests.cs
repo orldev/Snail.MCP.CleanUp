@@ -34,7 +34,7 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
     {
         get
         {
-            var variables = new Dictionary<string, string?> { ["SNAIL_MCP_CLEANUP_DATA_DIRECTORY"] = _scratch.Path, ["SNAIL_MCP_CLEANUP_HOOK_DIRECTORY"] = _run };
+            var variables = new Dictionary<string, string?> { ["SNAIL_MCP_CLEANUP_DATA_DIRECTORY"] = _scratch.Path, ["SNAIL_MCP_CLEANUP_HOOK_DIRECTORY"] = _run, ["SNAIL_MCP_CLEANUP_CONFIG"] = Snail.Sdk.Mcp.Testing.ServerProgram.NoSettingsFile };
 
             foreach (var pair in (Environment.GetEnvironmentVariable("SNAIL_CLEANUP_BENCH_ENV") ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries))
                 variables[pair.Split('=', 2)[0]] = pair.Split('=', 2)[1];
