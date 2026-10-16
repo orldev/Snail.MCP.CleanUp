@@ -16,11 +16,20 @@ public static class Messages
     /// <summary>How cleanup_run is called, for a caller that called it wrongly.</summary>
     public const string RunHint = "Pass the whole command line as command, such as \"npm run dev\", and an existing directory to run it in.";
 
+    /// <summary>What a run is told whose program ended before it could be written down.</summary>
+    public const string RunEndedAtOnce = "the program ended at once, before it could be written down; read its log for why — anything it left running in the background is not on the record";
+
+    /// <summary>What a run started for no session it can tell is told: it is on the record, but nobody's.</summary>
+    public const string RunOfNobody = "started, but this server cannot tell which session it belongs to: it is written down as nobody's, so no cleanup removes it; end it yourself, or call cleanup_diagnose to see what the server sees";
+
     /// <summary>What is said when the server cannot tell which session it serves.</summary>
     public const string NoSession = "this server cannot tell which session it belongs to, so nothing can be made in its name";
 
     /// <summary>What to do about it.</summary>
     public const string NoSessionHint = "Start the server from a Claude Code session, or call cleanup_diagnose to see what it sees.";
+
+    /// <summary>What to do when the sessions of the machine could not be told, so that no census was taken.</summary>
+    public const string SessionsUnknownHint = "Nothing was decided or removed. Ask again in a moment; when it keeps failing, call cleanup_diagnose to see what the server can read.";
 
     /// <summary>How a simulator is asked for, for a caller that asked wrongly.</summary>
     public const string SimulatorHint = "Pass a shut-down device to clone as from, a device type such as iPhone 17 Pro, or nothing for the newest iPhone Pro.";

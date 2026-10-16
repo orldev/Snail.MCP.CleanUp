@@ -27,6 +27,26 @@ public sealed class KernelChangesTests : IDisposable
         return changes;
     }
 
+    /// <summary>A second Dispose closed the queue's number again, and the lowest free number is the next file's own.</summary>
+    [Fact]
+    public async Task Dispose_Twice_LeavesTheFileOpenedBetweenOpen()
+    {
+        if (!OperatingSystem.IsMacOS())
+            return;
+
+        var changes = new KernelChanges(new FileTrail([(_scratch.Path, 1)], new Sizes(TimeProvider.System)));
+
+        changes.Dispose();
+
+        await using var opened = new FileStream(_scratch.File("opened"), FileMode.Create);
+
+        changes.Dispose();
+        opened.WriteByte(1);
+        await opened.FlushAsync();
+
+        Assert.Equal(1, opened.Length);
+    }
+
     [Fact]
     public async Task Entry_AddedToAFollowedDirectory_IsWordOfAChange()
     {

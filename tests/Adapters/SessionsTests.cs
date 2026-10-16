@@ -1,5 +1,6 @@
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Configuration;
+using Snail.MCP.CleanUp.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
 
@@ -30,6 +31,18 @@ public sealed class SessionsTests : IDisposable
     [Fact]
     public void AgentsFile_ThatIsNotOne_GivesNoSessions() =>
         Assert.Empty(SleepOfAgents.Parse("{ not json"));
+
+    /// <summary>
+    /// SleepOf says the session runs under agent 4242, and the process table comes back empty: unknown is not ended, so the
+    /// sessions are not answered at all, as IHolders asks of a host that cannot read its owners.
+    /// </summary>
+    [Fact]
+    public async Task Sessions_WhileTheProcessTableCannotBeRead_AreNotAnsweredAsEnded()
+    {
+        Written($$$"""{"sessions":[{"id":"s1","startedAt":{{{SleepOfMoment}}}}],"pids":{"s1":4242}}""");
+
+        await Assert.ThrowsAsync<SessionsUnknownException>(() => Sessions.ListAsync(CancellationToken.None));
+    }
 
     [Fact]
     public async Task Session_WhoseAgentStillRuns_IsAlive()

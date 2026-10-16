@@ -80,6 +80,82 @@ public sealed class Programs(Snail.MCP.CleanUp.Application.Performance performan
         }
     }
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// The shell sends its own output to the log before it runs anything, then hands its process over to the program: the
+    /// program keeps the id that is answered, and the log is the only place it can write to — this server's stdout is the
+    /// JSON-RPC stream, and one stray line from a dev server there breaks the session.
+    /// </remarks>
+    public StartedProgram StartLogged(IReadOnlyList<string> command, string? directory, string log)
+    {
+        var start = new ProcessStartInfo("/bin/sh") { UseShellExecute = false };
+
+        if (directory is not null)
+            start.WorkingDirectory = directory;
+
+        start.ArgumentList.Add("-c");
+        start.ArgumentList.Add("exec >\"$0\" 2>&1 </dev/null; exec \"$@\"");
+        start.ArgumentList.Add(log);
+
+        foreach (var word in command)
+            start.ArgumentList.Add(word);
+
+        using var process = Process.Start(start)!;
+
+        return new StartedProgram(process.Id, StartOf(process));
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>The shell puts the program in the background and ends at once, so the program is a child of nothing that waits for it.</remarks>
+    public async Task<bool> TryDetachAsync(IReadOnlyList<string> command, CancellationToken cancellationToken)
+    {
+        var start = new ProcessStartInfo("/bin/sh") { UseShellExecute = false };
+
+        start.ArgumentList.Add("-c");
+        start.ArgumentList.Add("\"$0\" \"$@\" >/dev/null 2>&1 </dev/null &");
+
+        foreach (var word in command)
+            start.ArgumentList.Add(word);
+
+        try
+        {
+            using var started = Process.Start(start);
+            using var patience = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+            patience.CancelAfter(TimeSpan.FromSeconds(5));
+
+            if (started is not null)
+                await started.WaitForExitAsync(patience.Token);
+
+            return started is not null;
+        }
+        catch (Win32Exception)
+        {
+            return false;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return true;
+        }
+    }
+
+    /// <summary>When a program started; null when it ended before that could be read.</summary>
+    /// <remarks>
+    /// The start is read from the kernel after the program is started, and the kernel forgets a program that has ended and
+    /// been reaped: half of twenty runs of <c>exit 3</c> threw instead of answering (2026-10-16).
+    /// </remarks>
+    private static DateTimeOffset? StartOf(Process process)
+    {
+        try
+        {
+            return new DateTimeOffset(process.StartTime);
+        }
+        catch (Exception ended) when (ended is Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
     private static ProcessStartInfo Started(string program, IReadOnlyList<string> arguments)
     {
         var start = new ProcessStartInfo(program)

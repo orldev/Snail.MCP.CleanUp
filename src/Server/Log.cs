@@ -20,7 +20,7 @@ internal static partial class Log
     internal static partial void CensusFailed(ILogger logger, Exception failure, TimeSpan interval);
 
     [LoggerMessage(EventId = 5, Level = LogLevel.Warning, Message = "could not start a detached {Verb}")]
-    internal static partial void DetachedNotStarted(ILogger logger, Exception failure, string verb);
+    internal static partial void DetachedNotStarted(ILogger logger, string verb);
 
     [LoggerMessage(EventId = 6, Level = LogLevel.Information, Message = "hooks are not taken on {Socket}: {Reason}")]
     internal static partial void HooksNotTaken(ILogger logger, string socket, string reason);

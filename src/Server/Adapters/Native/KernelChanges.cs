@@ -158,12 +158,19 @@ public sealed partial class KernelChanges : IChanges, IDisposable
     }
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// Once only: a second call would close the queue's number again, and by then the number may be another file's — the
+    /// ledger's, a socket's — which would be closed under its owner.
+    /// </remarks>
     public void Dispose()
     {
-        _isDisposed = true;
-
         lock (_following)
         {
+            if (_isDisposed)
+                return;
+
+            _isDisposed = true;
+
             foreach (var descriptor in _directories.Values)
                 _ = Close(descriptor);
 

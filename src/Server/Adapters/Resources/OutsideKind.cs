@@ -37,7 +37,7 @@ public sealed class OutsideKind(Sizes sizes, IReadOnlyList<(string Path, string 
     ];
 
     /// <inheritdoc/>
-    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         var found = new List<Resource>(places.Count);
 

@@ -16,4 +16,13 @@ public interface IPrograms
     /// same answer for all of them; a command that changes something, or checks right before it does, never comes here.
     /// </remarks>
     Task<ProgramRun> ReadAsync(string program, IReadOnlyList<string> arguments, TimeSpan freshness, TimeSpan timeout, CancellationToken cancellationToken);
+
+    /// <summary>Starts a program that outlives the call, with its output in a log of its own and never on this server's stdout.</summary>
+    /// <param name="command">The program and its arguments.</param>
+    /// <param name="directory">The directory it runs in; this server's own when null.</param>
+    /// <param name="log">The file its output and errors go to.</param>
+    StartedProgram StartLogged(IReadOnlyList<string> command, string? directory, string log);
+
+    /// <summary>Starts a program in the background, cut loose from this process, and returns once it is on its way; false when it could not be started.</summary>
+    Task<bool> TryDetachAsync(IReadOnlyList<string> command, CancellationToken cancellationToken);
 }

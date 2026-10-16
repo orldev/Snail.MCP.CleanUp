@@ -17,7 +17,7 @@ public sealed class SimulatorKind(IPrograms programs, IProcessTable table, Sizes
     public string Name => MachineKinds.Simulator;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         var run = await programs.ReadAsync("xcrun", ["simctl", "list", "devices", "-j"], IPrograms.Census, Patience, cancellationToken);
 

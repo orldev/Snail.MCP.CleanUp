@@ -22,7 +22,7 @@ public sealed class AccountTools(Account account)
     public async Task<CallToolResult> PlanAsync(
         [Description(ToolDescriptions.PlanScope)] string scope = "mine",
         CancellationToken cancellationToken = default) =>
-        Enum.TryParse<Scope>(scope, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+        ToolArguments.TryRead<Scope>(scope, out var parsed)
             ? ToolResponse.From(await account.PlanAsync(parsed, cancellationToken))
             : ToolResponse.Failure($"there is no scope {scope}", ToolDescriptions.PlanScope);
 
@@ -63,7 +63,7 @@ public sealed class AccountTools(Account account)
         [Description(ToolDescriptions.LearnNote)] string? note = null,
         [Description(ToolDescriptions.LearnBlocked)] string? blockedWhileRunning = null,
         CancellationToken cancellationToken = default) =>
-        Enum.TryParse<RuleAction>(action, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+        ToolArguments.TryRead<RuleAction>(action, out var parsed)
             ? ToolResponse.From(await account.LearnAsync(new Rule(trail, pattern, parsed) { Note = note, BlockedWhileRunning = blockedWhileRunning }, cancellationToken))
             : ToolResponse.Failure($"there is no action {action}", ToolDescriptions.LearnAction);
 }

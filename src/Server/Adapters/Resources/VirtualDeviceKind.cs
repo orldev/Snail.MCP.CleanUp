@@ -13,7 +13,7 @@ public sealed class VirtualDeviceKind(Android android, IProcessTable table, Size
     public string Name => MachineKinds.VirtualDevice;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (!Directory.Exists(android.Devices))
             return new Observation(Name, [], []);

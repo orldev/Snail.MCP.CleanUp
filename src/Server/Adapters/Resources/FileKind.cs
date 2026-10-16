@@ -27,14 +27,14 @@ public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules,
     public string Name => Kinds.File;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         var known = await rules.ListAsync(cancellationToken);
         var processes = await table.ListAsync(cancellationToken);
         var running = processes.Select(process => process.Program).ToHashSet(StringComparer.Ordinal);
         var traces = await trail.FollowAsync(known, cancellationToken);
 
-        List<Resource> found = [.. Scratchpads(sessions, processes), .. Ruled(traces, known, running)];
+        List<Resource> found = [.. Scratchpads(holders, processes), .. Ruled(traces, known, running)];
 
         return new Observation(Name, found, []) { Followed = new Walk(trail.Name, traces) };
     }

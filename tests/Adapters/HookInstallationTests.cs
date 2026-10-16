@@ -1,7 +1,7 @@
-using Snail.MCP.CleanUp.Application;
+using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Configuration;
 
-namespace Snail.MCP.CleanUp.Tests.Application;
+namespace Snail.MCP.CleanUp.Tests.Adapters;
 
 public sealed class HookInstallationTests : IDisposable
 {
@@ -83,6 +83,48 @@ public sealed class HookInstallationTests : IDisposable
         Installation.Install(Command);
 
         Assert.Equal(before, File.ReadAllText(_scratch.File("settings.json.cleanup-backup")));
+    }
+
+    /// <summary>A file only its owner may read — its <c>env</c> may hold a key — stays so, and so does the copy kept of it.</summary>
+    [Fact]
+    public void Install_OverAFileOnlyItsOwnerMayRead_KeepsItAndItsCopySo()
+    {
+        const UnixFileMode ownerOnly = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+
+        File.SetUnixFileMode(_scratch.File("settings.json"), ownerOnly);
+
+        Installation.Install(Command);
+
+        Assert.Equal(ownerOnly, File.GetUnixFileMode(_scratch.File("settings.json")));
+        Assert.Equal(ownerOnly, File.GetUnixFileMode(_scratch.File("settings.json.cleanup-backup")));
+    }
+
+    /// <summary>An entry holding another tool's command beside this server's keeps the other one.</summary>
+    [Fact]
+    public void Install_OverAnEntryItSharesWithAnotherTool_KeepsTheOtherCommand()
+    {
+        File.WriteAllText(_scratch.File("settings.json"), """
+            { "hooks": { "Stop": [ { "hooks": [
+                { "type": "command", "command": "dotnet /old/Snail.MCP.CleanUp.dll hook" },
+                { "type": "command", "command": "/usr/local/bin/notify-done" } ] } ] } }
+            """);
+
+        Installation.Install(Command);
+
+        Assert.Equal(["/usr/local/bin/notify-done", Command], Commands("Stop"));
+    }
+
+    /// <summary>A person's own command in a folder named after this server runs no program of this server's with its verb.</summary>
+    [Fact]
+    public void Uninstall_PersonsCommandInAFolderNamedLikeTheServer_IsLeftInPlace()
+    {
+        File.WriteAllText(_scratch.File("settings.json"), """
+            { "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": "make -C ~/Projects/Snail.MCP.CleanUp.Docs lint" } ] } ] } }
+            """);
+
+        Installation.Uninstall();
+
+        Assert.Equal(["make -C ~/Projects/Snail.MCP.CleanUp.Docs lint"], Commands("Stop"));
     }
 
     public void Dispose() => _scratch.Dispose();

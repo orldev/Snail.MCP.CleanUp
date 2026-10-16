@@ -1,9 +1,12 @@
 using Microsoft.Extensions.Time.Testing;
+using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
+using Snail.MCP.CleanUp.Domain;
 using Snail.Toolkit.Cleanup.Adapters;
 using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Application.Ports;
 using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
@@ -23,21 +26,60 @@ public sealed class AccountTests : IDisposable
 
     public AccountTests() => _file = new LedgerFile(_scratch.File("ledger.db"));
 
-    private Account Account
+    private Account Account => AccountOf(new FakeSessions(Me, Alive(Me), Alive(Neighbour), Dead(Gone)));
+
+    private Account AccountOf(IHolders sessions)
     {
-        get
-        {
-            var sessions = new FakeSessions(Me, Alive(Me), Alive(Neighbour), Dead(Gone));
-            var ledger = new SqliteLedger(_file);
-            var rules = new JsonRules(_scratch.File("rules.json"), []);
-            var discoveries = new SqliteDiscoveries(_file);
-            var census = new Census([_processes], [], sessions, ledger, rules, new SqliteBaselines(_file), discoveries, _clock);
+        var ledger = new SqliteLedger(_file);
+        var rules = new JsonRules(_scratch.File("rules.json"), []);
+        var discoveries = new SqliteDiscoveries(_file);
+        var census = new Census([_processes], [], sessions, ledger, rules, new SqliteBaselines(_file), discoveries, _clock);
 
-            var config = new ServerConfig { DataDirectory = _scratch.Path };
-            var trend = new DiskTrend(_volume, new SqliteDiskHistory(_file), config, _clock);
+        var config = new ServerConfig { DataDirectory = _scratch.Path };
+        var trend = new DiskTrend(_volume, new SqliteDiskHistory(_file), config, _clock);
 
-            return new Account(new MeasuredCensus(census, new Performance(_clock), trend), sessions, new SqlitePlans(_file, _clock), new Cleaner([_processes], ledger), ledger, discoveries, rules, trend, config, _clock);
-        }
+        return new Account(new MeasuredCensus(census, new Performance(_clock), trend), sessions, new SqlitePlans(_file, _clock), new Cleaner([_processes], ledger, sessions), ledger, discoveries, rules, trend, config, _clock);
+    }
+
+    /// <summary>
+    /// A process table read as empty made every session ended, and an orphans plan listed a running session's simulator
+    /// (2026-10-16). Now nothing is decided, and the answer says why and what to do.
+    /// </summary>
+    [Fact]
+    public async Task Plan_WhileTheProcessTableCannotBeRead_IsRefusedWithWhy()
+    {
+        _processes.Present.Add(Of(Kinds.Process, "1@1", Gone, Evidence.Label));
+
+        var sessions = new MachineSessions(new ServerConfig { SleepOfDirectory = _scratch.Path }, new FakeProcessTable());
+        var plan = await AccountOf(sessions).PlanAsync(Scope.Orphans, CancellationToken.None);
+
+        Assert.False(plan.IsSuccess);
+        Assert.Contains("process table could not be read", plan.Error, StringComparison.Ordinal);
+        Assert.Equal(Snail.MCP.CleanUp.Tools.Prompts.Messages.SessionsUnknownHint, plan.Hint);
+    }
+
+    /// <summary>
+    /// The plan took Gone for ended; before it is carried out the person resumes Gone under its id. The apply asks the
+    /// sessions again and leaves what Gone holds — a plan of another session moved a resumed session's scratchpad to the
+    /// Trash before (2026-10-16).
+    /// </summary>
+    [Fact]
+    public async Task Apply_OfAnOrphansPlan_LeavesWhatASessionResumedSinceHolds()
+    {
+        Session[] holders = [Alive(Me), Dead(Gone)];
+        var account = AccountOf(new FakeSessions(Me, holders));
+
+        _processes.Present.Add(Of(Kinds.Process, "1@1", Gone, Evidence.Ancestry));
+
+        var plan = await account.PlanAsync(Scope.Orphans, CancellationToken.None);
+
+        holders[1] = Alive(Gone);
+
+        var applied = await account.ApplyAsync(plan.Data!["planId"]!.GetValue<string>(), null, CancellationToken.None);
+
+        Assert.Equal(0, applied.Data!["released"]!.GetValue<int>());
+        Assert.Equal("changed", applied.Data!["results"]![0]!["outcome"]!.GetValue<string>());
+        Assert.Empty(_processes.Released);
     }
 
     [Fact]

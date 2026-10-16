@@ -16,30 +16,8 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
     public async Task<Answer> InventoryAsync(CancellationToken cancellationToken)
     {
         var asker = await sessions.CurrentAsync(cancellationToken);
-        var inventory = await census.TakeAsync(asker, cancellationToken);
-        var mine = inventory.Resources.Where(resource => resource.Owner == asker && asker.IsKnown).ToList();
-        var alive = inventory.Alive;
-        var orphaned = inventory.Resources.Where(resource => resource.Owner.IsKnown && resource.Owner != asker && !alive.Contains(resource.Owner)).ToList();
-        var others = inventory.Resources.Count(resource => resource.Owner.IsKnown && resource.Owner != asker && alive.Contains(resource.Owner));
-        var caches = inventory.Resources.Where(resource => resource.IsShared).OrderByDescending(resource => resource.Bytes ?? 0).ToList();
 
-        var shown = new JsonObject
-        {
-            ["session"] = asker.ToString(),
-            ["mine"] = Views.Listed(mine, Views.Of),
-            ["orphaned"] = Views.Listed(orphaned, Views.Of),
-            ["heldByOtherRunningSessions"] = others,
-            ["caches"] = Views.Listed(caches, Views.Of),
-            ["unowned"] = inventory.Resources.Count(resource => !resource.Owner.IsKnown && !resource.IsShared),
-            ["discoveries"] = Views.Listed([.. inventory.Discoveries.OrderByDescending(discovery => discovery.IsPresent)], Views.Of),
-            ["disk"] = await disk.ReportAsync(cancellationToken),
-            ["notes"] = new JsonObject([.. inventory.Notes.Select(note => KeyValuePair.Create(note.Key, (JsonNode?)note.Value))])
-        };
-
-        if (Warned(inventory) is { } warnings)
-            shown.Insert(1, "warnings", warnings);
-
-        return Answer.Ok(shown);
+        return await CountedAsync(asker, inventory => ListedAsync(asker, inventory, cancellationToken), cancellationToken);
     }
 
     /// <summary>The plan for a scope, kept under an id until it is carried out or goes stale.</summary>
@@ -50,17 +28,7 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
         if (!asker.IsKnown && scope == Scope.Mine)
             return Answer.Failed(Messages.NoSession, Messages.NoSessionHint);
 
-        var inventory = await census.TakeAsync(asker, cancellationToken);
-        var plan = Planner.Decide(inventory, scope, Guid.NewGuid().ToString("n")[..10], MachineKinds.Order);
-
-        await plans.SaveAsync(plan, cancellationToken);
-
-        var shown = Shown(plan);
-
-        if (Warned(inventory) is { } warnings)
-            shown.Insert(0, "warnings", warnings);
-
-        return Answer.Ok(shown);
+        return await CountedAsync(asker, inventory => PlannedAsync(inventory, scope, cancellationToken), cancellationToken);
     }
 
     /// <summary>Carries out the removals of a plan that was shown, or only the ones named.</summary>
@@ -84,16 +52,8 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
     public async Task<Answer> ReleaseAsync(string id, CancellationToken cancellationToken)
     {
         var asker = await sessions.CurrentAsync(cancellationToken);
-        var plan = Planner.Decide(await census.TakeAsync(asker, cancellationToken), Scope.Everything, "release", MachineKinds.Order);
-        var decision = plan.Decisions.FirstOrDefault(candidate => candidate.Resource.Id == id);
 
-        if (decision is null)
-            return Answer.Failed($"there is no {id} on this machine now", Messages.ReleaseHint);
-
-        if (decision.Verdict != Verdict.Remove)
-            return Answer.Failed($"{id} is not released: {decision.Reason}", Messages.ReleaseHint);
-
-        return Answer.Ok(Released(await cleaner.ApplyAsync(plan with { Decisions = [decision] }, cancellationToken)));
+        return await CountedAsync(asker, inventory => ReleasedAsync(id, inventory, cancellationToken), cancellationToken);
     }
 
     /// <summary>Asks for a resource to be left alone, or withdraws that.</summary>
@@ -126,6 +86,78 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
             ["rule"] = $"{rule.Trail} {rule.Pattern} → {rule.Action.ToString().ToLowerInvariant()}",
             ["settled"] = await discoveries.SettleAsync(rule, cancellationToken)
         });
+    }
+
+    /// <summary>The answer made from a census of this moment; a refusal when the sessions of the machine cannot be told, since nothing is then decided.</summary>
+    private async Task<Answer> CountedAsync(Owner asker, Func<Inventory, Task<Answer>> answered, CancellationToken cancellationToken)
+    {
+        Inventory inventory;
+
+        try
+        {
+            inventory = await census.TakeAsync(asker, cancellationToken);
+        }
+        catch (SessionsUnknownException unknown)
+        {
+            return Answer.Failed(unknown.Message, Messages.SessionsUnknownHint);
+        }
+
+        return await answered(inventory);
+    }
+
+    private async Task<Answer> ListedAsync(Owner asker, Inventory inventory, CancellationToken cancellationToken)
+    {
+        var mine = inventory.Resources.Where(resource => resource.Owner == asker && asker.IsKnown).ToList();
+        var alive = inventory.Alive;
+        var orphaned = inventory.Resources.Where(resource => resource.Owner.IsKnown && resource.Owner != asker && !alive.Contains(resource.Owner)).ToList();
+        var others = inventory.Resources.Count(resource => resource.Owner.IsKnown && resource.Owner != asker && alive.Contains(resource.Owner));
+        var caches = inventory.Resources.Where(resource => resource.IsShared).OrderByDescending(resource => resource.Bytes ?? 0).ToList();
+
+        var shown = new JsonObject
+        {
+            ["session"] = asker.ToString(),
+            ["mine"] = Views.Listed(mine, Views.Of),
+            ["orphaned"] = Views.Listed(orphaned, Views.Of),
+            ["heldByOtherRunningSessions"] = others,
+            ["caches"] = Views.Listed(caches, Views.Of),
+            ["unowned"] = inventory.Resources.Count(resource => !resource.Owner.IsKnown && !resource.IsShared),
+            ["discoveries"] = Views.Listed([.. inventory.Discoveries.OrderByDescending(discovery => discovery.IsPresent)], Views.Of),
+            ["disk"] = await disk.ReportAsync(cancellationToken),
+            ["notes"] = new JsonObject([.. inventory.Notes.Select(note => KeyValuePair.Create(note.Key, (JsonNode?)note.Value))])
+        };
+
+        if (Warned(inventory) is { } warnings)
+            shown.Insert(1, "warnings", warnings);
+
+        return Answer.Ok(shown);
+    }
+
+    private async Task<Answer> PlannedAsync(Inventory inventory, Scope scope, CancellationToken cancellationToken)
+    {
+        var plan = Planner.Decide(inventory, scope, Guid.NewGuid().ToString("n")[..10], MachineKinds.Order);
+
+        await plans.SaveAsync(plan, cancellationToken);
+
+        var shown = Shown(plan);
+
+        if (Warned(inventory) is { } warnings)
+            shown.Insert(0, "warnings", warnings);
+
+        return Answer.Ok(shown);
+    }
+
+    private async Task<Answer> ReleasedAsync(string id, Inventory inventory, CancellationToken cancellationToken)
+    {
+        var plan = Planner.Decide(inventory, Scope.Everything, "release", MachineKinds.Order);
+        var decision = plan.Decisions.FirstOrDefault(candidate => candidate.Resource.Id == id);
+
+        if (decision is null)
+            return Answer.Failed($"there is no {id} on this machine now", Messages.ReleaseHint);
+
+        if (decision.Verdict != Verdict.Remove)
+            return Answer.Failed($"{id} is not released: {decision.Reason}", Messages.ReleaseHint);
+
+        return Answer.Ok(Released(await cleaner.ApplyAsync(plan with { Decisions = [decision] }, cancellationToken)));
     }
 
     /// <summary>The warnings of an inventory as an answer shows them; null when there are none, so that the field is left out.</summary>

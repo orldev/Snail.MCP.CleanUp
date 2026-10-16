@@ -12,7 +12,7 @@ public sealed class ForwardKind(Android android, IPrograms programs) : IResource
     public string Name => MachineKinds.Forward;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (!File.Exists(android.Adb) || !await android.IsAdbRunningAsync(cancellationToken))
             return new Observation(Name, [], []);

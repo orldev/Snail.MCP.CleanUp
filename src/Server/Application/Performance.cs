@@ -118,18 +118,65 @@ public sealed class Performance(TimeProvider clock)
 }
 
 /// <summary>The census as the server takes it: Snail.Toolkit.Cleanup's census, with what it cost written down, and the disk's free space after it.</summary>
+/// <remarks>
+/// The watch, a hook of every session that starts and every tool call take a census, and each walked tens of thousands
+/// of entries and allocated 40 to 84 MB (2026-10-16) — at the same moment, when sessions start together. A census asked
+/// for while one is under way joins it and is measured once. One that began before its asker was known — a session
+/// starting now, whose baseline is the line its discoveries are measured from — is not the asker's, and the asker takes
+/// one of its own. One called off by whoever began it is taken again for the others.
+/// </remarks>
 public sealed class MeasuredCensus(Census census, Performance performance, DiskTrend? trend)
 {
+    private readonly Lock _sharing = new();
+
+    private Task<Inventory>? _underWay;
+
     /// <summary>The census without a history of the disk.</summary>
     public MeasuredCensus(Census census, Performance performance)
         : this(census, performance, null)
     {
     }
 
-    /// <summary>The inventory of this moment, measured.</summary>
+    /// <summary>The inventory of this moment, measured: the census under way, or a new one.</summary>
     public async Task<Inventory> TakeAsync(Owner asker, CancellationToken cancellationToken)
     {
-        var inventory = await performance.MeasureAsync(() => census.TakeAsync(asker, cancellationToken));
+        var (taking, isJoined) = Taking(cancellationToken);
+        Inventory inventory;
+
+        try
+        {
+            inventory = await taking.WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (isJoined && !cancellationToken.IsCancellationRequested)
+        {
+            inventory = await MeasuredAsync(cancellationToken);
+        }
+
+        if (isJoined && asker.IsKnown && !inventory.Holders.Any(holder => holder.Owner == asker))
+            inventory = await MeasuredAsync(cancellationToken);
+
+        return inventory with { Asker = asker };
+    }
+
+    /// <summary>The census under way, joined; or a new one, begun outside the lock and made the one under way.</summary>
+    private (Task<Inventory> Taking, bool IsJoined) Taking(CancellationToken cancellationToken)
+    {
+        lock (_sharing)
+        {
+            if (_underWay is { IsCompleted: false } underWay)
+                return (underWay, true);
+
+            var begun = Task.Run(() => MeasuredAsync(cancellationToken), cancellationToken);
+
+            _underWay = begun;
+
+            return (begun, false);
+        }
+    }
+
+    private async Task<Inventory> MeasuredAsync(CancellationToken cancellationToken)
+    {
+        var inventory = await performance.MeasureAsync(() => census.TakeAsync(Owner.Nobody, cancellationToken));
 
         if (trend is not null)
             await trend.TryRecordAsync(inventory, cancellationToken);

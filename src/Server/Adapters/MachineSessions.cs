@@ -29,9 +29,18 @@ public sealed class MachineSessions(ServerConfig config, IProcessTable processes
     public async Task<IReadOnlyList<Holder>> ListAsync(CancellationToken cancellationToken) => await SessionsAsync(cancellationToken);
 
     /// <summary>Every session known, alive or ended, with the process of its agent.</summary>
+    /// <remarks>
+    /// An empty process table is a reading that failed, not a machine without agents — this very server runs on it. Read
+    /// as one, it made every session ended, and an orphans plan of another session listed the simulator of a running one
+    /// (2026-10-16). So it fails, as <see cref="IHolders"/> asks of a host that cannot read its owners: no census, no plan.
+    /// </remarks>
     public async Task<IReadOnlyList<Session>> SessionsAsync(CancellationToken cancellationToken)
     {
         var running = await processes.ListAsync(cancellationToken);
+
+        if (running.Count == 0)
+            throw new SessionsUnknownException("the process table could not be read, so no session can be told to have ended");
+
         var agents = running.Where(IsAgent).ToDictionary(process => process.Pid);
         var written = await WrittenAsync(cancellationToken);
 

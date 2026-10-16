@@ -96,7 +96,10 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<IVolume, HomeVolume>();
             services.AddSingleton<DiskTrend>();
             services.AddSingleton<MeasuredCensus>();
-            services.AddSingleton<Cleaner>();
+            services.AddSingleton(provider => new Cleaner(
+                provider.GetServices<IResourceKind>(),
+                provider.GetRequiredService<ILedger>(),
+                provider.GetRequiredService<IHolders>()));
             services.AddSingleton<Health>();
             services.AddSingleton<Runs>();
             services.AddSingleton<Leases>();

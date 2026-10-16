@@ -20,6 +20,20 @@ internal sealed class FakePrograms(Func<string, IReadOnlyList<string>, ProgramRu
     public Task<ProgramRun> ReadAsync(string program, IReadOnlyList<string> arguments, TimeSpan freshness, TimeSpan timeout, CancellationToken cancellationToken) =>
         RunAsync(program, arguments, timeout, cancellationToken);
 
+    public StartedProgram StartLogged(IReadOnlyList<string> command, string? directory, string log)
+    {
+        Calls.Add($"start {string.Join(' ', command)}");
+
+        return new StartedProgram(4242, DateTimeOffset.UnixEpoch.AddDays(1));
+    }
+
+    public Task<bool> TryDetachAsync(IReadOnlyList<string> command, CancellationToken cancellationToken)
+    {
+        Calls.Add($"detach {string.Join(' ', command)}");
+
+        return Task.FromResult(true);
+    }
+
     public static ProgramRun Said(string output) => new(0, output, string.Empty);
 
     public static ProgramRun Failed(string error = "") => new(1, string.Empty, error);

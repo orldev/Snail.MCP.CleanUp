@@ -43,11 +43,11 @@ public sealed class TestResultsKind(ServerConfig config, Disposal disposal, Size
     public string Name => MachineKinds.TestResults;
 
     /// <inheritdoc/>
-    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         var found = new List<Resource>();
 
-        foreach (var (repository, path) in Found(sessions))
+        foreach (var (repository, path) in Found(holders))
         {
             cancellationToken.ThrowIfCancellationRequested();
 

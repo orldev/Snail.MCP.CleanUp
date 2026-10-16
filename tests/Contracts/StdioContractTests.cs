@@ -53,6 +53,18 @@ public sealed class StdioContractTests : IDisposable
         Assert.Equal(_scratch.Path, answer.Data()["dataDirectory"]!.GetValue<string>());
     }
 
+    /// <summary>Two scopes joined by a comma are no scope the description names: refused, never widened to everything.</summary>
+    [Fact]
+    public async Task Plan_ScopeOfTwoNamesJoinedByAComma_IsRefused()
+    {
+        await using var client = await StartedAsync();
+
+        var answer = await client.CallToolAsync("cleanup_plan", new Dictionary<string, object?> { ["scope"] = "orphans,caches" });
+
+        Assert.True(answer.IsError);
+        Assert.Contains("there is no scope orphans,caches", JsonNode.Parse(answer.Text())!["error"]!.GetValue<string>(), StringComparison.Ordinal);
+    }
+
     /// <summary>
     /// Every tool takes its arguments and answers in JSON. A native build binds arguments with code generated ahead of
     /// time, and a type it was not given fails at the call, not at the build — so each tool is called once, with

@@ -240,4 +240,30 @@ public sealed class RemainsKindTests : IDisposable
 
         Assert.Equal(["s3l-test-notes"], traces.Select(trace => Path.GetFileName(trace.Key)));
     }
+
+    /// <summary>
+    /// On Linux the runtime keys an endpoint by its process's start in clock ticks since boot, which read as seconds made the
+    /// endpoints of a .NET process running for three hours look ended (2026-10-16). Where the keys are not seconds the
+    /// endpoints are left alone, and the folders of test runs, named by the Snail convention in seconds, are judged still.
+    /// </summary>
+    [Fact]
+    public async Task Endpoints_WhereTheRuntimeKeysThemByTicks_AreLeftAlone_AndTestRunsAreStillJudged()
+    {
+        const long ticksSinceBoot = 4_521_337;
+        var kind = new RemainsKind(_table, new Sizes(_clock), _clock, _scratch.Path, areEndpointsKeyedBySeconds: false);
+        string[] endpoints = [_scratch.File($"dotnet-diagnostic-4242-{ticksSinceBoot}-socket"), _scratch.File($"clr-debug-pipe-4242-{ticksSinceBoot}-in")];
+
+        _table.Add(4242, 1, "dotnet Api.dll", Now.AddHours(-3));
+
+        foreach (var endpoint in endpoints)
+            File.WriteAllBytes(endpoint, []);
+
+        var root = TestRoot(10056, Now.AddHours(-20));
+        var runs = Assert.Single((await kind.ObserveAsync([], CancellationToken.None)).Resources);
+
+        await kind.ReleaseAsync(runs, CancellationToken.None);
+
+        Assert.All(endpoints, endpoint => Assert.True(File.Exists(endpoint)));
+        Assert.False(Directory.Exists(root));
+    }
 }

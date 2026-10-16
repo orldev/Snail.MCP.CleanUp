@@ -10,36 +10,128 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// start costs a process and the CLI's own warm-up. The Engine answers the same questions as JSON over the socket the
 /// CLI talks to anyway. The socket is looked for where the usual engines put it; when none is there, Docker is not
 /// running, and nothing is started to find out.
+/// <para>
+/// The places are looked at again whenever the Engine is asked whether it answers, and the first that does is used: a
+/// server started before Docker Desktop saw no Docker until it was started again, and the socket a stopped engine left
+/// behind hid one that ran elsewhere (2026-10-16).
+/// </para>
 /// </remarks>
 public sealed class DockerSocket : IDockerEngine, IDisposable
 {
     private static readonly TimeSpan Freshness = IPrograms.Census;
 
-    private readonly HttpClient? _http;
-
-    private readonly string? _socket;
+    private readonly Func<IReadOnlyList<string>> _places;
 
     private readonly TimeProvider _clock;
 
-    private readonly object _sharing = new();
+    private readonly Lock _sharing = new();
+
+    private readonly Dictionary<string, HttpClient> _clients = new(StringComparer.Ordinal);
+
+    private string? _answering;
 
     private (DateTimeOffset At, Task<DockerSnapshot?> Snapshot)? _last;
 
-    /// <summary>The Engine at the first socket found where engines put theirs.</summary>
+    /// <summary>The Engine at the first socket that answers of those where engines put theirs.</summary>
     public DockerSocket(TimeProvider clock)
-        : this(Located(), clock)
+        : this(clock, () => [.. Places.Where(File.Exists)])
     {
     }
 
     /// <summary>The Engine at this socket; none when it is null.</summary>
     public DockerSocket(string? socket, TimeProvider clock)
+        : this(clock, () => socket is null ? [] : [socket])
+    {
+    }
+
+    /// <summary>The Engine at the first socket of those the places name now that answers.</summary>
+    internal DockerSocket(TimeProvider clock, Func<IReadOnlyList<string>> places)
     {
         _clock = clock;
-        _socket = socket;
+        _places = places;
+    }
 
-        if (socket is null)
-            return;
+    /// <summary>Where Docker Desktop, OrbStack, Colima and Rancher Desktop put their sockets, after DOCKER_HOST.</summary>
+    public static IReadOnlyList<string> Places
+    {
+        get
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var named = Environment.GetEnvironmentVariable("DOCKER_HOST") is { } host && host.StartsWith("unix://", StringComparison.Ordinal) ? [host[7..]] : Array.Empty<string>();
 
+            return [.. named, $"{home}/.orbstack/run/docker.sock", $"{home}/.docker/run/docker.sock", "/var/run/docker.sock", $"{home}/.colima/default/docker.sock", $"{home}/.rd/docker.sock"];
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task<string?> UnreachableAsync(CancellationToken cancellationToken)
+    {
+        var places = _places();
+
+        if (places.Count == 0)
+            return "Docker's daemon is not running: no Engine socket was found, so nothing of Docker could be seen";
+
+        string? first = null;
+
+        foreach (var place in places)
+        {
+            var said = await PingAsync(place, cancellationToken);
+
+            if (said is null)
+            {
+                Volatile.Write(ref _answering, place);
+
+                return null;
+            }
+
+            first ??= said;
+        }
+
+        return first;
+    }
+
+    /// <summary>Why the Engine at a socket does not answer; null when it does.</summary>
+    private async Task<string?> PingAsync(string socket, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var answer = await Client(socket).GetAsync("_ping", cancellationToken);
+
+            return answer.IsSuccessStatusCode ? null : $"Docker's Engine answered {(int)answer.StatusCode} at {socket}";
+        }
+        catch (Exception refused) when (refused is HttpRequestException or SocketException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            return $"Docker's daemon is not running: nothing answers at {socket}";
+        }
+    }
+
+    /// <summary>The client of the socket that answered last, or of the first place when none has yet; none when there is no place.</summary>
+    private HttpClient? Answering()
+    {
+        var places = _places();
+        var socket = Volatile.Read(ref _answering) ?? (places.Count > 0 ? places[0] : null);
+
+        return socket is null ? null : Client(socket);
+    }
+
+    /// <summary>One client per socket for as long as this lives: a client a request may still be using is never disposed under it.</summary>
+    private HttpClient Client(string socket)
+    {
+        lock (_sharing)
+        {
+            if (_clients.TryGetValue(socket, out var known))
+                return known;
+
+            var client = Connected(socket);
+
+            _clients[socket] = client;
+
+            return client;
+        }
+    }
+
+    private static HttpClient Connected(string socket)
+    {
         var handler = new SocketsHttpHandler
         {
             ConnectCallback = async (_, cancellationToken) =>
@@ -60,37 +152,7 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
             }
         };
 
-        _http = new HttpClient(handler) { BaseAddress = new Uri("http://docker/"), Timeout = TimeSpan.FromSeconds(30) };
-    }
-
-    /// <summary>Where Docker Desktop, OrbStack, Colima and Rancher Desktop put their sockets, after DOCKER_HOST.</summary>
-    public static IReadOnlyList<string> Places
-    {
-        get
-        {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-            var named = Environment.GetEnvironmentVariable("DOCKER_HOST") is { } host && host.StartsWith("unix://", StringComparison.Ordinal) ? [host[7..]] : Array.Empty<string>();
-
-            return [.. named, $"{home}/.orbstack/run/docker.sock", $"{home}/.docker/run/docker.sock", "/var/run/docker.sock", $"{home}/.colima/default/docker.sock", $"{home}/.rd/docker.sock"];
-        }
-    }
-
-    /// <inheritdoc/>
-    public async Task<string?> UnreachableAsync(CancellationToken cancellationToken)
-    {
-        if (_http is null)
-            return "Docker's daemon is not running: no Engine socket was found, so nothing of Docker could be seen";
-
-        try
-        {
-            using var answer = await _http.GetAsync("_ping", cancellationToken);
-
-            return answer.IsSuccessStatusCode ? null : $"Docker's Engine answered {(int)answer.StatusCode} at {_socket}";
-        }
-        catch (Exception refused) when (refused is HttpRequestException or SocketException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
-        {
-            return $"Docker's daemon is not running: nothing answers at {_socket}";
-        }
+        return new HttpClient(handler) { BaseAddress = new Uri("http://docker/"), Timeout = TimeSpan.FromSeconds(30) };
     }
 
     /// <inheritdoc/>
@@ -124,7 +186,16 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
         SendAsync(HttpMethod.Post, what == "build" ? "build/prune" : $"images/prune?filters={Uri.EscapeDataString("""{"dangling":["true"]}""")}", cancellationToken);
 
     /// <inheritdoc/>
-    public void Dispose() => _http?.Dispose();
+    public void Dispose()
+    {
+        lock (_sharing)
+        {
+            foreach (var client in _clients.Values)
+                client.Dispose();
+
+            _clients.Clear();
+        }
+    }
 
     private async Task<DockerSnapshot?> TakenAsync()
     {
@@ -199,10 +270,10 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
 
     private async Task<JsonDocument?> ReadAsync(string path, CancellationToken cancellationToken)
     {
-        if (_http is null)
+        if (Answering() is not { } http)
             return null;
 
-        using var answer = await _http.GetAsync(path, cancellationToken);
+        using var answer = await http.GetAsync(path, cancellationToken);
 
         if (!answer.IsSuccessStatusCode)
             return null;
@@ -214,11 +285,11 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
 
     private async Task<DockerAnswer> SendAsync(HttpMethod method, string path, CancellationToken cancellationToken)
     {
-        if (_http is null)
+        if (Answering() is not { } http)
             return new DockerAnswer(false, false, "Docker's daemon is not running");
 
         using var request = new HttpRequestMessage(method, path);
-        using var answer = await _http.SendAsync(request, cancellationToken);
+        using var answer = await http.SendAsync(request, cancellationToken);
         var said = await answer.Content.ReadAsStringAsync(cancellationToken);
 
         return new DockerAnswer(answer.IsSuccessStatusCode, answer.StatusCode == HttpStatusCode.NotFound, Said(said, answer.StatusCode));
@@ -237,6 +308,4 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
             return $"{(int)status}";
         }
     }
-
-    private static string? Located() => Places.FirstOrDefault(File.Exists);
 }

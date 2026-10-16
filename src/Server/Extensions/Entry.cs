@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.Sdk.Mcp.Hosting;

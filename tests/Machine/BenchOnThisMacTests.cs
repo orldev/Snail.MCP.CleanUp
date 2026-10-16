@@ -21,7 +21,7 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
     private readonly Scratch _scratch = new();
 
     /// <summary>The hook socket's directory: short, because a data directory in a temporary folder is too long for a socket path.</summary>
-    private readonly string _run = Path.Combine(Path.GetTempPath(), $"snail-{Guid.NewGuid():n}"[..14]);
+    private readonly string _run = Scratch.NewFolder();
 
     private static string Label => Environment.GetEnvironmentVariable("SNAIL_CLEANUP_BENCH_LABEL") is { Length: > 0 } label ? label : "unlabelled";
 

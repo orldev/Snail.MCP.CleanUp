@@ -21,7 +21,7 @@ public sealed class EditorKind(ServerConfig config, Disposal disposal, Sizes siz
     private string Storage => Path.Combine(config.EditorUserDirectory, "workspaceStorage");
 
     /// <inheritdoc/>
-    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (!Directory.Exists(Storage))
             return Task.FromResult(new Observation(Name, [], []));

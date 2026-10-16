@@ -27,7 +27,12 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// <param name="sizes">How the size of a test run's folder is counted.</param>
 /// <param name="clock">What time it is.</param>
 /// <param name="directory">The temporary folder the runtime writes its endpoints into.</param>
-public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider clock, string directory) : IResourceKind
+/// <param name="areEndpointsKeyedBySeconds">
+/// Whether the runtime names an endpoint by the start of its process in Unix seconds, which the process table gives. On macOS
+/// it does; on Linux the key is the start in clock ticks since boot, which no reading of the table here gives, and read as
+/// seconds it made every endpoint of a running process look ended (2026-10-16): there the endpoints are left alone.
+/// </param>
+public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider clock, string directory, bool areEndpointsKeyedBySeconds) : IResourceKind
 {
     private const string DebuggerPipe = "clr-debug-pipe-";
 
@@ -47,6 +52,12 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
     {
     }
 
+    /// <summary>The kind over a folder, its endpoints judged where the runtime keys them by seconds: on macOS.</summary>
+    public RemainsKind(IProcessTable table, Sizes sizes, TimeProvider clock, string directory)
+        : this(table, sizes, clock, directory, OperatingSystem.IsMacOS())
+    {
+    }
+
     /// <summary>The key of the folders of test runs that have ended: the pattern of their names in the folder.</summary>
     private string TestRunsKey => Path.Combine(directory, $"{TestRun}*");
 
@@ -60,7 +71,7 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
     public static bool IsRemains(ReadOnlySpan<char> name) => Endpoint(name) is not null || TestRoot(name) is not null;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         var running = await table.ListAsync(cancellationToken);
 
@@ -68,7 +79,7 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
             return Observation.Unseen(Name, "the process table could not be read, so no process can be proven to have ended");
 
         var alive = Alive(running);
-        var (ended, kept) = Sorted(alive);
+        var (ended, kept) = areEndpointsKeyedBySeconds ? Sorted(alive) : default;
         var found = new List<Resource>(2);
 
         if (ended.Files > 0)
@@ -146,9 +157,7 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
         var isTestRuns = string.Equals(resource.Key, TestRunsKey, StringComparison.Ordinal);
         var removed = 0;
         var refused = new List<string>();
-        var listed = isTestRuns
-            ? TestRoots()
-            : Listed(static (ref entry) => Endpoint(entry.FileName) is { } named ? (entry.ToFullPath(), named.Pid, named.Started) : default);
+        var listed = isTestRuns ? TestRoots() : Endpoints();
 
         foreach (var (path, pid, started) in listed)
         {
@@ -182,6 +191,12 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
 
         return Release.Done(resource, refused.Count == 0 ? detail : $"{detail}; {refused.Count} could not be: {string.Join("; ", refused.Take(3))}");
     }
+
+    /// <summary>The endpoints in the folder with the process and start their names carry; none where their keys are not seconds.</summary>
+    private List<(string Path, int Pid, long Started)> Endpoints() =>
+        areEndpointsKeyedBySeconds
+            ? Listed(static (ref entry) => Endpoint(entry.FileName) is { } named ? (entry.ToFullPath(), named.Pid, named.Started) : default)
+            : [];
 
     /// <summary>How many processes and files there are of the ended and of the running ones.</summary>
     private ((int Processes, int Files) Ended, (int Processes, int Files) Kept) Sorted(Dictionary<int, long?> alive)

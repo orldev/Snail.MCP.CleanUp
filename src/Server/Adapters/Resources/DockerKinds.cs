@@ -14,7 +14,7 @@ public sealed class ContainerKind(IDockerEngine engine) : IResourceKind
     public string Name => Kinds.Container;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken) =>
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken) =>
         await engine.SnapshotAsync(cancellationToken) is { } snapshot
             ? new Observation(Name, [.. snapshot.Containers.Select(Described)], [])
             : Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
@@ -58,7 +58,7 @@ public sealed class NetworkKind(IDockerEngine engine) : IResourceKind
     public string Name => Kinds.Network;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
             return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
@@ -101,7 +101,7 @@ public sealed class VolumeKind(IDockerEngine engine) : IResourceKind
     public string Name => Kinds.Volume;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
             return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
@@ -143,7 +143,7 @@ public sealed class ImageKind(IDockerEngine engine) : IResourceKind
     public string Name => Kinds.Image;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
             return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
@@ -190,7 +190,7 @@ public sealed class BuildCacheKind(IDockerEngine engine) : IResourceKind
     public string Name => MachineKinds.BuildCache;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
             return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
@@ -235,7 +235,7 @@ public sealed class DanglingImageKind(IDockerEngine engine) : IResourceKind
     public string Name => MachineKinds.DanglingImages;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (await engine.SnapshotAsync(cancellationToken) is not { } snapshot)
             return Observation.Unseen(Name, await engine.UnreachableAsync(cancellationToken) ?? "Docker could not be read");
@@ -285,7 +285,7 @@ public sealed class BuildHistoryKind(IDockerEngine engine, Docker docker, TimePr
     public string Name => MachineKinds.BuildHistory;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (await engine.UnreachableAsync(cancellationToken) is { } reason)
             return Observation.Unseen(Name, reason);

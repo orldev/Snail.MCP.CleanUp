@@ -36,7 +36,7 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
     public string Name => Kinds.Process;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         var running = await table.ListAsync(cancellationToken);
 
@@ -49,7 +49,7 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
         var own = Own(running, children, Environment.ProcessId);
         var now = clock.GetUtcNow();
 
-        foreach (var (pid, owner) in Lineage.Of(running, sessions))
+        foreach (var (pid, owner) in Lineage.Of(running, holders))
         {
             foreach (var process in running.Where(process => process.Pid == pid && !own.Contains(process.Pid)))
             {
@@ -79,7 +79,7 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
             .Select(holding => holding.ResourceId[(MachineKinds.McpServer.Length + 1)..])
             .ToHashSet(StringComparer.Ordinal);
 
-        Carried(found, running, sessions, own, servers, listening, now);
+        Carried(found, running, holders, own, servers, listening, now);
 
         Add(found, Owner.Nobody, Evidence.None, running.Where(process => IsDetached(process) && !own.Contains(process.Pid) && !servers.Contains(process.Key)), listening);
 

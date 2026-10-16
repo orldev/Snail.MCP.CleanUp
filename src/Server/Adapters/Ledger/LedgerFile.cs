@@ -34,6 +34,10 @@ public sealed class LedgerFile(string path) : IDisposable
             trace_id TEXT NOT NULL,
             taken_at TEXT NOT NULL,
             PRIMARY KEY (owner, trace_id));
+        CREATE TABLE IF NOT EXISTS baseline_sets (
+            owner TEXT PRIMARY KEY,
+            taken_at TEXT NOT NULL,
+            hashes BLOB NOT NULL);
         CREATE TABLE IF NOT EXISTS discoveries (
             trace_id TEXT PRIMARY KEY,
             trail TEXT NOT NULL,
@@ -61,6 +65,13 @@ public sealed class LedgerFile(string path) : IDisposable
             PRIMARY KEY (resource_id, at));
         """;
 
+    /// <summary>The bytes the write-ahead log is cut back to once its pages are written into the file.</summary>
+    /// <remarks>
+    /// SQLite reuses the log from its start after a checkpoint but never shrinks it, so it stays the size of the busiest
+    /// moment it ever saw: 167 MB beside a file of 170 MB on 2026-10-16, for a server that counts what takes the disk.
+    /// </remarks>
+    private const int MostLog = 16 * 1024 * 1024;
+
     private readonly SemaphoreSlim _preparing = new(1, 1);
 
     private readonly string _connection = new SqliteConnectionStringBuilder { DataSource = path, DefaultTimeout = 30 }.ToString();
@@ -79,7 +90,7 @@ public sealed class LedgerFile(string path) : IDisposable
 
         await connection.OpenAsync(cancellationToken);
         await PrepareAsync(connection, cancellationToken);
-        await connection.RunAsync("PRAGMA busy_timeout = 10000; PRAGMA synchronous = NORMAL;", cancellationToken);
+        await connection.RunAsync($"PRAGMA busy_timeout = 10000; PRAGMA synchronous = NORMAL; PRAGMA journal_size_limit = {MostLog};", cancellationToken);
 
         return connection;
     }
@@ -98,11 +109,27 @@ public sealed class LedgerFile(string path) : IDisposable
 
             await connection.RunAsync(Schema, cancellationToken);
             await AddedAsync(connection, "discoveries", "at_least INTEGER NOT NULL DEFAULT 0", cancellationToken);
+
+            if (await SqliteBaselines.MoveRowsIntoSetsAsync(connection, cancellationToken) > 0)
+                await CompactedAsync(connection, cancellationToken);
+
             _isPrepared = true;
         }
         finally
         {
             _preparing.Release();
+        }
+    }
+
+    /// <summary>Gives the disk back the pages the moved baselines left free; a file in use by another server is compacted another time.</summary>
+    private static async Task CompactedAsync(SqliteConnection connection, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await connection.RunAsync("VACUUM;", cancellationToken);
+        }
+        catch (SqliteException busy) when (busy.SqliteErrorCode is 5 or 6)
+        {
         }
     }
 

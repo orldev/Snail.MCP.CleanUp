@@ -2,7 +2,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace Snail.MCP.CleanUp.Application;
 
-/// <summary>Takes stock when the server starts, and every half a minute after that while it holds the machine's watch.</summary>
+/// <summary>Takes stock when the server starts, then whenever the machine says something changed, while it holds the machine's watch.</summary>
 /// <remarks>
 /// <para>
 /// The first census is what finds orphans: a session that died left its servers and simulators behind, and
@@ -40,7 +40,8 @@ public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shif
 
     private readonly string _watcher = $"{Environment.ProcessId}-{Guid.NewGuid():n}";
 
-    /// <summary>How often a census is taken while the session runs.</summary>
+    /// <summary>How long the watch waits for word of a change before it asks again whether it still holds the watch, which it holds for two of these.</summary>
+    /// <remarks>Not how often a census is taken: that is on word of a change, at most every <see cref="Quiet"/>, and every <see cref="Fallback"/> regardless.</remarks>
     public static TimeSpan Interval { get; } = TimeSpan.FromSeconds(30);
 
     /// <inheritdoc/>

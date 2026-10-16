@@ -22,10 +22,10 @@ public sealed class EmulatorKind(Android android, IProcessTable table, IPrograms
     public string Name => MachineKinds.Emulator;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         var running = await table.ListAsync(cancellationToken);
-        var lineage = Lineage.Of(running, sessions);
+        var lineage = Lineage.Of(running, holders);
         var machines = running.Where(IsMachine).GroupBy(process => Android.DeviceOf(process.Command)!, StringComparer.Ordinal);
 
         return new Observation(Name, [.. machines.Select(machine => Described(machine.Key, [.. machine], lineage))], []);

@@ -16,10 +16,10 @@ public sealed class WorktreeKind(IPrograms programs) : IResourceKind
     public string Name => MachineKinds.Worktree;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         var found = new Dictionary<string, Resource>(StringComparer.Ordinal);
-        var directories = sessions.Select(session => session.Directory).OfType<string>().Where(Directory.Exists).Distinct(StringComparer.Ordinal);
+        var directories = holders.Select(session => session.Directory).OfType<string>().Where(Directory.Exists).Distinct(StringComparer.Ordinal);
 
         foreach (var directory in directories)
         {

@@ -10,7 +10,9 @@ Three ideas carry it:
   A thing is removed on ownership only when its name or label carries the session, a program's environment names it,
   this server started it, or a census saw it run under the agent's own shells.
 - **Look, decide, act.** A cleanup is planned and shown first, kept under an id for ten minutes, and only that
-  plan is carried out. Each resource is checked again right before it goes, and left alone if it changed.
+  plan is carried out. Each resource is checked again right before it goes, and left alone if it changed — and so is
+  its owner: what belongs to a session resumed since the plan was shown stays. When the process table cannot be read,
+  no session can be told to have ended, so nothing is planned at all and the answer says why.
 - **Nobody knows every kind of leftover.** Trails over files, detached processes, ports, crontab, simulators,
   Docker and certificates are compared with what each session began with. What is new and claimed by no kind is
   a *discovery*: written down, never removed — and one line in `rules.json` makes it a known kind from then on.
@@ -20,7 +22,7 @@ Three ideas carry it:
 | Tool | What it does |
 | --- | --- |
 | `cleanup_inventory` | What is there: this session's, ended sessions', caches, discoveries, disk space. Changes nothing. |
-| `cleanup_plan` | A cleanup of a scope — `mine`, `orphans`, `caches`, `everything` — decided and shown under a `planId`. |
+| `cleanup_plan` | A cleanup of a scope — exactly one of `mine`, `orphans`, `caches`, `everything` — decided and shown under a `planId`. |
 | `cleanup_apply` | Carries out exactly that plan, in its order, within ten minutes; or only the ids named. |
 | `cleanup_release` | Releases one thing now, such as a simulator you acquired, if it is proven yours. |
 | `cleanup_keep` | Spares something on purpose, with the reason; or withdraws that. |
@@ -37,7 +39,7 @@ Every answer is JSON with an `ok` flag; a failure carries `error` and a `hint`, 
 
 | Kind | Owned by | Released by |
 | --- | --- | --- |
-| process | running under the agent's shells (seen by a census every 30 s), started with `cleanup_run`, or naming the session in its environment — `CLAUDE_CODE_SESSION_ID`, which Claude Code gives every program it starts and a detached one keeps; read only of your own user's processes, never of what runs under a running agent's MCP servers, and an application's own program is named and left. Servers builds and editors share — MSBuild nodes, VBCSCompiler, rzc, OmniSharp, Roslyn's and Razor's language servers, Rider's backend — are nobody's by environment or ancestry, only named | SIGTERM, then SIGKILL after 5 s — after checking it is still the program that was planned |
+| process | running under the agent's shells (seen by the census the kernel's word of a new command brings, or every five minutes regardless; every 30 s off macOS), started with `cleanup_run`, or naming the session in its environment — `CLAUDE_CODE_SESSION_ID`, which Claude Code gives every program it starts and a detached one keeps; read only of your own user's processes, never of what runs under a running agent's MCP servers, and an application's own program is named and left. Servers builds and editors share — MSBuild nodes, VBCSCompiler, rzc, OmniSharp, Roslyn's and Razor's language servers, Rider's backend — are nobody's by environment or ancestry, only named | SIGTERM, then SIGKILL after 5 s — after checking it is still the program that was planned |
 | mcp | an MCP server the agent runs as its direct child, written down by a census while the session runs; the copies of one server across sessions are counted | never while its session runs; once the session has ended, as a process — a stdio server without its client serves nobody |
 | file | a session scratchpad `claude-<uid>/<project>/<session>`; inside a running session's, its build outputs — `bin` and `obj` beside a `*.csproj`, `TestResults`, `BenchmarkDotNet.Artifacts`, `node_modules` beside a `package.json`, never a Python environment (`pyvenv.cfg`), a folder of tools (`.store`) or a hidden folder; caches by rule | the Trash for what cannot be made again; erased when it rebuilds itself. A running session's scratchpad stays whole; its outputs go only in a `mine` plan of that session, and not while anything in one was written within two hours or a running program was started from it, judged again right before |
 | simulator | the name `snail-<session>-N` | the programs driving its UDID first, then `simctl shutdown` and `delete` by UDID — `all` cannot be written |
@@ -46,7 +48,7 @@ Every answer is JSON with an `ok` flag; a failure carries `error` and a `hint`, 
 | buildcache | shared | `docker builder prune`, only when caches are asked for |
 | editor | VS Code state of a folder that no longer exists | erased, only when caches are asked for |
 | testresults | the repository it is in: `TestResults` folders up to four levels into the repositories sessions work in and VS Code keeps state for — hang and crash dumps, coverage, trx; the next test run makes them again | erased, only when caches are asked for, never when anything in it was written within the hour, judged again right before |
-| remains | nobody: the debugger pipes and diagnostic sockets .NET leaves in `$TMPDIR` (`clr-debug-pipe-<pid>-<start>-in`/`-out`, `dotnet-diagnostic-<pid>-<start>-socket`), and the folders of Snail test runs (`s3l-test-<pid>-<start>-<random>`, with their size), once no process has that id and start | erased, only when caches are asked for, after reading the process table again; a running process's are never touched, nor any of a process started within two minutes |
+| remains | nobody: the debugger pipes and diagnostic sockets .NET leaves in `$TMPDIR` (`clr-debug-pipe-<pid>-<start>-in`/`-out`, `dotnet-diagnostic-<pid>-<start>-socket`), and the folders of Snail test runs (`s3l-test-<pid>-<start>-<random>`, with their size), once no process has that id and start | erased, only when caches are asked for, after reading the process table again; a running process's are never touched, nor any of a process started within two minutes. On Linux the runtime keys its endpoints by ticks since boot, which the process table does not give, so there they are left alone and only the test runs' folders are judged |
 | outside | nobody: places servers write outside their data folders — ONNX Runtime's `~/Library/Application Support/Microsoft/DeveloperTools/.onnxruntime` and NuGet's `$TMPDIR/NuGetScratch` — listed with the caches, with their size | never: reported, with why — what they hold is their library's to say, and a restore works in NuGet's |
 | worktree | — | never: listed, because it may hold work nobody committed |
 | forward | — | never on ownership: `adb forward`/`reverse` say nothing about who made them |
@@ -69,6 +71,11 @@ sizes of the thirty largest things it measures that grow, scratchpads, test resu
 per hour, kept two days. The inventory's `disk` says how far the free space fell within a day, and past 20 GB
 (`DISK_FALL_WARNING_GIGABYTES`) warns, naming what grew most in that day and by how much: on 2026-10-13 it fell by 50 GB
 without a word.
+
+The ledger keeps a session's baseline — what every trail showed when it began — as one row of eight bytes a trace,
+and its write-ahead log is cut back to 16 MB: on 2026-10-16 a row per trace had grown the ledger to 170 MB beside a log
+of 167 MB, and the first server of this version to open such a file moves the rows and compacts it once (191 MB to
+29 MB, eight seconds, on a copy of that ledger).
 
 The runtime's endpoints and the test runs' folders are not listed by the file trail either, so they are never
 discoveries: a busy Mac's temporary folder holds them by the ten thousand. `MSBuildTemp*` folders and the empty folders

@@ -1,11 +1,13 @@
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
+using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Domain;
 using Snail.Toolkit.Cleanup.Adapters;
 using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Application.Ports;
 using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
@@ -21,17 +23,29 @@ public sealed class HooksTests : IDisposable
 
     public HooksTests() => _file = new LedgerFile(_scratch.File("ledger.db"));
 
-    private Hooks Hooks
-    {
-        get
-        {
-            var sessions = new FakeSessions(Me, Alive(Me), Alive(Neighbour));
-            var ledger = new SqliteLedger(_file);
-            var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch.AddDays(1));
-            var census = new Census([_processes], [], sessions, ledger, new JsonRules(_scratch.File("rules.json"), []), new SqliteBaselines(_file), new SqliteDiscoveries(_file), clock);
+    private Hooks Hooks => HooksOf(new FakeSessions(Me, Alive(Me), Alive(Neighbour)));
 
-            return new Hooks(new MeasuredCensus(census, new Performance(clock)), new Cleaner([_processes], ledger), new ServerConfig { DataDirectory = _scratch.Path }, NullLogger<Hooks>.Instance, clock);
-        }
+    private Hooks HooksOf(IHolders sessions)
+    {
+        var ledger = new SqliteLedger(_file);
+        var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch.AddDays(1));
+        var census = new Census([_processes], [], sessions, ledger, new JsonRules(_scratch.File("rules.json"), []), new SqliteBaselines(_file), new SqliteDiscoveries(_file), clock);
+
+        return new Hooks(new MeasuredCensus(census, new Performance(clock)), new Cleaner([_processes], ledger), new FakePrograms(), new ServerConfig { DataDirectory = _scratch.Path }, NullLogger<Hooks>.Instance, clock);
+    }
+
+    /// <summary>A machine whose sessions cannot be told fails no hook of the agent: nothing is swept, and the log says why.</summary>
+    [Fact]
+    public async Task SessionEnd_WhileTheProcessTableCannotBeRead_SweepsNothingAndSaysWhy()
+    {
+        _processes.Present.Add(Of(Kinds.Process, "1@1", Me, Evidence.Ancestry));
+
+        var sessions = new MachineSessions(new ServerConfig { SleepOfDirectory = _scratch.Path }, new FakeProcessTable());
+
+        await HooksOf(sessions).HandleAsync(Event("SessionEnd", Me.Id, "logout"), CancellationToken.None);
+
+        Assert.Empty(_processes.Released);
+        Assert.Contains("process table could not be read", File.ReadAllText(_scratch.File("sweeps.log")), StringComparison.Ordinal);
     }
 
     private static string Event(string name, string session, string? reason = null) =>

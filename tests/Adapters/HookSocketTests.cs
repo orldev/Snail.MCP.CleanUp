@@ -13,11 +13,15 @@ using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
 
-public sealed class HookSocketTests : IAsyncDisposable
+/// <remarks>
+/// xUnit 2 ends a test class through <see cref="IAsyncLifetime"/>, never through <see cref="IAsyncDisposable"/>: declared so, the
+/// cleanup never ran, and two folders a test were left in the temporary folder from 2026-10-12 on, 2 097 by 2026-10-16.
+/// </remarks>
+public sealed class HookSocketTests : IAsyncLifetime
 {
     private readonly Scratch _scratch = new();
 
-    private readonly string _run = Path.Combine(Path.GetTempPath(), $"snail-{Guid.NewGuid():n}"[..14]);
+    private readonly string _run = Scratch.NewFolder();
 
     private readonly LedgerFile _file;
 
@@ -29,14 +33,14 @@ public sealed class HookSocketTests : IAsyncDisposable
 
     private ServerConfig Config => new() { DataDirectory = _scratch.Path, HookDirectory = _run };
 
-    private async Task<HookSocket> ListeningAsync()
+    private async Task<HookSocket> ListeningAsync(TimeProvider? socketClock = null)
     {
         var sessions = new FakeSessions(Me, Alive(Me), Alive(Neighbour));
         var ledger = new SqliteLedger(_file);
         var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch.AddDays(1));
         var census = new Census([_processes], [], sessions, ledger, new JsonRules(_scratch.File("rules.json"), []), new SqliteBaselines(_file), new SqliteDiscoveries(_file), clock);
-        var hooks = new Hooks(new MeasuredCensus(census, new Performance(clock)), new Cleaner([_processes], ledger), Config, NullLogger<Hooks>.Instance, clock);
-        var socket = new HookSocket(Config, hooks, NullLogger<HookSocket>.Instance, TimeProvider.System);
+        var hooks = new Hooks(new MeasuredCensus(census, new Performance(clock)), new Cleaner([_processes], ledger), new FakePrograms(), Config, NullLogger<Hooks>.Instance, clock);
+        var socket = new HookSocket(Config, hooks, NullLogger<HookSocket>.Instance, socketClock ?? TimeProvider.System);
 
         _sockets.Add(socket);
         await socket.StartAsync(CancellationToken.None);
@@ -126,6 +130,31 @@ public sealed class HookSocketTests : IAsyncDisposable
         Assert.True(await Forwarding.WasHandedAsync(Config.HookSocket, Encoding.UTF8.GetBytes(Event("Notification", Me.Id))));
     }
 
+    /// <summary>A client that sends part of an event and never closes its side is told it took too long, instead of holding a task for good.</summary>
+    [Fact]
+    public async Task Event_NeverFinished_IsAnsweredAfterTheDeadline()
+    {
+        var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch.AddDays(1));
+
+        await ListeningAsync(clock);
+
+        using var client = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+
+        await client.ConnectAsync(new UnixDomainSocketEndPoint(Config.HookSocket));
+        await client.SendAsync(Encoding.UTF8.GetBytes("{\"hook_event_name\":"));
+
+        var answer = new byte[512];
+        var receiving = client.ReceiveAsync(answer, SocketFlags.None);
+
+        for (var attempt = 0; attempt < 100 && !receiving.IsCompleted; attempt++)
+        {
+            clock.Advance(HookSocket.Reading);
+            await Task.WhenAny(receiving, Task.Delay(20));
+        }
+
+        Assert.StartsWith("failed: no whole event came within 10 s", Encoding.UTF8.GetString(answer, 0, await receiving), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Hook_ThroughTheForwarder_IsStillThisServersOwn()
     {
@@ -133,10 +162,12 @@ public sealed class HookSocketTests : IAsyncDisposable
 
         Assert.StartsWith("/opt/snail/s3l-mcp-cleanup-hook /Users/me/.s3l-mcp-cleanup/run/hooks.sock ", command, StringComparison.Ordinal);
         Assert.EndsWith(" hook", command, StringComparison.Ordinal);
-        Assert.True(HookInstallation.IsOwn(new JsonObject { ["hooks"] = new JsonArray(new JsonObject { ["command"] = command }) }));
+        Assert.True(HookInstallation.IsOwn(new JsonObject { ["command"] = command }));
     }
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
         foreach (var socket in _sockets)
         {

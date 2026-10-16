@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Tools.Prompts;
@@ -11,8 +10,12 @@ namespace Snail.MCP.CleanUp.Application;
 /// second, by its id and the moment it started, which no later program will share. Its output goes to a
 /// log of its own, never to this server's stdout — that is the JSON-RPC stream, and one stray line from a
 /// dev server there breaks the session.
+/// <para>
+/// A server that cannot tell its session still starts the program, on the record as nobody's: what nothing ties to an
+/// owner is only ever reported, never removed, and the answer says so, as a lease refuses outright.
+/// </para>
 /// </remarks>
-public sealed class Runs(ServerConfig config, IHolders sessions, ILedger ledger, IProcessTable table, TimeProvider clock)
+public sealed class Runs(ServerConfig config, IHolders sessions, ILedger ledger, IPrograms programs, IProcessTable table, TimeProvider clock)
 {
     /// <summary>Starts the command in the directory and answers with its process and its log.</summary>
     public async Task<Answer> StartAsync(string command, string? directory, CancellationToken cancellationToken)
@@ -28,9 +31,12 @@ public sealed class Runs(ServerConfig config, IHolders sessions, ILedger ledger,
         var owner = await sessions.CurrentAsync(cancellationToken);
         var log = LogFor(clock.GetLocalNow());
 
-        using var process = Process.Start(Started(command, workingDirectory, log))!;
+        var process = programs.StartLogged(["/bin/zsh", "-c", command], workingDirectory, log);
 
-        var key = $"{process.Id}@{new DateTimeOffset(process.StartTime).ToUnixTimeSeconds()}";
+        if (process.StartedAt is not { } started)
+            return Answer.Ok(Ended(process.Pid, owner, log, workingDirectory));
+
+        var key = $"{process.Pid}@{started.ToUnixTimeSeconds()}";
         var title = command.Length <= 120 ? command : $"{command[..120]}…";
 
         await ledger.RecordAsync(new Holding($"{Kinds.Process}:{key}", owner, Evidence.Ledger, clock.GetUtcNow(), title), cancellationToken);
@@ -38,13 +44,25 @@ public sealed class Runs(ServerConfig config, IHolders sessions, ILedger ledger,
 
         return Answer.Ok(new JsonObject
         {
-            ["pid"] = process.Id,
+            ["pid"] = process.Pid,
             ["id"] = $"{Kinds.Process}:{key}",
             ["owner"] = owner.ToString(),
             ["log"] = log,
-            ["directory"] = workingDirectory
+            ["directory"] = workingDirectory,
+            ["note"] = owner.IsKnown ? null : Messages.RunOfNobody
         });
     }
+
+    /// <summary>The answer for a program that ended before its start was read: nothing of it is left to write down, its log says how it went.</summary>
+    private static JsonObject Ended(int pid, Owner owner, string log, string directory) => new()
+    {
+        ["pid"] = pid,
+        ["id"] = null,
+        ["owner"] = owner.ToString(),
+        ["log"] = log,
+        ["directory"] = directory,
+        ["note"] = Messages.RunEndedAtOnce
+    };
 
     private string LogFor(DateTimeOffset now)
     {
@@ -53,25 +71,5 @@ public sealed class Runs(ServerConfig config, IHolders sessions, ILedger ledger,
         Directory.CreateDirectory(directory);
 
         return Path.Combine(directory, $"{now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}-{Guid.NewGuid().ToString("n")[..6]}.log");
-    }
-
-    /// <summary>
-    /// The shell redirects its own output before it runs anything, then hands its process over to the command:
-    /// the program keeps the id that was written down, and the log is the only place it can write to.
-    /// </summary>
-    private static ProcessStartInfo Started(string command, string directory, string log)
-    {
-        var start = new ProcessStartInfo("/bin/sh")
-        {
-            WorkingDirectory = directory,
-            UseShellExecute = false
-        };
-
-        start.ArgumentList.Add("-c");
-        start.ArgumentList.Add("exec >\"$0\" 2>&1 </dev/null; exec /bin/zsh -c \"$1\"");
-        start.ArgumentList.Add(log);
-        start.ArgumentList.Add(command);
-
-        return start;
     }
 }

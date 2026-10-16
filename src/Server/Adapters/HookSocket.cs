@@ -35,6 +35,10 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
     /// <summary>How often a server that does not hold the socket looks whether it can.</summary>
     public static TimeSpan Retry { get; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>How long a hook may take to hand over its event and close its side; the forwarder does both at once.</summary>
+    /// <remarks>An event is read to its end, so a client that never closed its side held a connection and its task for as long as the server ran.</remarks>
+    public static TimeSpan Reading { get; } = TimeSpan.FromSeconds(10);
+
     /// <inheritdoc/>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -177,13 +181,23 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
         }
     }
 
-    private static async Task<string> ReadAsync(NetworkStream stream, CancellationToken cancellationToken)
+    /// <summary>The event to its end, within <see cref="Reading"/>; a client still sending past it is told it took too long.</summary>
+    private async Task<string> ReadAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
+        using var deadline = new CancellationTokenSource(Reading, clock);
+        using var reading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
         using var read = new MemoryStream();
         var buffer = new byte[4096];
 
-        while (read.Length < Largest && await stream.ReadAsync(buffer, cancellationToken) is var count and > 0)
-            await read.WriteAsync(buffer.AsMemory(0, count), cancellationToken);
+        try
+        {
+            while (read.Length < Largest && await stream.ReadAsync(buffer, reading.Token) is var count and > 0)
+                await read.WriteAsync(buffer.AsMemory(0, count), reading.Token);
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException($"no whole event came within {Reading.TotalSeconds:0} s");
+        }
 
         return Encoding.UTF8.GetString(read.GetBuffer(), 0, (int)read.Length);
     }

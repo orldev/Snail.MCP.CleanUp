@@ -92,6 +92,26 @@ public sealed class DockerTests : IDisposable
         Assert.Contains("not running", await dead.UnreachableAsync(CancellationToken.None), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// A stopped engine's socket was found first and hid the one that ran, and an engine started after the server was
+    /// never seen: the places are looked at again, and the first that answers is used.
+    /// </summary>
+    [Fact]
+    public async Task Docker_BehindTheSocketOfAStoppedEngine_IsFoundWhereItAnswers()
+    {
+        var stopped = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"snail-{Guid.NewGuid():n}.sock");
+        List<string> places = [stopped];
+        using var socket = new DockerSocket(TimeProvider.System, () => places);
+
+        Assert.NotNull(await socket.UnreachableAsync(CancellationToken.None));
+
+        places.Add(_engine.Path);
+
+        var containers = (await new ContainerKind(socket).ObserveAsync([], CancellationToken.None)).Resources;
+
+        Assert.Contains(containers, container => container.Key == Web);
+    }
+
     [Fact]
     public async Task Container_WithTheOwnerLabel_IsItsOwners_WithoutItIsNobodys()
     {
