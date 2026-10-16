@@ -10,10 +10,10 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 public sealed class VirtualDeviceKind(Android android, IProcessTable table, Sizes sizes) : IResourceKind
 {
     /// <inheritdoc/>
-    public string Name => Kinds.VirtualDevice;
+    public string Name => MachineKinds.VirtualDevice;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         if (!Directory.Exists(android.Devices))
             return new Observation(Name, [], []);
@@ -64,7 +64,7 @@ public sealed class VirtualDeviceKind(Android android, IProcessTable table, Size
             IsRegenerable = owner.IsKnown,
             Bytes = size?.Bytes,
             IsAtLeast = size is { IsAtLeast: true },
-            After = isRunning ? [$"{Kinds.Emulator}:{name}"] : []
+            After = isRunning ? [$"{MachineKinds.Emulator}:{name}"] : []
         };
     }
 }

@@ -2,10 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Application.Ports;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
 using Snail.MCP.CleanUp.Extensions;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Application.Ports;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Machine;
 
@@ -33,10 +34,10 @@ public sealed class RunOnThisMacTests : IDisposable
 
         _started = started.Data!["pid"]!.GetValue<int>();
 
-        var me = await services.GetRequiredService<ISessions>().CurrentAsync(CancellationToken.None);
+        var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
 
         var inventory = await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None);
-        var plan = Planner.Decide(inventory, Scope.Mine, "machine");
+        var plan = Planner.Decide(inventory, Scope.Mine, "machine", MachineKinds.Order);
         var removal = Assert.Single(plan.Removals, decision => decision.Resource.Id == id);
 
         Assert.Equal(Evidence.Ledger, removal.Resource.Evidence);

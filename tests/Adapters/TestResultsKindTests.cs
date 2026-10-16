@@ -2,8 +2,9 @@ using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
@@ -48,7 +49,7 @@ public sealed class TestResultsKindTests : IDisposable
         return path;
     }
 
-    private static Session WorkingIn(string directory) => new("s1", 1, DateTimeOffset.UnixEpoch, directory, IsAlive: false);
+    private static Session WorkingIn(string directory) => new(Owner.Session("s1"), 1, IsAlive: false) { StartedAt = DateTimeOffset.UnixEpoch, Directory = directory };
 
     [Fact]
     public async Task TestResults_OfARepositoryASessionWorkedIn_AreACacheOfIt_WithTheirSize()
@@ -59,7 +60,7 @@ public sealed class TestResultsKindTests : IDisposable
 
         var results = Assert.Single((await Kind.ObserveAsync([WorkingIn(repository)], CancellationToken.None)).Resources);
 
-        Assert.Equal(Kinds.TestResults, results.Kind);
+        Assert.Equal(MachineKinds.TestResults, results.Kind);
         Assert.Equal(folder, results.Key);
         Assert.True(results.IsShared);
         Assert.True(results.IsRegenerable);
@@ -109,7 +110,7 @@ public sealed class TestResultsKindTests : IDisposable
         var results = Assert.Single((await Kind.ObserveAsync([WorkingIn(repository)], CancellationToken.None)).Resources);
 
         Assert.NotNull(results.Blocker);
-        Assert.Equal(Verdict.Report, Assert.Single(Planner.Decide(Inventory([results]), Scope.Caches, "plan").Decisions).Verdict);
+        Assert.Equal(Verdict.Report, Assert.Single(Planner.Decide(Inventory([results]), Scope.Caches, "plan", MachineKinds.Order).Decisions).Verdict);
     }
 
     [Fact]
@@ -121,7 +122,7 @@ public sealed class TestResultsKindTests : IDisposable
         var kind = Kind;
         var results = Assert.Single((await kind.ObserveAsync([WorkingIn(repository)], CancellationToken.None)).Resources);
 
-        Assert.Equal(Verdict.Remove, Assert.Single(Planner.Decide(Inventory([results]), Scope.Caches, "plan").Decisions).Verdict);
+        Assert.Equal(Verdict.Remove, Assert.Single(Planner.Decide(Inventory([results]), Scope.Caches, "plan", MachineKinds.Order).Decisions).Verdict);
         Assert.Equal(Outcome.Released, (await kind.ReleaseAsync(results, CancellationToken.None)).Outcome);
         Assert.False(Directory.Exists(folder));
         Assert.True(Directory.Exists(Path.Combine(repository, "tests", "Scraping.Tests")));

@@ -1,5 +1,6 @@
-using Snail.MCP.CleanUp.Core.Application.Ports;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Application.Ports;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Support;
 
@@ -16,7 +17,7 @@ internal sealed class FakeKind(string name) : IResourceKind
 
     public string? Blindness { get; set; }
 
-    public Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
         if (Blindness is not null)
             throw new InvalidOperationException(Blindness);
@@ -37,9 +38,9 @@ internal sealed class FakeKind(string name) : IResourceKind
 }
 
 /// <summary>Sessions the test says exist.</summary>
-internal sealed class FakeSessions(Owner current, params Session[] sessions) : ISessions
+internal sealed class FakeSessions(Owner current, params Session[] sessions) : IHolders
 {
-    public Task<IReadOnlyList<Session>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Session>>(sessions);
+    public Task<IReadOnlyList<Holder>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Holder>>(sessions);
 
     public Task<Owner> CurrentAsync(CancellationToken cancellationToken) => Task.FromResult(current);
 }

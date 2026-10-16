@@ -27,10 +27,10 @@ public sealed class McpKind(IProcessTable table, ProcessKind processes, ILedger 
     private static readonly FrozenSet<string> Runtimes = FrozenSet.Create(StringComparer.Ordinal, "dotnet", "node", "python", "python3", "uv", "uvx", "npx", "bun", "deno", "java");
 
     /// <inheritdoc/>
-    public string Name => Kinds.McpServer;
+    public string Name => MachineKinds.McpServer;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         var running = await table.ListAsync(cancellationToken);
 
@@ -42,7 +42,7 @@ public sealed class McpKind(IProcessTable table, ProcessKind processes, ILedger 
         var now = clock.GetUtcNow();
         var found = new List<Resource>();
 
-        foreach (var session in sessions.Where(session => session.IsAlive && session.Pid is not null))
+        foreach (var session in sessions.OfType<Session>().Where(session => session.IsAlive && session.Pid is not null))
         {
             var servers = children[session.Pid!.Value].Where(process =>
                 !Lineage.IsShell(process) && !MachineSessions.IsAgent(process) && !own.Contains(process.Pid) && now - process.StartedAt >= Settled);

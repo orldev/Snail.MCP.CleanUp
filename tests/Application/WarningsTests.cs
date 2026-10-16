@@ -1,6 +1,6 @@
 using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Application;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Application;

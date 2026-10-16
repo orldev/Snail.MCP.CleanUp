@@ -1,7 +1,7 @@
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Trails;
-using Snail.MCP.CleanUp.Core.Adapters;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.Toolkit.Cleanup.Adapters;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
 

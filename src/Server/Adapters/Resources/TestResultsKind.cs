@@ -40,10 +40,10 @@ public sealed class TestResultsKind(ServerConfig config, Disposal disposal, Size
     public static TimeSpan Searched { get; } = TimeSpan.FromMinutes(10);
 
     /// <inheritdoc/>
-    public string Name => Kinds.TestResults;
+    public string Name => MachineKinds.TestResults;
 
     /// <inheritdoc/>
-    public Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         var found = new List<Resource>();
 
@@ -120,7 +120,7 @@ public sealed class TestResultsKind(ServerConfig config, Disposal disposal, Size
     }
 
     /// <summary>The folders found in the repositories, searched again when they are older than <see cref="Searched"/> or the repositories changed.</summary>
-    private IReadOnlyList<(string Repository, string Path)> Found(IReadOnlyList<Session> sessions)
+    private IReadOnlyList<(string Repository, string Path)> Found(IReadOnlyList<Holder> sessions)
     {
         var worked = sessions.Select(session => session.Directory).OfType<string>().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
         var now = clock.GetUtcNow();

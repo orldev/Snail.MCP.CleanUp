@@ -13,10 +13,10 @@ public sealed class WorktreeKind(IPrograms programs) : IResourceKind
     public static TimeSpan Freshness { get; } = TimeSpan.FromMinutes(2);
 
     /// <inheritdoc/>
-    public string Name => Kinds.Worktree;
+    public string Name => MachineKinds.Worktree;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         var found = new Dictionary<string, Resource>(StringComparer.Ordinal);
         var directories = sessions.Select(session => session.Directory).OfType<string>().Where(Directory.Exists).Distinct(StringComparer.Ordinal);
@@ -51,7 +51,7 @@ public sealed class WorktreeKind(IPrograms programs) : IResourceKind
 
             return new Resource
             {
-                Kind = Kinds.Worktree,
+                Kind = MachineKinds.Worktree,
                 Key = path,
                 Title = isPrunable ? $"worktree {path} on {branch}, prunable: its directory is gone" : $"worktree {path} on {branch}",
                 Facts = new Dictionary<string, string> { ["branch"] = branch, ["prunable"] = isPrunable ? "yes" : "no" }

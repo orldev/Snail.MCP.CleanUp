@@ -2,8 +2,9 @@ using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Adapters.Trails;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
@@ -50,7 +51,7 @@ public sealed class RemainsKindTests : IDisposable
 
         var remains = Assert.Single((await Kind.ObserveAsync([], CancellationToken.None)).Resources);
 
-        Assert.Equal(Kinds.Remains, remains.Kind);
+        Assert.Equal(MachineKinds.Remains, remains.Kind);
         Assert.True(remains.IsShared);
         Assert.True(remains.IsRegenerable);
         Assert.Null(remains.Blocker);
@@ -147,8 +148,8 @@ public sealed class RemainsKindTests : IDisposable
         var remains = Assert.Single((await Kind.ObserveAsync([], CancellationToken.None)).Resources);
         var inventory = Inventory([remains]);
 
-        Assert.Empty(Planner.Decide(inventory, Scope.Orphans, "plan").Decisions);
-        Assert.Equal(Verdict.Remove, Assert.Single(Planner.Decide(inventory, Scope.Caches, "plan").Decisions).Verdict);
+        Assert.Empty(Planner.Decide(inventory, Scope.Orphans, "plan", MachineKinds.Order).Decisions);
+        Assert.Equal(Verdict.Remove, Assert.Single(Planner.Decide(inventory, Scope.Caches, "plan", MachineKinds.Order).Decisions).Verdict);
     }
 
     /// <summary>A test run's folder as Snail.Sdk.Mcp.Testing names it, with a file of the given size inside.</summary>
@@ -173,14 +174,14 @@ public sealed class RemainsKindTests : IDisposable
 
         var runs = Assert.Single((await Kind.ObserveAsync([], CancellationToken.None)).Resources);
 
-        Assert.Equal(Kinds.Remains, runs.Kind);
+        Assert.Equal(MachineKinds.Remains, runs.Kind);
         Assert.True(runs.IsShared && runs.IsRegenerable);
         Assert.True(runs.Bytes >= 10_000, $"{runs.Bytes} bytes");
         Assert.False(runs.IsAtLeast);
         Assert.Contains("2 test run(s) that have ended", runs.Title, StringComparison.Ordinal);
         Assert.Contains("1 running test run(s) are left alone", runs.Title, StringComparison.Ordinal);
-        Assert.Equal(Verdict.Remove, Assert.Single(Planner.Decide(Inventory([runs]), Scope.Caches, "plan").Decisions).Verdict);
-        Assert.Empty(Planner.Decide(Inventory([runs]), Scope.Mine, "plan").Decisions);
+        Assert.Equal(Verdict.Remove, Assert.Single(Planner.Decide(Inventory([runs]), Scope.Caches, "plan", MachineKinds.Order).Decisions).Verdict);
+        Assert.Empty(Planner.Decide(Inventory([runs]), Scope.Mine, "plan", MachineKinds.Order).Decisions);
     }
 
     [Fact]

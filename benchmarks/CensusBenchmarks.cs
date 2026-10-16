@@ -7,11 +7,11 @@ using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Application.Ports;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Adapters;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Application.Ports;
-using Snail.MCP.CleanUp.Core.Domain;
 using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Adapters;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Application.Ports;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Benchmarks;
 
@@ -43,10 +43,10 @@ public class CensusBenchmarks
 
     private const int GoneLately = 8_000;
 
-    private static readonly Session Began = new("bench-began", 1, null, null, IsAlive: true);
+    private static readonly Session Began = new(Owner.Session("bench-began"), 1, IsAlive: true);
 
     /// <summary>The session taking its first baseline; named as Claude Code names a session, so that its scratchpad is its own.</summary>
-    private static readonly Session Beginning = new("5d1b8f0e-0000-4000-8000-00000000be9c", 2, null, null, IsAlive: true);
+    private static readonly Session Beginning = new(Owner.Session("5d1b8f0e-0000-4000-8000-00000000be9c"), 2, IsAlive: true);
 
     private const int Projects = 20;
 
@@ -219,9 +219,9 @@ public class CensusBenchmarks
 
     private static Discovery Written(string path, DateTimeOffset seen) => new(new Trace("file", path, path), Began.Owner, seen, seen, 3);
 
-    private sealed class Alive : ISessions
+    private sealed class Alive : IHolders
     {
-        public Task<IReadOnlyList<Session>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Session>>([Began, Beginning]);
+        public Task<IReadOnlyList<Holder>> ListAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Holder>>([Began, Beginning]);
 
         public Task<Owner> CurrentAsync(CancellationToken cancellationToken) => Task.FromResult(Began.Owner);
     }

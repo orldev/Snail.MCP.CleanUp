@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using Snail.MCP.CleanUp.Core.Application;
+using Snail.Toolkit.Cleanup.Application;
 
 namespace Snail.MCP.CleanUp.Application;
 
@@ -117,7 +117,7 @@ public sealed class Performance(TimeProvider clock)
     private static double Megabytes(long bytes) => Math.Round(bytes / 1_048_576.0, 1);
 }
 
-/// <summary>The census as the server takes it: the core's census, with what it cost written down, and the disk's free space after it.</summary>
+/// <summary>The census as the server takes it: Snail.Toolkit.Cleanup's census, with what it cost written down, and the disk's free space after it.</summary>
 public sealed class MeasuredCensus(Census census, Performance performance, DiskTrend? trend)
 {
     /// <summary>The census without a history of the disk.</summary>

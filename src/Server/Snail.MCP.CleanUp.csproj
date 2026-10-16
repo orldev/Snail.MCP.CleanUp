@@ -53,10 +53,7 @@
         <PackageReference Include="Microsoft.Data.Sqlite"/>
         <PackageReference Include="Microsoft.Extensions.Hosting"/>
         <PackageReference Include="ModelContextProtocol"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\Core\Snail.MCP.CleanUp.Core.csproj"/>
+        <PackageReference Include="Snail.Toolkit.Cleanup"/>
     </ItemGroup>
 
     <ItemGroup>

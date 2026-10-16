@@ -1,8 +1,8 @@
 using BenchmarkDotNet.Attributes;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Snail.MCP.CleanUp.Core.Application.Ports;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.Toolkit.Cleanup.Application.Ports;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Benchmarks;
 
@@ -15,7 +15,7 @@ public class LookBenchmarks
 
     private IHost _host = null!;
 
-    private IReadOnlyList<Session> _sessions = [];
+    private IReadOnlyList<Holder> _sessions = [];
 
     private IReadOnlyList<Rule> _rules = [];
 
@@ -37,7 +37,7 @@ public class LookBenchmarks
     public async Task Setup()
     {
         _host = Machine.Built(_data);
-        _sessions = await _host.Services.GetRequiredService<ISessions>().ListAsync(CancellationToken.None);
+        _sessions = await _host.Services.GetRequiredService<IHolders>().ListAsync(CancellationToken.None);
         _rules = await _host.Services.GetRequiredService<IRules>().ListAsync(CancellationToken.None);
     }
 

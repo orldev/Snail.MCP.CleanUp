@@ -1,5 +1,5 @@
 using Snail.MCP.CleanUp.Adapters.Ledger;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;

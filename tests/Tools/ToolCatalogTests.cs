@@ -2,9 +2,9 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using ModelContextProtocol.Server;
-using Snail.MCP.CleanUp.Core.Domain;
 using Snail.MCP.CleanUp.Tools;
 using Snail.MCP.CleanUp.Tools.Prompts;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Tools;
 

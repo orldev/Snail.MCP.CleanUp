@@ -27,7 +27,7 @@ public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules,
     public string Name => Kinds.File;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         var known = await rules.ListAsync(cancellationToken);
         var processes = await table.ListAsync(cancellationToken);
@@ -63,9 +63,9 @@ public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules,
     /// <summary>The fact an output carries the scratchpad it lies in under.</summary>
     public const string ScratchpadFact = "scratchpad";
 
-    private IEnumerable<Resource> Scratchpads(IReadOnlyList<Session> sessions, IReadOnlyList<RunningProcess> running)
+    private IEnumerable<Resource> Scratchpads(IReadOnlyList<Holder> sessions, IReadOnlyList<RunningProcess> running)
     {
-        var alive = sessions.Where(session => session.IsAlive).Select(session => session.Id).ToHashSet(StringComparer.Ordinal);
+        var alive = sessions.OfType<Session>().Where(session => session.IsAlive).Select(session => session.Id).ToHashSet(StringComparer.Ordinal);
         var roots = Directories(config.ScratchRoot).Where(root => Path.GetFileName(root).StartsWith("claude-", StringComparison.Ordinal));
 
         foreach (var project in roots.SelectMany(Directories))

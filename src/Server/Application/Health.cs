@@ -4,7 +4,7 @@ using Snail.MCP.CleanUp.Configuration;
 namespace Snail.MCP.CleanUp.Application;
 
 /// <summary>What state the server is in: its build, the session it counts as its own, and what it can see.</summary>
-public sealed class Health(ServerConfig config, ISessions sessions, IPrograms programs, Android android, IDockerEngine docker, IChanges changes, Performance performance)
+public sealed class Health(ServerConfig config, IHolders sessions, IPrograms programs, Android android, IDockerEngine docker, IChanges changes, Performance performance)
 {
     /// <summary>The state of the server.</summary>
     public async Task<Answer> ReportAsync(CancellationToken cancellationToken = default)

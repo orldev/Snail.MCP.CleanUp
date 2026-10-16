@@ -16,12 +16,13 @@ public static class Lineage
     public static bool IsShell(RunningProcess process) => Shells.Contains(process.Program);
 
     /// <summary>The owner of every program that runs under the shells of a running agent.</summary>
-    public static IReadOnlyDictionary<int, Owner> Of(IReadOnlyList<RunningProcess> running, IReadOnlyList<Session> sessions)
+    /// <remarks>Only a <see cref="Session"/> has an agent whose shells can be followed; another holder has no process here.</remarks>
+    public static IReadOnlyDictionary<int, Owner> Of(IReadOnlyList<RunningProcess> running, IReadOnlyList<Holder> holders)
     {
         var children = running.ToLookup(process => process.ParentPid);
         var owners = new Dictionary<int, Owner>();
 
-        foreach (var session in sessions.Where(session => session.IsAlive && session.Pid is not null))
+        foreach (var session in holders.OfType<Session>().Where(session => session.IsAlive && session.Pid is not null))
         {
             foreach (var process in children[session.Pid!.Value].Where(IsShell).SelectMany(shell => Subtree(shell, children)))
                 owners.TryAdd(process.Pid, session.Owner);

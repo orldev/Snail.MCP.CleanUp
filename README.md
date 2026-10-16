@@ -198,9 +198,12 @@ registration, which travel wherever they are copied. In the file a variable is a
 
 ## The core, for other hosts
 
-`src/Core` (`Snail.MCP.CleanUp.Core`) has no dependencies: owners and evidence, the planner, the census and the
-cleaner, behind ports. [Snail.Swarm.Agent](../../Testing/Snail.Swarm.Agent) uses it on its workers, where
-tasks and projects are the owners and their names are the proof.
+The part that does not depend on this machine — owners and evidence, the planner, the census and the cleaner, behind
+ports — is a package of its own, [Snail.Toolkit.Cleanup](https://github.com/orldev/Snail.Toolkit.Cleanup). This server
+gives it the kinds only a developer's Mac has, placed in the order things are taken apart in (`MachineKinds`), and the
+sessions of Claude Code as its holders, each with the process of its agent (`Session`).
+[Snail.Swarm.Agent](../../Testing/Snail.Swarm.Agent) uses the same package on its workers, where tasks and projects
+are the owners and their names are the proof.
 
 ## Performance
 

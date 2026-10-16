@@ -1,8 +1,8 @@
 name: release to NuGet
 
-# The shared server release of Snail.Sdk: a native tool package per platform, a framework-dependent fallback, the core
-# library, and the package that points at them pushed last. A version tag (v1.2.0, v1.2.0-preview.1) releases; run by
-# hand, it builds and checks every package and pushes only when asked to. The shared workflow builds, tests and packs;
+# The shared server release of Snail.Sdk: a native tool package per platform, a framework-dependent fallback, and the
+# package that points at them pushed last. A version tag (v1.2.0, v1.2.0-preview.1) releases; run by hand, it builds
+# and checks every package and pushes only when asked to. The shared workflow builds, tests and packs;
 # the push is a job of this file because nuget.org gives a trusted publishing key only to a job of the workflow file its
 # policy names in this repository (job_workflow_ref): this publish.yml, with the secret NUGET_USER.
 
@@ -30,7 +30,6 @@ jobs:
       os: macos-latest
       contract-variable: SNAIL_CLEANUP_SERVER
       contract-filter: FullyQualifiedName~StdioContract
-      also-pack: src/Core
       version: ${{ inputs.version }}
       push: ${{ github.event_name == 'push' || inputs.push }}
 

@@ -2,7 +2,7 @@ using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
 

@@ -1,6 +1,6 @@
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Application;
 using Snail.MCP.CleanUp.Tools.Prompts;
+using Snail.Toolkit.Cleanup.Application;
 
 namespace Snail.MCP.CleanUp.Application;
 
@@ -10,7 +10,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// id is carried out — so what is removed is exactly what was shown, never what a second census happens to
 /// find a moment later.
 /// </remarks>
-public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans plans, Cleaner cleaner, ILedger ledger, IDiscoveries discoveries, IRules rules, DiskTrend disk, ServerConfig config, TimeProvider clock)
+public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans plans, Cleaner cleaner, ILedger ledger, IDiscoveries discoveries, IRules rules, DiskTrend disk, ServerConfig config, TimeProvider clock)
 {
     /// <summary>What is on the machine, grouped by whose it is.</summary>
     public async Task<Answer> InventoryAsync(CancellationToken cancellationToken)
@@ -51,7 +51,7 @@ public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans pl
             return Answer.Failed(Messages.NoSession, Messages.NoSessionHint);
 
         var inventory = await census.TakeAsync(asker, cancellationToken);
-        var plan = Planner.Decide(inventory, scope, Guid.NewGuid().ToString("n")[..10]);
+        var plan = Planner.Decide(inventory, scope, Guid.NewGuid().ToString("n")[..10], MachineKinds.Order);
 
         await plans.SaveAsync(plan, cancellationToken);
 
@@ -84,7 +84,7 @@ public sealed class Account(MeasuredCensus census, ISessions sessions, IPlans pl
     public async Task<Answer> ReleaseAsync(string id, CancellationToken cancellationToken)
     {
         var asker = await sessions.CurrentAsync(cancellationToken);
-        var plan = Planner.Decide(await census.TakeAsync(asker, cancellationToken), Scope.Everything, "release");
+        var plan = Planner.Decide(await census.TakeAsync(asker, cancellationToken), Scope.Everything, "release", MachineKinds.Order);
         var decision = plan.Decisions.FirstOrDefault(candidate => candidate.Resource.Id == id);
 
         if (decision is null)

@@ -1,7 +1,8 @@
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Resources;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
 
@@ -138,9 +139,9 @@ public sealed class DockerTests : IDisposable
             .. (await new ContainerKind(_socket).ObserveAsync([], CancellationToken.None)).Resources
         ];
 
-        var inventory = Things.Inventory(resources) with { Asker = Owner.Session("me"), Sessions = [Things.Alive(Owner.Session("me"))] };
+        var inventory = Things.Inventory(resources) with { Asker = Owner.Session("me"), Holders = [Things.Alive(Owner.Session("me"))] };
 
-        Assert.Equal([Kinds.Container, Kinds.Network, Kinds.Volume], Planner.Decide(inventory, Scope.Mine, "plan").Removals.Select(removal => removal.Resource.Kind));
+        Assert.Equal([Kinds.Container, Kinds.Network, Kinds.Volume], Planner.Decide(inventory, Scope.Mine, "plan", MachineKinds.Order).Removals.Select(removal => removal.Resource.Kind));
     }
 
     /// <summary>Only what no build uses and no other record shares is what a prune gives back.</summary>

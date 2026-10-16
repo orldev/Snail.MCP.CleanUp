@@ -2,10 +2,11 @@ using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Application.Ports;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
 using Snail.MCP.CleanUp.Extensions;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Application.Ports;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Machine;
 
@@ -37,12 +38,12 @@ public sealed class DockerOnThisMacTests : IDisposable
 
         using var host = builder.Build();
         var services = host.Services;
-        var me = await services.GetRequiredService<ISessions>().CurrentAsync(CancellationToken.None);
+        var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
 
         _hadImage = Run("docker", "image", "inspect", Image) == 0;
         Run("docker", "create", "--name", _name, "--label", $"snail.owner={me}", Image, "sleep", "300");
 
-        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Mine, "machine");
+        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Mine, "machine", MachineKinds.Order);
         var removal = Assert.Single(plan.Removals, decision => decision.Resource.Kind == Kinds.Container && decision.Resource.Facts["name"] == _name);
         var release = Assert.Single(await services.GetRequiredService<Cleaner>().ApplyAsync(plan with { Decisions = [removal] }, CancellationToken.None));
 

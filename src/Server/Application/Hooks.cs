@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Application;
+using Snail.Toolkit.Cleanup.Application;
 
 namespace Snail.MCP.CleanUp.Application;
 
@@ -51,7 +51,7 @@ public sealed class Hooks(MeasuredCensus census, Cleaner cleaner, ServerConfig c
     /// </remarks>
     public async Task<IReadOnlyList<Release>> SweepAsync(Owner session, CancellationToken cancellationToken)
     {
-        var plan = Planner.Decide(await census.TakeAsync(session, cancellationToken), Scope.Mine, $"sweep-{Guid.NewGuid():n}"[..16]);
+        var plan = Planner.Decide(await census.TakeAsync(session, cancellationToken), Scope.Mine, $"sweep-{Guid.NewGuid():n}"[..16], MachineKinds.Order);
         var releases = await cleaner.ApplyAsync(plan, cancellationToken);
 
         await WriteAsync(session, plan, releases, cancellationToken);

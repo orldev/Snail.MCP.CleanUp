@@ -3,8 +3,8 @@ using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Application.Ports;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Domain;
 using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Application;
@@ -37,7 +37,7 @@ public sealed class DiskTrendTests : IDisposable
 
     private static Resource Cache(string key, long bytes) => Of(Kinds.File, key) with { Title = key, Bytes = bytes, IsShared = true, IsRegenerable = true };
 
-    private static Resource Results(long bytes) => Of(Kinds.TestResults, "/repo/TestResults") with { Title = "test results of repo", Bytes = bytes, IsShared = true };
+    private static Resource Results(long bytes) => Of(MachineKinds.TestResults, "/repo/TestResults") with { Title = "test results of repo", Bytes = bytes, IsShared = true };
 
     private async Task CensusAsync(params Resource[] resources) => Assert.True(await Trend().TryRecordAsync(Inventory(resources), CancellationToken.None));
 

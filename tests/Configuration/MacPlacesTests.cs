@@ -1,5 +1,5 @@
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Configuration;
 

@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Adapters.Resources;
-using Snail.MCP.CleanUp.Core.Domain;
 using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
@@ -31,7 +31,7 @@ public sealed class McpKindTests : IDisposable
 
     private McpKind Kind => new(_table, new ProcessKind(_table, _programs, Ledger, _later), Ledger, _later);
 
-    private static Session Alive(Owner owner, RunningProcess agent) => new(owner.Id, agent.Pid, DateTimeOffset.UnixEpoch, "/work", IsAlive: true);
+    private static Session Alive(Owner owner, RunningProcess agent) => new(owner, agent.Pid, IsAlive: true) { StartedAt = DateTimeOffset.UnixEpoch, Directory = "/work" };
 
     /// <summary>A server is the session's tool while the session runs: listed as its, and never released.</summary>
     [Fact]

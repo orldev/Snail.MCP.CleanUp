@@ -12,7 +12,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// A lease ends that at the source: the agent gets a device made for it, named for its session and written
 /// down at birth, so that nobody else uses it and only its own cleanup ever removes it.
 /// </remarks>
-public sealed class Leases(IPrograms programs, ISessions sessions, ILedger ledger, Android android, IProcessTable table, ServerConfig config, TimeProvider clock)
+public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger, Android android, IProcessTable table, ServerConfig config, TimeProvider clock)
 {
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(120);
 
@@ -38,7 +38,7 @@ public sealed class Leases(IPrograms programs, ISessions sessions, ILedger ledge
 
         var udid = made.Output.Trim();
 
-        await ledger.RecordAsync(new Holding($"{Kinds.Simulator}:{udid}", owner, Evidence.Ledger, clock.GetUtcNow(), name), cancellationToken);
+        await ledger.RecordAsync(new Holding($"{MachineKinds.Simulator}:{udid}", owner, Evidence.Ledger, clock.GetUtcNow(), name), cancellationToken);
 
         var isBooted = boot && (await SimctlAsync(["bootstatus", udid, "-b"], cancellationToken)).IsSuccess;
 
@@ -46,7 +46,7 @@ public sealed class Leases(IPrograms programs, ISessions sessions, ILedger ledge
         {
             ["udid"] = udid,
             ["name"] = name,
-            ["id"] = $"{Kinds.Simulator}:{udid}",
+            ["id"] = $"{MachineKinds.Simulator}:{udid}",
             ["from"] = original?.Name ?? source,
             ["isBooted"] = isBooted,
             ["note"] = boot && !isBooted ? "made, but it did not boot; boot it with xcrun simctl boot and read the error" : null
@@ -82,7 +82,7 @@ public sealed class Leases(IPrograms programs, ISessions sessions, ILedger ledge
         var name = Simulators.NameFor(owner, android.DeviceNames().Where(device => Simulators.OwnerOf(device) == owner).Select(Simulators.NumberOf).DefaultIfEmpty().Max() + 1);
 
         android.Define(name, chosen);
-        await ledger.RecordAsync(new Holding($"{Kinds.VirtualDevice}:{name}", owner, Evidence.Ledger, clock.GetUtcNow(), name), cancellationToken);
+        await ledger.RecordAsync(new Holding($"{MachineKinds.VirtualDevice}:{name}", owner, Evidence.Ledger, clock.GetUtcNow(), name), cancellationToken);
 
         var log = Path.Combine(config.DataDirectory, "runs", $"{name}-{clock.GetLocalNow().ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture)}.log");
 

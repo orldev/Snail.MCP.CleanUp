@@ -19,10 +19,10 @@ public sealed class EmulatorKind(Android android, IProcessTable table, IPrograms
     public static TimeSpan Grace { get; } = TimeSpan.FromSeconds(20);
 
     /// <inheritdoc/>
-    public string Name => Kinds.Emulator;
+    public string Name => MachineKinds.Emulator;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         var running = await table.ListAsync(cancellationToken);
         var lineage = Lineage.Of(running, sessions);

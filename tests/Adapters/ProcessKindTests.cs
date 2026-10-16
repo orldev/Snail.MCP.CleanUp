@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Adapters;
-using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Adapters.Ledger;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
@@ -35,7 +35,7 @@ public sealed class ProcessKindTests : IDisposable
 
     private readonly FakeTimeProvider _later = new(DateTimeOffset.UnixEpoch.AddDays(2));
 
-    private static Session SessionOf(RunningProcess agent) => new(Me.Id, agent.Pid, DateTimeOffset.UnixEpoch, "/work", IsAlive: true);
+    private static Session SessionOf(RunningProcess agent) => new(Me, agent.Pid, IsAlive: true) { StartedAt = DateTimeOffset.UnixEpoch, Directory = "/work" };
 
     private ProgramRun Answered(string program, IReadOnlyList<string> arguments)
     {
@@ -144,7 +144,7 @@ public sealed class ProcessKindTests : IDisposable
 
         var observed = await Kind.ObserveAsync([Dead(Gone), Alive(Me)], CancellationToken.None);
         var server = Assert.Single(observed.Resources);
-        var plan = Planner.Decide(Inventory([server]), Scope.Orphans, "plan");
+        var plan = Planner.Decide(Inventory([server]), Scope.Orphans, "plan", MachineKinds.Order);
 
         Assert.Equal((Gone, Evidence.Environment), (server.Owner, server.Evidence));
         Assert.Null(server.Blocker);
@@ -164,9 +164,9 @@ public sealed class ProcessKindTests : IDisposable
         var inventory = Inventory([server]);
 
         Assert.Equal((Me, Evidence.Environment), (server.Owner, server.Evidence));
-        Assert.Equal(Verdict.Remove, Assert.Single(Planner.Decide(inventory, Scope.Mine, "plan").Decisions).Verdict);
-        Assert.Equal(Verdict.Keep, Assert.Single(Planner.Decide(inventory with { Asker = Neighbour }, Scope.Everything, "plan").Decisions).Verdict);
-        Assert.Empty(Planner.Decide(inventory with { Asker = Neighbour }, Scope.Orphans, "plan").Decisions);
+        Assert.Equal(Verdict.Remove, Assert.Single(Planner.Decide(inventory, Scope.Mine, "plan", MachineKinds.Order).Decisions).Verdict);
+        Assert.Equal(Verdict.Keep, Assert.Single(Planner.Decide(inventory with { Asker = Neighbour }, Scope.Everything, "plan", MachineKinds.Order).Decisions).Verdict);
+        Assert.Empty(Planner.Decide(inventory with { Asker = Neighbour }, Scope.Orphans, "plan", MachineKinds.Order).Decisions);
     }
 
     /// <summary>After /clear the agent goes on under a new id; what it started before still names the old one, and is still in use.</summary>
@@ -233,7 +233,7 @@ public sealed class ProcessKindTests : IDisposable
 
         Assert.Equal(2, observed.Resources.Count);
         Assert.All(observed.Resources, resource => Assert.Contains("application", resource.Blocker, StringComparison.Ordinal));
-        Assert.All(Planner.Decide(Inventory([.. observed.Resources]), Scope.Orphans, "plan").Decisions, decision => Assert.Equal(Verdict.Report, decision.Verdict));
+        Assert.All(Planner.Decide(Inventory([.. observed.Resources]), Scope.Orphans, "plan", MachineKinds.Order).Decisions, decision => Assert.Equal(Verdict.Report, decision.Verdict));
     }
 
     /// <summary>The build servers of 2026-10-13: detached, carrying this session's id an hour on, reused by every window's builds.</summary>
@@ -253,8 +253,8 @@ public sealed class ProcessKindTests : IDisposable
             Assert.False(resource.Owner.IsKnown);
             Assert.Equal(SharedServers.Why, resource.Blocker);
         });
-        Assert.Empty(Planner.Decide(inventory, Scope.Orphans, "plan").Decisions);
-        Assert.Empty(Planner.Decide(inventory, Scope.Everything, "plan").Removals);
+        Assert.Empty(Planner.Decide(inventory, Scope.Orphans, "plan", MachineKinds.Order).Decisions);
+        Assert.Empty(Planner.Decide(inventory, Scope.Everything, "plan", MachineKinds.Order).Removals);
     }
 
     /// <summary>Seen under the agent's shell the moment a build started it, a compiler server is still everybody's.</summary>
@@ -269,7 +269,7 @@ public sealed class ProcessKindTests : IDisposable
         var node = observed.Resources.Single(resource => resource.Facts["pid"] == "300");
 
         Assert.Equal((Owner.Nobody, Evidence.None), (node.Owner, node.Evidence));
-        Assert.DoesNotContain(Planner.Decide(Inventory([.. observed.Resources]), Scope.Mine, "plan").Removals, decision => decision.Resource.Facts["pid"] == "300");
+        Assert.DoesNotContain(Planner.Decide(Inventory([.. observed.Resources]), Scope.Mine, "plan", MachineKinds.Order).Removals, decision => decision.Resource.Facts["pid"] == "300");
     }
 
     /// <summary>The ledger may hold a node a census saw under a shell before builds were known to be shared: the plan still only names it.</summary>
@@ -281,7 +281,7 @@ public sealed class ProcessKindTests : IDisposable
         var listed = Assert.Single((await Kind.ObserveAsync([], CancellationToken.None)).Resources);
         var settled = listed with { Owner = Gone, Evidence = Evidence.Ancestry };
 
-        Assert.Equal(Verdict.Report, Assert.Single(Planner.Decide(Inventory([settled]), Scope.Orphans, "plan").Decisions).Verdict);
+        Assert.Equal(Verdict.Report, Assert.Single(Planner.Decide(Inventory([settled]), Scope.Orphans, "plan", MachineKinds.Order).Decisions).Verdict);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Support;
 
@@ -20,20 +21,18 @@ internal static class Things
         Evidence = evidence
     };
 
-    public static Session Alive(Owner owner) => new(owner.Id, 1, DateTimeOffset.UnixEpoch, "/work", IsAlive: true);
+    public static Session Alive(Owner owner) => new(owner, 1, IsAlive: true) { StartedAt = DateTimeOffset.UnixEpoch, Directory = "/work" };
 
-    public static Session Dead(Owner owner) => new(owner.Id, 2, DateTimeOffset.UnixEpoch, "/work", IsAlive: false);
+    public static Session Dead(Owner owner) => new(owner, 2, IsAlive: false) { StartedAt = DateTimeOffset.UnixEpoch, Directory = "/work" };
 
     public static Inventory Inventory(
         IReadOnlyList<Resource> resources,
         IReadOnlyDictionary<string, string>? kept = null,
         IReadOnlyList<Discovery>? discoveries = null) =>
-        new(
-            DateTimeOffset.UnixEpoch,
-            Me,
-            resources,
-            [Alive(Me), Alive(Neighbour), Dead(Gone)],
-            kept ?? new Dictionary<string, string>(),
-            discoveries ?? [],
-            new Dictionary<string, string>());
+        new(DateTimeOffset.UnixEpoch, resources, [Alive(Me), Alive(Neighbour), Dead(Gone)])
+        {
+            Asker = Me,
+            Kept = kept ?? new Dictionary<string, string>(),
+            Discoveries = discoveries ?? []
+        };
 }

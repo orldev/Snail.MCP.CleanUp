@@ -36,7 +36,7 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
     public string Name => Kinds.Process;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         var running = await table.ListAsync(cancellationToken);
 
@@ -75,8 +75,8 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
         }
 
         var servers = holdings
-            .Where(holding => holding.ResourceId.StartsWith($"{Kinds.McpServer}:", StringComparison.Ordinal))
-            .Select(holding => holding.ResourceId[(Kinds.McpServer.Length + 1)..])
+            .Where(holding => holding.ResourceId.StartsWith($"{MachineKinds.McpServer}:", StringComparison.Ordinal))
+            .Select(holding => holding.ResourceId[(MachineKinds.McpServer.Length + 1)..])
             .ToHashSet(StringComparer.Ordinal);
 
         Carried(found, running, sessions, own, servers, listening, now);
@@ -121,7 +121,7 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
     private void Carried(
         Dictionary<string, Resource> found,
         IReadOnlyList<RunningProcess> running,
-        IReadOnlyList<Session> sessions,
+        IReadOnlyList<Holder> sessions,
         HashSet<int> own,
         HashSet<string> servers,
         IReadOnlyDictionary<int, IReadOnlyList<int>> listening,

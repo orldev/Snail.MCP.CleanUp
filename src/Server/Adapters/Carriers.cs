@@ -21,7 +21,7 @@ public static class Carriers
     private static readonly TimeSpan Slack = TimeSpan.FromSeconds(1);
 
     /// <summary>The owner the environment of every program that names a session proves, by process id.</summary>
-    public static IReadOnlyDictionary<int, Owner> Of(IReadOnlyList<RunningProcess> running, IReadOnlyList<Session> sessions)
+    public static IReadOnlyDictionary<int, Owner> Of(IReadOnlyList<RunningProcess> running, IReadOnlyList<Holder> holders)
     {
         var owners = new Dictionary<int, Owner>();
         var carriers = running.Where(process => process.SessionId is not null).ToList();
@@ -35,7 +35,7 @@ public static class Carriers
             byPid[process.Pid] = process;
 
         var agents = running.Where(MachineSessions.IsAgent).ToDictionary(agent => agent.Pid);
-        var alive = sessions.Where(session => session.IsAlive).ToList();
+        var alive = holders.OfType<Session>().Where(session => session.IsAlive).ToList();
         var aliveIds = alive.Select(session => session.Id).ToHashSet(StringComparer.Ordinal);
         var aliveByPid = alive.Where(session => session.Pid is not null).GroupBy(session => session.Pid!.Value).ToDictionary(group => group.Key, group => group.First().Owner);
         var spokenFor = SpokenFor(carriers, agents);

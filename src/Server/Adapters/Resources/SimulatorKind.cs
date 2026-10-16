@@ -14,10 +14,10 @@ public sealed class SimulatorKind(IPrograms programs, IProcessTable table, Sizes
     public static TimeSpan Patience { get; } = TimeSpan.FromSeconds(60);
 
     /// <inheritdoc/>
-    public string Name => Kinds.Simulator;
+    public string Name => MachineKinds.Simulator;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         var run = await programs.ReadAsync("xcrun", ["simctl", "list", "devices", "-j"], IPrograms.Census, Patience, cancellationToken);
 

@@ -1,8 +1,9 @@
 using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Resources;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
@@ -33,7 +34,7 @@ public sealed class OutsideKindTests : IDisposable
         var scratch = Filled("T/NuGetScratch", 20_000);
 
         var observed = await Kind.ObserveAsync([], CancellationToken.None);
-        var plan = Planner.Decide(Inventory([.. observed.Resources]), Scope.Caches, "plan");
+        var plan = Planner.Decide(Inventory([.. observed.Resources]), Scope.Caches, "plan", MachineKinds.Order);
 
         Assert.Equal([onnx, scratch], observed.Resources.Select(resource => resource.Key));
         Assert.All(observed.Resources, resource => Assert.True(resource.IsShared && !resource.IsRegenerable && resource.Bytes >= 20_000));
@@ -41,7 +42,7 @@ public sealed class OutsideKindTests : IDisposable
         Assert.All(plan.Decisions, decision => Assert.Equal(Verdict.Report, decision.Verdict));
         Assert.Contains("ONNX Runtime", plan.Decisions.Single(decision => decision.Resource.Key == onnx).Reason, StringComparison.Ordinal);
         Assert.Contains("restore under way", plan.Decisions.Single(decision => decision.Resource.Key == scratch).Reason, StringComparison.Ordinal);
-        Assert.Empty(Planner.Decide(Inventory([.. observed.Resources]), Scope.Everything, "plan").Removals);
+        Assert.Empty(Planner.Decide(Inventory([.. observed.Resources]), Scope.Everything, "plan", MachineKinds.Order).Removals);
     }
 
     [Fact]

@@ -16,7 +16,7 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// anyone's memory, but the ledger already wrote down whatever they owned under that name.
 /// </para>
 /// </remarks>
-public sealed class MachineSessions(ServerConfig config, IProcessTable processes) : ISessions
+public sealed class MachineSessions(ServerConfig config, IProcessTable processes) : IHolders
 {
     /// <summary>How far SleepOf's clock and the process table's may disagree, the process table reading to the second.</summary>
     private static readonly TimeSpan Slack = TimeSpan.FromSeconds(5);
@@ -25,18 +25,24 @@ public sealed class MachineSessions(ServerConfig config, IProcessTable processes
     public const string ByProcess = "pid-";
 
     /// <inheritdoc/>
-    public async Task<IReadOnlyList<Session>> ListAsync(CancellationToken cancellationToken)
+    /// <remarks>Every holder is a <see cref="Session"/>, so that the kinds that follow an agent's children find its process.</remarks>
+    public async Task<IReadOnlyList<Holder>> ListAsync(CancellationToken cancellationToken) => await SessionsAsync(cancellationToken);
+
+    /// <summary>Every session known, alive or ended, with the process of its agent.</summary>
+    public async Task<IReadOnlyList<Session>> SessionsAsync(CancellationToken cancellationToken)
     {
         var running = await processes.ListAsync(cancellationToken);
         var agents = running.Where(IsAgent).ToDictionary(process => process.Pid);
         var written = await WrittenAsync(cancellationToken);
 
-        var known = written.Select(entry => new Session(entry.Id, entry.Pid, entry.StartedAt, entry.Directory, IsAlive(entry, agents))).ToList();
+        var known = written
+            .Select(entry => new Session(Owner.Session(entry.Id), entry.Pid, IsAlive(entry, agents)) { StartedAt = entry.StartedAt, Directory = entry.Directory })
+            .ToList();
         var accounted = known.Where(session => session.IsAlive && session.Pid is not null).Select(session => session.Pid!.Value).ToHashSet();
 
         known.AddRange(agents.Values
             .Where(agent => !accounted.Contains(agent.Pid))
-            .Select(agent => new Session(NameOf(agent), agent.Pid, agent.StartedAt, null, IsAlive: true)));
+            .Select(agent => new Session(Owner.Session(NameOf(agent)), agent.Pid, IsAlive: true) { StartedAt = agent.StartedAt }));
 
         return known;
     }
@@ -54,7 +60,7 @@ public sealed class MachineSessions(ServerConfig config, IProcessTable processes
         if (agent is null)
             return Owner.Nobody;
 
-        var sessions = await ListAsync(cancellationToken);
+        var sessions = await SessionsAsync(cancellationToken);
         var session = sessions.FirstOrDefault(known => known.IsAlive && known.Pid == agent.Pid);
 
         return Owner.Session(session?.Id ?? NameOf(agent));

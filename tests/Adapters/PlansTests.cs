@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Adapters.Ledger;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Domain;
 using static Snail.MCP.CleanUp.Tests.Support.Things;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
@@ -20,7 +21,7 @@ public sealed class PlansTests : IDisposable
         var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch);
         var plans = new SqlitePlans(_file, clock);
         var resource = Of(Kinds.Process, "7@1", Me) with { After = ["file:/x"], Facts = new Dictionary<string, string> { ["pid"] = "7" } };
-        var plan = Planner.Decide(Inventory([resource, Of(Kinds.File, "/x", Me)]), Scope.Mine, "p1");
+        var plan = Planner.Decide(Inventory([resource, Of(Kinds.File, "/x", Me)]), Scope.Mine, "p1", MachineKinds.Order);
 
         await plans.SaveAsync(plan, CancellationToken.None);
 

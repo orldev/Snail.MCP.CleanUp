@@ -2,10 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Application.Ports;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
 using Snail.MCP.CleanUp.Extensions;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Application.Ports;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Machine;
 
@@ -34,10 +35,10 @@ public sealed class SimulatorOnThisMacTests : IDisposable
 
         _udid = leased.Data!["udid"]!.GetValue<string>();
 
-        var me = await services.GetRequiredService<ISessions>().CurrentAsync(CancellationToken.None);
+        var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
         var inventory = await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None);
-        var plan = Planner.Decide(inventory, Scope.Mine, "machine");
-        var seen = inventory.Resources.Where(resource => resource.Kind == Kinds.Simulator).Select(resource => $"{resource.Title} {resource.Owner} {resource.Evidence} {resource.Blocker}");
+        var plan = Planner.Decide(inventory, Scope.Mine, "machine", MachineKinds.Order);
+        var seen = inventory.Resources.Where(resource => resource.Kind == MachineKinds.Simulator).Select(resource => $"{resource.Title} {resource.Owner} {resource.Evidence} {resource.Blocker}");
 
         Assert.True(
             plan.Removals.Any(decision => decision.Resource.Key == _udid),

@@ -1,12 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
 using Snail.MCP.CleanUp.Adapters;
+using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Adapters.Ledger;
-using Snail.MCP.CleanUp.Core.Adapters;
-using Snail.MCP.CleanUp.Core.Application;
+using Snail.Toolkit.Cleanup.Adapters;
+using Snail.Toolkit.Cleanup.Application;
 
 namespace Snail.MCP.CleanUp.Extensions;
 
@@ -34,7 +34,7 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<IProcessTable>(provider => OperatingSystem.IsMacOS()
                 ? new Adapters.Native.NativeProcessTable(provider.GetRequiredService<TimeProvider>())
                 : new ProcessTable(provider.GetRequiredService<IPrograms>(), provider.GetRequiredService<TimeProvider>()));
-            services.AddSingleton<ISessions, MachineSessions>();
+            services.AddSingleton<IHolders, MachineSessions>();
             services.AddSingleton<Disposal>();
             services.AddSingleton<Sizes>();
             services.AddSingleton<FileTrail>();

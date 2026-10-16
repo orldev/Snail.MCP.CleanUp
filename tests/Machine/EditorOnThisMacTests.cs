@@ -2,10 +2,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Snail.MCP.CleanUp.Application.Ports;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Application.Ports;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
 using Snail.MCP.CleanUp.Extensions;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Application.Ports;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Machine;
 
@@ -27,8 +28,8 @@ public sealed class EditorOnThisMacTests : IDisposable
         using var host = builder.Build();
         var services = host.Services;
         var isCodeRunning = (await services.GetRequiredService<IProcessTable>().ListAsync(CancellationToken.None)).Any(process => process.Program == "Code");
-        var me = await services.GetRequiredService<ISessions>().CurrentAsync(CancellationToken.None);
-        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Caches, "machine");
+        var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
+        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Caches, "machine", MachineKinds.Order);
         var webStorage = Assert.Single(plan.Decisions, decision => decision.Resource.Key.EndsWith("/Code/WebStorage", StringComparison.Ordinal));
 
         Assert.Equal(isCodeRunning ? Verdict.Report : Verdict.Remove, webStorage.Verdict);

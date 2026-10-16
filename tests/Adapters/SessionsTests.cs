@@ -49,7 +49,7 @@ public sealed class SessionsTests : IDisposable
 
         var sessions = await Sessions.ListAsync(CancellationToken.None);
 
-        Assert.False(sessions.Single(session => session.Id == "s1").IsAlive);
+        Assert.False(sessions.Single(session => session.Owner.Id == "s1").IsAlive);
     }
 
     /// <summary>A resumed session keeps its id and its start from hours ago; its agent is a new process SleepOf has heard from since.</summary>
@@ -68,7 +68,7 @@ public sealed class SessionsTests : IDisposable
         _processes.Add(4242, 1, "/bin/claude", Began.AddSeconds(-30));
         Written($$$"""{"sessions":[{"id":"s1","startedAt":{{{SleepOfMoment}}},"state":"ended"}],"pids":{"s1":4242}}""");
 
-        Assert.False((await Sessions.ListAsync(CancellationToken.None)).Single(session => session.Id == "s1").IsAlive);
+        Assert.False((await Sessions.ListAsync(CancellationToken.None)).Single(session => session.Owner.Id == "s1").IsAlive);
     }
 
     [Fact]
@@ -87,7 +87,7 @@ public sealed class SessionsTests : IDisposable
 
         var session = Assert.Single(await Sessions.ListAsync(CancellationToken.None));
 
-        Assert.Equal($"{MachineSessions.ByProcess}{agent.Key}", session.Id);
+        Assert.Equal($"{MachineSessions.ByProcess}{agent.Key}", session.Owner.Id);
         Assert.True(session.IsAlive);
     }
 

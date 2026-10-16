@@ -21,7 +21,7 @@ public sealed class OutsideKind(Sizes sizes, IReadOnlyList<(string Path, string 
     }
 
     /// <inheritdoc/>
-    public string Name => Kinds.Outside;
+    public string Name => MachineKinds.Outside;
 
     /// <summary>The known places under a home and a temporary folder.</summary>
     public static IReadOnlyList<(string Path, string Why)> Known(string home, string temporary) =>
@@ -37,7 +37,7 @@ public sealed class OutsideKind(Sizes sizes, IReadOnlyList<(string Path, string 
     ];
 
     /// <inheritdoc/>
-    public Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         var found = new List<Resource>(places.Count);
 

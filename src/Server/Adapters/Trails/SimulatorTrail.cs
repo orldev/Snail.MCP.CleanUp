@@ -9,7 +9,7 @@ namespace Snail.MCP.CleanUp.Adapters.Trails;
 public sealed class SimulatorTrail(IPrograms programs) : ITrail
 {
     /// <inheritdoc/>
-    public string Name => Kinds.Simulator;
+    public string Name => MachineKinds.Simulator;
 
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken)

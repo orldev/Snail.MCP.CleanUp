@@ -3,9 +3,10 @@ using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Adapters;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
+using Snail.Toolkit.Cleanup.Adapters;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
 
@@ -67,7 +68,7 @@ public sealed class FileKindTests : IDisposable
     {
         Scratchpad();
 
-        var running = new Session(SessionId, 1, DateTimeOffset.UnixEpoch, "/work", IsAlive: true);
+        var running = new Session(Owner.Session(SessionId), 1, IsAlive: true) { StartedAt = DateTimeOffset.UnixEpoch, Directory = "/work" };
         var scratchpad = Assert.Single((await Kind().ObserveAsync([running], CancellationToken.None)).Resources);
 
         Assert.NotNull(scratchpad.Blocker);
@@ -122,7 +123,7 @@ public sealed class FileKindTests : IDisposable
         Assert.Contains(followed.Traces, trace => trace.Key == _scratch.File("apps/NewTool"));
     }
 
-    private static Session Running => new(SessionId, 1, DateTimeOffset.UnixEpoch, "/work", IsAlive: true);
+    private static Session Running => new(Owner.Session(SessionId), 1, IsAlive: true) { StartedAt = DateTimeOffset.UnixEpoch, Directory = "/work" };
 
     /// <summary>A folder with a file in it, both made now — a day before the test's clock.</summary>
     private static string Made(string folder, string file = "blob")
@@ -190,13 +191,13 @@ public sealed class FileKindTests : IDisposable
         Repositories(scratchpad);
 
         var found = (await Kind().ObserveAsync([Running], CancellationToken.None)).Resources;
-        var mine = new Inventory(DateTimeOffset.UnixEpoch, Owner.Session(SessionId), found, [Running], new Dictionary<string, string>(), [], new Dictionary<string, string>());
+        var mine = new Inventory(DateTimeOffset.UnixEpoch, found, [Running]) { Asker = Owner.Session(SessionId) };
         var other = mine with { Asker = Owner.Session("another") };
 
-        Assert.Equal(5, Planner.Decide(mine, Scope.Mine, "plan").Removals.Count);
-        Assert.DoesNotContain(Planner.Decide(mine, Scope.Mine, "plan").Removals, decision => decision.Resource.Key == scratchpad);
-        Assert.Empty(Planner.Decide(other, Scope.Everything, "plan").Removals);
-        Assert.Empty(Planner.Decide(other, Scope.Caches, "plan").Decisions);
+        Assert.Equal(5, Planner.Decide(mine, Scope.Mine, "plan", MachineKinds.Order).Removals.Count);
+        Assert.DoesNotContain(Planner.Decide(mine, Scope.Mine, "plan", MachineKinds.Order).Removals, decision => decision.Resource.Key == scratchpad);
+        Assert.Empty(Planner.Decide(other, Scope.Everything, "plan", MachineKinds.Order).Removals);
+        Assert.Empty(Planner.Decide(other, Scope.Caches, "plan", MachineKinds.Order).Decisions);
     }
 
     [Fact]

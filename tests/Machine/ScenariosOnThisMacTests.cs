@@ -4,10 +4,11 @@ using Microsoft.Extensions.Hosting;
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Application.Ports;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
 using Snail.MCP.CleanUp.Extensions;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Application.Ports;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Machine;
 
@@ -48,8 +49,8 @@ public sealed class ScenariosOnThisMacTests : IDisposable
         var simulator = Simulator(Simulators.NameFor(dead, 1));
         var scratchpad = Scratchpad(dead.Id);
 
-        var me = await services.GetRequiredService<ISessions>().CurrentAsync(CancellationToken.None);
-        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Orphans, "machine");
+        var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
+        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Orphans, "machine", MachineKinds.Order);
         var ids = new[] { process, $"simulator:{simulator}", $"file:{scratchpad}" };
         var removals = plan.Removals.Where(decision => ids.Contains(decision.Resource.Id)).ToList();
 
@@ -68,14 +69,14 @@ public sealed class ScenariosOnThisMacTests : IDisposable
     {
         using var host = Host();
         var services = host.Services;
-        var sessions = services.GetRequiredService<ISessions>();
+        var sessions = services.GetRequiredService<IHolders>();
         var me = await sessions.CurrentAsync(CancellationToken.None);
         var neighbour = await NeighbourAsync(services);
 
         Assert.Contains(await sessions.ListAsync(CancellationToken.None), session => session.IsAlive && session.Owner == neighbour);
 
         var simulator = Simulator(Simulators.NameFor(neighbour, 1));
-        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Everything, "machine");
+        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Everything, "machine", MachineKinds.Order);
         var decision = plan.Decisions.Single(candidate => candidate.Resource.Key == simulator);
 
         Assert.Equal(Verdict.Keep, decision.Verdict);
@@ -91,8 +92,8 @@ public sealed class ScenariosOnThisMacTests : IDisposable
         var simulator = Simulator($"Developer phone {Guid.NewGuid():n}");
         var detached = Detached();
 
-        var me = await services.GetRequiredService<ISessions>().CurrentAsync(CancellationToken.None);
-        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Everything, "machine");
+        var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
+        var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Everything, "machine", MachineKinds.Order);
         var theirs = plan.Decisions.Where(decision => decision.Resource.Key == simulator || decision.Resource.Facts.GetValueOrDefault("pid") == $"{detached}").ToList();
 
         Assert.Equal(2, theirs.Count);

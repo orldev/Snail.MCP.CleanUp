@@ -4,10 +4,11 @@ using Microsoft.Extensions.Hosting;
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
-using Snail.MCP.CleanUp.Core.Application;
-using Snail.MCP.CleanUp.Core.Application.Ports;
-using Snail.MCP.CleanUp.Core.Domain;
+using Snail.MCP.CleanUp.Domain;
 using Snail.MCP.CleanUp.Extensions;
+using Snail.Toolkit.Cleanup.Application;
+using Snail.Toolkit.Cleanup.Application.Ports;
+using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Machine;
 
@@ -38,13 +39,13 @@ public sealed class EmulatorOnThisMacTests : IDisposable
 
         _device = leased.Data!["avd"]!.GetValue<string>();
 
-        var me = await services.GetRequiredService<ISessions>().CurrentAsync(CancellationToken.None);
+        var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
         var plan = await PlannedAsync(services, me, _device);
 
         var removals = plan.Removals.Where(decision => decision.Resource.Key == _device).ToList();
         var releases = await services.GetRequiredService<Cleaner>().ApplyAsync(plan with { Decisions = removals }, CancellationToken.None);
 
-        Assert.Equal([Kinds.Emulator, Kinds.VirtualDevice], removals.Select(decision => decision.Resource.Kind));
+        Assert.Equal([MachineKinds.Emulator, MachineKinds.VirtualDevice], removals.Select(decision => decision.Resource.Kind));
         Assert.All(releases, release => Assert.Equal(Outcome.Released, release.Outcome));
         Assert.DoesNotContain(_device, android.DeviceNames());
         Assert.Equal(hadAdb, await android.IsAdbRunningAsync(CancellationToken.None));
@@ -57,9 +58,9 @@ public sealed class EmulatorOnThisMacTests : IDisposable
     {
         for (var attempt = 0; attempt < 30; attempt++)
         {
-            var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Mine, "machine");
+            var plan = Planner.Decide(await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None), Scope.Mine, "machine", MachineKinds.Order);
 
-            if (plan.Removals.Any(decision => decision.Resource.Kind == Kinds.Emulator && decision.Resource.Key == device))
+            if (plan.Removals.Any(decision => decision.Resource.Kind == MachineKinds.Emulator && decision.Resource.Key == device))
                 return plan;
 
             await Task.Delay(TimeSpan.FromSeconds(1));

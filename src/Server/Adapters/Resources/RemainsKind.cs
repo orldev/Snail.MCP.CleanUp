@@ -51,7 +51,7 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
     private string TestRunsKey => Path.Combine(directory, $"{TestRun}*");
 
     /// <inheritdoc/>
-    public string Name => Kinds.Remains;
+    public string Name => MachineKinds.Remains;
 
     /// <summary>Whether a name is one the runtime gives an endpoint of a process, read without making a string of it.</summary>
     public static bool IsEndpoint(ReadOnlySpan<char> name) => Endpoint(name) is not null;
@@ -60,7 +60,7 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
     public static bool IsRemains(ReadOnlySpan<char> name) => Endpoint(name) is not null || TestRoot(name) is not null;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         var running = await table.ListAsync(cancellationToken);
 

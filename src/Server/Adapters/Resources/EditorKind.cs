@@ -16,12 +16,12 @@ public sealed class EditorKind(ServerConfig config, Disposal disposal, Sizes siz
     public static TimeSpan InUse { get; } = TimeSpan.FromHours(1);
 
     /// <inheritdoc/>
-    public string Name => Kinds.Editor;
+    public string Name => MachineKinds.Editor;
 
     private string Storage => Path.Combine(config.EditorUserDirectory, "workspaceStorage");
 
     /// <inheritdoc/>
-    public Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         if (!Directory.Exists(Storage))
             return Task.FromResult(new Observation(Name, [], []));

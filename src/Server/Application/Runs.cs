@@ -12,7 +12,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// log of its own, never to this server's stdout — that is the JSON-RPC stream, and one stray line from a
 /// dev server there breaks the session.
 /// </remarks>
-public sealed class Runs(ServerConfig config, ISessions sessions, ILedger ledger, IProcessTable table, TimeProvider clock)
+public sealed class Runs(ServerConfig config, IHolders sessions, ILedger ledger, IProcessTable table, TimeProvider clock)
 {
     /// <summary>Starts the command in the directory and answers with its process and its log.</summary>
     public async Task<Answer> StartAsync(string command, string? directory, CancellationToken cancellationToken)

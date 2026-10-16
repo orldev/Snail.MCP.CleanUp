@@ -88,7 +88,7 @@ public sealed class DiskTrend(IVolume volume, IDiskHistory history, ServerConfig
 
     /// <summary>What a census writes down the size of: the scratchpads of sessions, test results, and caches.</summary>
     private static bool IsGrower(Resource resource) =>
-        resource.Facts.ContainsKey(FileKind.SessionFact) || string.Equals(resource.Kind, Kinds.TestResults, StringComparison.Ordinal) || resource.IsShared;
+        resource.Facts.ContainsKey(FileKind.SessionFact) || string.Equals(resource.Kind, MachineKinds.TestResults, StringComparison.Ordinal) || resource.IsShared;
 
     /// <summary>What grew most within the samples: each thing's last size less its first, the largest growths first.</summary>
     private static List<(string Id, string Title, long Grew, long Size)> Growers(IReadOnlyList<SizeSample> samples)

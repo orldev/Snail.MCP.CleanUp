@@ -24,7 +24,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// <see cref="Fallback"/> regardless, for what the kernel is not asked about.
 /// </para>
 /// </remarks>
-public sealed class Watch(MeasuredCensus census, ISessions sessions, IShifts shifts, IChanges changes, ILogger<Watch> logger, TimeProvider clock) : BackgroundService
+public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shifts, IChanges changes, ILogger<Watch> logger, TimeProvider clock) : BackgroundService
 {
     /// <summary>How long after a change the census waits, so that a burst of changes is counted once.</summary>
     public static TimeSpan Settle { get; } = TimeSpan.FromSeconds(2);
@@ -120,7 +120,7 @@ public sealed class Watch(MeasuredCensus census, ISessions sessions, IShifts shi
 
             Log.CensusTaken(logger, asker, inventory.Resources.Count, orphans);
 
-            return [.. inventory.Sessions.Where(session => session.IsAlive && session.Pid is > 0).Select(session => session.Pid!.Value)];
+            return [.. inventory.Holders.OfType<Session>().Where(session => session.IsAlive && session.Pid is > 0).Select(session => session.Pid!.Value)];
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
         {

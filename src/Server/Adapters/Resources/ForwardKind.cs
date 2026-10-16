@@ -9,10 +9,10 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 public sealed class ForwardKind(Android android, IPrograms programs) : IResourceKind
 {
     /// <inheritdoc/>
-    public string Name => Kinds.Forward;
+    public string Name => MachineKinds.Forward;
 
     /// <inheritdoc/>
-    public async Task<Observation> ObserveAsync(IReadOnlyList<Session> sessions, CancellationToken cancellationToken)
+    public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> sessions, CancellationToken cancellationToken)
     {
         if (!File.Exists(android.Adb) || !await android.IsAdbRunningAsync(cancellationToken))
             return new Observation(Name, [], []);
@@ -47,7 +47,7 @@ public sealed class ForwardKind(Android android, IPrograms programs) : IResource
             .Where(parts => parts.Length == 3)
             .Select(parts => new Resource
             {
-                Kind = Kinds.Forward,
+                Kind = MachineKinds.Forward,
                 Key = $"{direction}/{parts[0]}/{parts[1]}",
                 Title = $"adb {direction} {parts[1]} → {parts[2]} on {parts[0]}",
                 Facts = new Dictionary<string, string> { ["direction"] = direction, ["serial"] = parts[0], ["local"] = parts[1], ["remote"] = parts[2] }
