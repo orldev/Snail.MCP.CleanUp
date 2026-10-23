@@ -105,6 +105,8 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<Runs>();
             services.AddSingleton<Leases>();
             services.AddSingleton<Account>();
+            services.AddSingleton<SweepLog>();
+            services.AddSingleton<Upkeep>();
             services.AddSingleton<Hooks>();
             services.AddSingleton<HookInstallation>();
             services.AddSingleton<Snail.MCP.CleanUp.Tools.ToolIndex>();

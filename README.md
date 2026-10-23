@@ -13,6 +13,9 @@ Three ideas carry it:
   plan is carried out. Each resource is checked again right before it goes, and left alone if it changed — and so is
   its owner: what belongs to a session resumed since the plan was shown stays. When the process table cannot be read,
   no session can be told to have ended, so nothing is planned at all and the answer says why.
+- **What nobody needs to see first, it clears itself.** After its census, at most every ten minutes, the server holding
+  the watch carries out the part of a plan nobody has to look at: what sessions over for an hour left, the remains of
+  ended processes, and Docker's build cache once past 10 GB ([What it clears by itself](#what-it-clears-by-itself)).
 - **Nobody knows every kind of leftover.** Trails over files, detached processes, ports, crontab, simulators,
   Docker and certificates are compared with what each session began with. What is new and claimed by no kind is
   a *discovery*: written down, never removed — and one line in `rules.json` makes it a known kind from then on.
@@ -194,6 +197,27 @@ registration, which travel wherever they are copied. In the file a variable is a
 | `CLAUDE_SETTINGS` | `~/.claude/settings.json` |
 | `SCRATCHPAD_WARNING_GIGABYTES` | `10` — a running session's scratchpad this large is a warning |
 | `DISK_FALL_WARNING_GIGABYTES` | `20` — free space falling this far within a day is a warning |
+| `SWEEP_MINUTES` | `10` — how often the server clears on its own what may go without asking; `0` never |
+| `DOCKER_CACHE_SWEEP_GIGABYTES` | `10` — Docker's build cache past this is pruned by the server's own sweep |
+| `SCRATCHPAD_ERASE_HOURS` | `24` — the scratchpad of an ended session left this long unwritten is erased, not moved to the Trash |
+
+## What it clears by itself
+
+A sweep at a session's end found the session's scratchpad written moments before and left it, and nothing came back
+for it: in twelve days 152 scratchpads of 4.4 GB, 29 GB of Docker's build cache and 11 001 endpoints of ended processes
+waited for somebody to ask (2026-10-24). So the server that holds the watch, after its census and at most every
+`SWEEP_MINUTES`, carries out on its own what a plan over everything would remove and nobody needs to see first:
+
+- what a session left — its programs, MCP servers, simulators, emulators, containers — once the session has been over
+  for an hour, so that one resumed in that hour finds its things; the sessions are asked again right before;
+- a session's scratchpad once nothing was written in it for `SCRATCHPAD_ERASE_HOURS` after the session ended, erased
+  rather than moved to the Trash, which gives no space back — a plan erases such a scratchpad too, and still moves a
+  younger one to the Trash;
+- the debugger pipes, diagnostic sockets and test folders of processes that have ended;
+- Docker's build cache, once past `DOCKER_CACHE_SWEEP_GIGABYTES`.
+
+What the asking session holds, what a running session holds and every other cache are left to a plan somebody asks
+for. Each sweep that released something is written to `sweeps.log` as `upkeep`. `SWEEP_MINUTES` of `0` turns it off.
 
 ## What it never does
 

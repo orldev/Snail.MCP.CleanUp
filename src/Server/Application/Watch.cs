@@ -24,7 +24,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// <see cref="Fallback"/> regardless, for what the kernel is not asked about.
 /// </para>
 /// </remarks>
-public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shifts, IChanges changes, ILogger<Watch> logger, TimeProvider clock) : BackgroundService
+public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shifts, IChanges changes, Upkeep upkeep, ILogger<Watch> logger, TimeProvider clock) : BackgroundService
 {
     /// <summary>How long after a change the census waits, so that a burst of changes is counted once.</summary>
     public static TimeSpan Settle { get; } = TimeSpan.FromSeconds(2);
@@ -68,7 +68,7 @@ public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shif
     {
         await Task.Delay(Warmup, clock, stoppingToken);
 
-        var agents = await TakeAsync(stoppingToken);
+        var agents = await TakeAsync(await HoldsTheWatchAsync(stoppingToken), stoppingToken);
         var last = clock.GetUtcNow();
 
         while (!stoppingToken.IsCancellationRequested)
@@ -95,7 +95,7 @@ public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shif
                 await Task.Delay(Settle > Quiet - since ? Settle : Quiet - since, clock, stoppingToken);
 
             changes.TryTake();
-            agents = await TakeAsync(stoppingToken);
+            agents = await TakeAsync(isWatching: true, stoppingToken);
             last = clock.GetUtcNow();
             changes.Follow(agents);
         }
@@ -132,8 +132,8 @@ public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shif
         }
     }
 
-    /// <summary>Takes a census; the processes of the agents it found running, for the kernel to follow.</summary>
-    private async Task<IReadOnlyList<int>> TakeAsync(CancellationToken cancellationToken)
+    /// <summary>Takes a census, and the upkeep when this server holds the watch and one is due; the processes of the agents it found running, for the kernel to follow.</summary>
+    private async Task<IReadOnlyList<int>> TakeAsync(bool isWatching, CancellationToken cancellationToken)
     {
         try
         {
@@ -144,6 +144,9 @@ public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shif
 
             Log.CensusTaken(logger, asker, inventory.Resources.Count, orphans);
 
+            if (isWatching && upkeep.IsDue)
+                await KeepUpAsync(inventory, cancellationToken);
+
             return [.. inventory.Holders.OfType<Session>().Where(session => session.IsAlive && session.Pid is > 0).Select(session => session.Pid!.Value)];
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
@@ -151,6 +154,22 @@ public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shif
             Log.CensusFailed(logger, failure, Interval);
 
             return [];
+        }
+    }
+
+    /// <summary>Clears what may go without asking; a failure of it is no failure of the census.</summary>
+    private async Task KeepUpAsync(Inventory inventory, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var releases = await upkeep.SweepAsync(inventory, cancellationToken);
+
+            if (releases.Count > 0)
+                Log.UpkeepDone(logger, releases.Count(release => release.Outcome == Outcome.Released), releases.Count);
+        }
+        catch (Exception failure) when (failure is not OperationCanceledException)
+        {
+            Log.UpkeepFailed(logger, failure);
         }
     }
 }

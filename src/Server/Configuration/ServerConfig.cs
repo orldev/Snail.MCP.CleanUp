@@ -46,6 +46,21 @@ public sealed class ServerConfig
     /// <remarks>Free space fell by 50 GB in a day without a word on 2026-10-13.</remarks>
     public double DiskFallWarningGigabytes { get; set; } = 20;
 
+    /// <summary>How often, in minutes, the server clears on its own what may go without asking; 10 when not set, 0 never.</summary>
+    /// <remarks>
+    /// A sweep at a session's end leaves its scratchpad, written moments before, and nothing came back for it: in twelve days
+    /// 152 scratchpads of ended sessions, 29 GB of Docker's build cache and 11 001 endpoints of ended processes were left for
+    /// somebody to ask about (2026-10-24).
+    /// </remarks>
+    public double SweepMinutes { get; set; } = 10;
+
+    /// <summary>How large Docker's build cache may grow, in gigabytes, before the server's own sweep prunes it; 10 when not set.</summary>
+    public double DockerCacheSweepGigabytes { get; set; } = 10;
+
+    /// <summary>How long, in hours, nothing must have been written in the scratchpad of an ended session before it is erased rather than moved to the Trash; 24 when not set.</summary>
+    /// <remarks>The Trash gives back no space: 148 scratchpads swept at their sessions' end waited there for somebody to empty it.</remarks>
+    public double ScratchpadEraseHours { get; set; } = 24;
+
     /// <summary>The Android SDK, with <c>emulator/emulator</c>, <c>platform-tools/adb</c> and <c>system-images</c> inside.</summary>
     public string AndroidSdk { get; set; } =
         Environment.GetEnvironmentVariable("ANDROID_HOME")

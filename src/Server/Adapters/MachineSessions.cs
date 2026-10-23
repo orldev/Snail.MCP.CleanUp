@@ -44,9 +44,7 @@ public sealed class MachineSessions(ServerConfig config, IProcessTable processes
         var agents = running.Where(IsAgent).ToDictionary(process => process.Pid);
         var written = await WrittenAsync(cancellationToken);
 
-        var known = written
-            .Select(entry => new Session(Owner.Session(entry.Id), entry.Pid, IsAlive(entry, agents)) { StartedAt = entry.StartedAt, Directory = entry.Directory })
-            .ToList();
+        var known = written.Select(entry => Known(entry, agents)).ToList();
         var accounted = known.Where(session => session.IsAlive && session.Pid is not null).Select(session => session.Pid!.Value).ToHashSet();
 
         known.AddRange(agents.Values
@@ -54,6 +52,19 @@ public sealed class MachineSessions(ServerConfig config, IProcessTable processes
             .Select(agent => new Session(Owner.Session(NameOf(agent)), agent.Pid, IsAlive: true) { StartedAt = agent.StartedAt }));
 
         return known;
+    }
+
+    /// <summary>A session SleepOf wrote down; one that is over ended when SleepOf last heard from it.</summary>
+    private static Session Known(SleepOfAgents.Entry entry, IReadOnlyDictionary<int, RunningProcess> agents)
+    {
+        var isAlive = IsAlive(entry, agents);
+
+        return new Session(Owner.Session(entry.Id), entry.Pid, isAlive)
+        {
+            StartedAt = entry.StartedAt,
+            EndedAt = isAlive ? null : entry.UpdatedAt ?? entry.StartedAt,
+            Directory = entry.Directory
+        };
     }
 
     /// <inheritdoc/>

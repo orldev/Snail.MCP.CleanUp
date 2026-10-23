@@ -74,9 +74,12 @@ public sealed class FileKindTests : IDisposable
         Assert.NotNull(scratchpad.Blocker);
     }
 
+    /// <summary>A scratchpad last written a couple of hours after its session ended may still be somebody's only copy: it goes to the Trash.</summary>
     [Fact]
     public async Task Scratchpad_Released_GoesToTheTrash()
     {
+        _clock = new FakeTimeProvider(DateTimeOffset.UtcNow.AddHours(2));
+
         var path = Scratchpad();
         var kind = Kind();
 
@@ -85,6 +88,41 @@ public sealed class FileKindTests : IDisposable
         Assert.Equal(Outcome.Released, release.Outcome);
         Assert.False(Directory.Exists(path));
         Assert.True(Directory.Exists(_scratch.File($"Trash/{SessionId}")));
+    }
+
+    /// <summary>
+    /// The Trash gives back no space, and 148 scratchpads swept at their sessions' end waited there (2026-10-24). One nobody
+    /// wrote in for a day after its session ended is erased, and the release says why.
+    /// </summary>
+    [Fact]
+    public async Task Scratchpad_LeftADayUnwrittenAfterItsSessionEnded_IsErased_NotTrashed()
+    {
+        _clock = new FakeTimeProvider(DateTimeOffset.UtcNow.AddDays(2));
+
+        var path = Scratchpad();
+        var kind = Kind();
+        var scratchpad = Assert.Single((await kind.ObserveAsync([], CancellationToken.None)).Resources);
+
+        var release = await kind.ReleaseAsync(scratchpad, CancellationToken.None);
+
+        Assert.True(scratchpad.IsRegenerable);
+        Assert.Equal(Outcome.Released, release.Outcome);
+        Assert.StartsWith("erased: nothing was written in it for", release.Detail, StringComparison.Ordinal);
+        Assert.False(Directory.Exists(path));
+        Assert.False(Directory.Exists(_scratch.File($"Trash/{SessionId}")));
+    }
+
+    /// <summary>A running session's scratchpad is never erasable, however long since it was written.</summary>
+    [Fact]
+    public async Task Scratchpad_OfARunningSession_IsNeverErasable()
+    {
+        _clock = new FakeTimeProvider(DateTimeOffset.UtcNow.AddDays(2));
+        Scratchpad();
+
+        var running = new Session(Owner.Session(SessionId), 4242, IsAlive: true);
+        var scratchpad = (await Kind().ObserveAsync([running], CancellationToken.None)).Resources.Single(resource => resource.Facts.ContainsKey(FileKind.SessionFact));
+
+        Assert.False(scratchpad.IsRegenerable);
     }
 
     /// <summary>VS Code holds its webview caches open; a cache rule names the program that blocks it.</summary>

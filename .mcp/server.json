@@ -78,6 +78,24 @@
           "description": "How far the free space may fall within a day, in gigabytes, before the inventory warns and names what grew most.",
           "isRequired": false,
           "default": "20"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_SWEEP_MINUTES",
+          "description": "How often, in minutes, the server clears on its own what may go without asking; 0 turns it off.",
+          "isRequired": false,
+          "default": "10"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_DOCKER_CACHE_SWEEP_GIGABYTES",
+          "description": "How large Docker's build cache may grow, in gigabytes, before the server's own sweep prunes it.",
+          "isRequired": false,
+          "default": "10"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_SCRATCHPAD_ERASE_HOURS",
+          "description": "How long, in hours, nothing must have been written in the scratchpad of an ended session before it is erased rather than moved to the Trash.",
+          "isRequired": false,
+          "default": "24"
         }
       ]
     }

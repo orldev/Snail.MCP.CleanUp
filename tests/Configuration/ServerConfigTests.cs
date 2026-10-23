@@ -35,12 +35,27 @@ public sealed class ServerConfigTests
     [InlineData("-3")]
     public void Warning_OfNoSize_StopsTheServer(string gigabytes)
     {
-        foreach (var variable in (string[])["SCRATCHPAD_WARNING_GIGABYTES", "DISK_FALL_WARNING_GIGABYTES"])
+        foreach (var variable in (string[])["SCRATCHPAD_WARNING_GIGABYTES", "DISK_FALL_WARNING_GIGABYTES", "DOCKER_CACHE_SWEEP_GIGABYTES", "SCRATCHPAD_ERASE_HOURS"])
         {
             var settings = ServerConfigExtensions.Settings(new Dictionary<string, string> { [$"{EnvironmentSettings.Prefix}{variable}"] = gigabytes });
 
             Assert.Throws<InvalidOperationException>(() => ServerConfigExtensions.Read(settings));
         }
+    }
+
+    /// <summary>The server's own sweep is turned off with 0 minutes; a negative interval is a typo, and stops the server.</summary>
+    [Theory]
+    [InlineData("0", true)]
+    [InlineData("30", true)]
+    [InlineData("-1", false)]
+    public void SweepMinutes_ZeroTurnsTheSweepOff_ANegativeOneStopsTheServer(string minutes, bool isTaken)
+    {
+        var settings = ServerConfigExtensions.Settings(new Dictionary<string, string> { [$"{EnvironmentSettings.Prefix}SWEEP_MINUTES"] = minutes });
+
+        if (isTaken)
+            Assert.Equal(double.Parse(minutes, System.Globalization.CultureInfo.InvariantCulture), ServerConfigExtensions.Read(settings).SweepMinutes);
+        else
+            Assert.Throws<InvalidOperationException>(() => ServerConfigExtensions.Read(settings));
     }
 
     [Fact]

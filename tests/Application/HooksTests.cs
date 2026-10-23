@@ -31,7 +31,7 @@ public sealed class HooksTests : IDisposable
         var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch.AddDays(1));
         var census = new Census([_processes], [], sessions, ledger, new JsonRules(_scratch.File("rules.json"), []), new SqliteBaselines(_file), new SqliteDiscoveries(_file), clock);
 
-        return new Hooks(new MeasuredCensus(census, new Performance(clock)), new Cleaner([_processes], ledger), new FakePrograms(), new ServerConfig { DataDirectory = _scratch.Path }, NullLogger<Hooks>.Instance, clock);
+        return new Hooks(new MeasuredCensus(census, new Performance(clock)), new Cleaner([_processes], ledger), new FakePrograms(), new SweepLog(new ServerConfig { DataDirectory = _scratch.Path }, clock), NullLogger<Hooks>.Instance);
     }
 
     /// <summary>A machine whose sessions cannot be told fails no hook of the agent: nothing is swept, and the log says why.</summary>

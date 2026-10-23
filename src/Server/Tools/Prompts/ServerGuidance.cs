@@ -18,7 +18,8 @@ public static class ServerGuidance
         and shows it; cleanup_apply carries out exactly that plan. Something merely seen appearing during a
         session is reported, never removed: proof is a name or label carrying the session, a program's
         environment naming it (CLAUDE_CODE_SESSION_ID), this server having started it, or having seen it run
-        under the agent's own shells.
+        under the agent's own shells. On its own the server clears what nobody needs to see first: what
+        sessions over for an hour left, the remains of ended processes, Docker's build cache once it is large.
 
         Make things on the record so that the proof exists. Start a long-running program with cleanup_run
         rather than in the background from a shell. Take a simulator with cleanup_simulator_acquire and an

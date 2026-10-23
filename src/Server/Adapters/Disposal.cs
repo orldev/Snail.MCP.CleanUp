@@ -11,6 +11,9 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// </remarks>
 public sealed class Disposal(ServerConfig config, TimeProvider clock)
 {
+    /// <summary>The fact a resource erased though it does not rebuild itself carries why it is erased under.</summary>
+    public const string ErasedFact = "erased";
+
     /// <summary>Removes the file or directory at the path the way its nature calls for.</summary>
     public Release Dispose(Resource resource, string path)
     {
@@ -34,7 +37,9 @@ public sealed class Disposal(ServerConfig config, TimeProvider clock)
         else
             Directory.Delete(path, recursive: true);
 
-        return Release.Done(resource, "erased: it rebuilds itself");
+        var why = resource.Facts.TryGetValue(ErasedFact, out var said) ? said : "it rebuilds itself";
+
+        return Release.Done(resource, $"erased: {why}");
     }
 
     private Release Trashed(Resource resource, string path)

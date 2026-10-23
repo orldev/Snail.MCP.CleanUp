@@ -1,6 +1,5 @@
-using System.Globalization;
 using System.Text.Json;
-using Snail.MCP.CleanUp.Configuration;
+using Snail.MCP.CleanUp.Adapters;
 using Snail.Toolkit.Cleanup.Application;
 
 namespace Snail.MCP.CleanUp.Application;
@@ -13,7 +12,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// when it ends. A hook never blocks the agent and never prints to it: whatever happens is written to the
 /// sweep log, and the hook exits cleanly.
 /// </remarks>
-public sealed class Hooks(MeasuredCensus census, Cleaner cleaner, IPrograms programs, ServerConfig config, ILogger<Hooks> logger, TimeProvider clock)
+public sealed class Hooks(MeasuredCensus census, Cleaner cleaner, IPrograms programs, SweepLog log, ILogger<Hooks> logger)
 {
     /// <summary>The verb Claude Code calls the server with as a hook.</summary>
     public const string Verb = "hook";
@@ -33,7 +32,7 @@ public sealed class Hooks(MeasuredCensus census, Cleaner cleaner, IPrograms prog
         }
         catch (SessionsUnknownException unknown)
         {
-            await NoteAsync($"{name} of {session} not handled: {unknown.Message}", cancellationToken);
+            await log.WriteAsync($"{name} of {session} not handled: {unknown.Message}", cancellationToken);
         }
     }
 
@@ -66,7 +65,7 @@ public sealed class Hooks(MeasuredCensus census, Cleaner cleaner, IPrograms prog
         var plan = Planner.Decide(await census.TakeAsync(session, cancellationToken), Scope.Mine, $"sweep-{Guid.NewGuid():n}"[..16], MachineKinds.Order);
         var releases = await cleaner.ApplyAsync(plan, cancellationToken);
 
-        await WriteAsync(session, plan, releases, cancellationToken);
+        await log.WriteAsync(SweepLog.Of($"sweep of {session}", plan, releases, withWhatWasLeft: true), cancellationToken);
 
         return releases;
     }
@@ -97,22 +96,5 @@ public sealed class Hooks(MeasuredCensus census, Cleaner cleaner, IPrograms prog
 
         if (!await programs.TryDetachAsync([program, .. arguments, verb], cancellationToken))
             Log.DetachedNotStarted(logger, verb);
-    }
-
-    private async Task WriteAsync(Owner session, Plan plan, IReadOnlyList<Release> releases, CancellationToken cancellationToken)
-    {
-        var lines = releases.Select(release => $"  {release.Outcome.ToString().ToLowerInvariant()} {release.ResourceId}: {release.Detail}")
-            .Concat(plan.Decisions.Where(decision => decision.Verdict != Verdict.Remove).Select(decision => $"  {decision.Verdict.ToString().ToLowerInvariant()} {decision.Resource.Id}: {decision.Reason}"));
-        await NoteAsync($"sweep of {session}\n{string.Join('\n', lines)}", cancellationToken);
-    }
-
-    /// <summary>Writes a line of what a hook did, or why it did nothing, to the sweep log.</summary>
-    private async Task NoteAsync(string said, CancellationToken cancellationToken)
-    {
-        Directory.CreateDirectory(config.DataDirectory);
-
-        var entry = $"{clock.GetLocalNow().ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)} {said}\n";
-
-        await File.AppendAllTextAsync(Path.Combine(config.DataDirectory, "sweeps.log"), entry, cancellationToken);
     }
 }

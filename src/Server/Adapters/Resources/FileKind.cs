@@ -73,24 +73,8 @@ public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules,
             foreach (var scratchpad in Directories(project).Where(directory => Guid.TryParse(Path.GetFileName(directory), out _)))
             {
                 var session = Path.GetFileName(scratchpad);
-                var written = clock.GetUtcNow().UtcDateTime - LastWritten(scratchpad);
-                var size = sizes.Of(scratchpad);
 
-                yield return new Resource
-                {
-                    Kind = Name,
-                    Key = scratchpad,
-                    Title = $"scratchpad of session {session} in {Path.GetFileName(project)}",
-                    Owner = Owner.Session(session),
-                    Evidence = Evidence.Label,
-                    Bytes = size?.Bytes,
-                    IsAtLeast = size is { IsAtLeast: true },
-                    CreatedAt = Directory.GetCreationTimeUtc(scratchpad),
-                    Blocker = alive.Contains(session)
-                        ? "its session is still running and writes into it"
-                        : written < InUse ? $"written {written.TotalMinutes:0} minutes ago: its session may still be running unseen" : null,
-                    Facts = new Dictionary<string, string> { [SessionFact] = session }
-                };
+                yield return Scratchpad(project, scratchpad, session, alive.Contains(session));
 
                 if (!alive.Contains(session))
                     continue;
@@ -99,6 +83,42 @@ public sealed class FileKind(ServerConfig config, FileTrail trail, IRules rules,
                     yield return Output(scratchpad, session, output);
             }
         }
+    }
+
+    /// <summary>A session's scratchpad, the session's by its name; erased rather than trashed once its session is over and nothing was written in it for long enough.</summary>
+    /// <remarks>
+    /// The Trash gives back no space: 148 scratchpads swept at their sessions' end waited there for somebody to empty it
+    /// (2026-10-24). What an agent wrote in a scratchpad nobody has touched for a day after its session ended is no longer
+    /// anybody's only copy of something, so it is erased; a younger one still goes to the Trash.
+    /// </remarks>
+    private Resource Scratchpad(string project, string scratchpad, string session, bool isAlive)
+    {
+        var written = clock.GetUtcNow().UtcDateTime - LastWritten(scratchpad);
+        var size = sizes.Of(scratchpad);
+        var isErasable = !isAlive && written >= TimeSpan.FromHours(config.ScratchpadEraseHours);
+        var facts = new Dictionary<string, string> { [SessionFact] = session };
+
+        if (isErasable)
+            facts[Disposal.ErasedFact] = $"nothing was written in it for {written.TotalHours:0} hours after its session ended";
+
+        var resource = new Resource
+        {
+            Kind = Name,
+            Key = scratchpad,
+            Title = $"scratchpad of session {session} in {Path.GetFileName(project)}",
+            Owner = Owner.Session(session),
+            Evidence = Evidence.Label,
+            Bytes = size?.Bytes,
+            IsAtLeast = size is { IsAtLeast: true },
+            IsRegenerable = isErasable,
+            CreatedAt = Directory.GetCreationTimeUtc(scratchpad),
+            Blocker = isAlive
+                ? "its session is still running and writes into it"
+                : written < InUse ? $"written {written.TotalMinutes:0} minutes ago: its session may still be running unseen" : null,
+            Facts = facts
+        };
+
+        return resource;
     }
 
     /// <summary>An output of a running session's scratchpad: the session's by the scratchpad's name, and made again by the next build.</summary>

@@ -51,6 +51,15 @@ public static class ServerConfigExtensions
         if (!(config.DiskFallWarningGigabytes > 0))
             faults.Add($"DiskFallWarningGigabytes must be a number of gigabytes above zero, not {config.DiskFallWarningGigabytes}");
 
+        if (!(config.SweepMinutes >= 0))
+            faults.Add($"SweepMinutes must be a number of minutes, 0 for never, not {config.SweepMinutes}");
+
+        if (!(config.DockerCacheSweepGigabytes > 0))
+            faults.Add($"DockerCacheSweepGigabytes must be a number of gigabytes above zero, not {config.DockerCacheSweepGigabytes}");
+
+        if (!(config.ScratchpadEraseHours > 0))
+            faults.Add($"ScratchpadEraseHours must be a number of hours above zero, not {config.ScratchpadEraseHours}");
+
         if (faults.Count > 0)
             throw new InvalidOperationException($"invalid configuration: {string.Join("; ", faults)}");
     }

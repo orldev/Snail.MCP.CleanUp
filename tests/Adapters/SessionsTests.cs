@@ -65,6 +65,19 @@ public sealed class SessionsTests : IDisposable
         Assert.False(sessions.Single(session => session.Owner.Id == "s1").IsAlive);
     }
 
+    /// <summary>A session that is over ended when SleepOf last heard from it: the grace before the server clears what it left counts from there.</summary>
+    [Fact]
+    public async Task Session_ThatIsOver_EndedWhenSleepOfLastHeardFromIt()
+    {
+        Written($$$"""{"sessions":[{"id":"s1","startedAt":{{{SleepOfMoment}}},"updatedAt":{{{SleepOfMoment + 600}}}}],"pids":{"s1":4242}}""");
+        _processes.Add(1, 0, "/sbin/launchd");
+
+        var session = Assert.Single(await Sessions.ListAsync(CancellationToken.None));
+
+        Assert.False(session.IsAlive);
+        Assert.Equal(Began.AddSeconds(600), session.EndedAt);
+    }
+
     /// <summary>A resumed session keeps its id and its start from hours ago; its agent is a new process SleepOf has heard from since.</summary>
     [Fact]
     public async Task Session_ResumedByANewAgent_IsAlive()

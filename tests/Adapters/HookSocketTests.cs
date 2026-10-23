@@ -39,7 +39,7 @@ public sealed class HookSocketTests : IAsyncLifetime
         var ledger = new SqliteLedger(_file);
         var clock = new FakeTimeProvider(DateTimeOffset.UnixEpoch.AddDays(1));
         var census = new Census([_processes], [], sessions, ledger, new JsonRules(_scratch.File("rules.json"), []), new SqliteBaselines(_file), new SqliteDiscoveries(_file), clock);
-        var hooks = new Hooks(new MeasuredCensus(census, new Performance(clock)), new Cleaner([_processes], ledger), new FakePrograms(), Config, NullLogger<Hooks>.Instance, clock);
+        var hooks = new Hooks(new MeasuredCensus(census, new Performance(clock)), new Cleaner([_processes], ledger), new FakePrograms(), new SweepLog(Config, clock), NullLogger<Hooks>.Instance);
         var socket = new HookSocket(Config, hooks, NullLogger<HookSocket>.Instance, socketClock ?? TimeProvider.System);
 
         _sockets.Add(socket);
