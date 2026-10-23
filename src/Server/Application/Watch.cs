@@ -44,9 +44,30 @@ public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shif
     /// <remarks>Not how often a census is taken: that is on word of a change, at most every <see cref="Quiet"/>, and every <see cref="Fallback"/> regardless.</remarks>
     public static TimeSpan Interval { get; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>How long a stop waits for a census under way before it leaves the census to the exit.</summary>
+    /// <remarks>
+    /// Claude Code gives a server 100 ms after SIGINT and 400 ms after SIGTERM before it kills it. A stop that waited for
+    /// the census under way to finish took 70 ms at the median and up to 384 ms, and 33 of 289 servers were killed
+    /// (2026-10-23). A census only reads, and what it writes the ledger writes whole or not at all, so it is left to end
+    /// with the process.
+    /// </remarks>
+    public static TimeSpan Letting { get; } = TimeSpan.FromMilliseconds(20);
+
+    /// <summary>How long a server lives before its first census of its own.</summary>
+    /// <remarks>
+    /// Half the servers a client starts are closed within five seconds — 41 % within two, of 290 connections in the logs of
+    /// 2026-10-11 to 10-23 — and each took a census of hundreds of milliseconds and 40 to 84 MB for nobody, and was closed in
+    /// the middle of it: the census's threads, deep in the file system, held the process past the client's 100 ms. A tool
+    /// call or a hook in those seconds takes the census it needs; the watch's own begins after them.
+    /// </remarks>
+    public static TimeSpan Warmup { get; } = TimeSpan.FromSeconds(5);
+
     /// <inheritdoc/>
+    /// <remarks>It waits first, which also leaves the host's start, which the transport waits for, to the transport.</remarks>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Delay(Warmup, clock, stoppingToken);
+
         var agents = await TakeAsync(stoppingToken);
         var last = clock.GetUtcNow();
 
@@ -83,7 +104,9 @@ public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shif
     /// <inheritdoc/>
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        await base.StopAsync(cancellationToken);
+        var stopped = base.StopAsync(cancellationToken);
+
+        await Task.WhenAny(stopped, Task.Delay(Letting, clock, cancellationToken));
 
         try
         {

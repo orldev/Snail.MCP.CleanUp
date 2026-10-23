@@ -66,6 +66,7 @@ public sealed class DockerTests : IDisposable
             (200, """[{"Id":"sha256:abcdef0123456789abcdef","RepoTags":["demo-web:latest"],"Size":42,"Labels":{"snail.owner":"session:me"}}]"""),
         ("GET", "/system/df?type=build-cache") => (200, """{"BuildCache":[{"Size":1000000000,"InUse":false,"Shared":false},{"Size":210000000,"InUse":false,"Shared":false},{"Size":500,"InUse":true,"Shared":false},{"Size":700,"InUse":false,"Shared":true}]}"""),
         ("DELETE", $"/containers/{Web}?force=1") => (204, string.Empty),
+        ("DELETE", "/images/sha256:abcdef0123456789abcdef") => (200, """[{"Untagged":"demo-web:latest"},{"Deleted":"sha256:abcdef0123456789abcdef"}]"""),
         ("DELETE", var gone) when gone.StartsWith("/networks/", StringComparison.Ordinal) => (404, """{"message":"network not found"}"""),
         ("DELETE", var used) when used.StartsWith("/volumes/", StringComparison.Ordinal) => (409, """{"message":"volume is in use"}"""),
         ("POST", var prune) when prune.StartsWith("/images/prune", StringComparison.Ordinal) || prune.StartsWith("/build/prune", StringComparison.Ordinal) => (200, "{}"),
@@ -206,6 +207,37 @@ public sealed class DockerTests : IDisposable
         Assert.Contains("1 BuildKit record", records.Title, StringComparison.Ordinal);
         Assert.Equal(Outcome.Released, (await kind.ReleaseAsync(records, CancellationToken.None)).Outcome);
         Assert.Contains("docker buildx history rm old1", _programs.Calls);
+    }
+
+    /// <summary>
+    /// The Engine answers the removal of an image with what it untagged and deleted, a JSON array where every other answer
+    /// is an object: read as an object, the removal threw and was written down as failed (2026-10-15, a sweep's image).
+    /// </summary>
+    [Fact]
+    public async Task Image_Removed_IsReleased_ThoughTheEngineAnswersWithAnArray()
+    {
+        var image = Assert.Single((await new ImageKind(_socket).ObserveAsync([], CancellationToken.None)).Resources);
+
+        var release = await new ImageKind(_socket).ReleaseAsync(image, CancellationToken.None);
+
+        Assert.Equal(Outcome.Released, release.Outcome);
+    }
+
+    /// <summary>An answer of the Engine that is neither an object with a message nor JSON at all still says how the request ended.</summary>
+    [Theory]
+    [InlineData("""["in use"]""")]
+    [InlineData("""{"code":42}""")]
+    [InlineData("not json")]
+    [InlineData("")]
+    public async Task Refusal_InAnyShapeOfAnswer_IsSaidByItsStatus(string body)
+    {
+        _engine.Answer = (method, path) => method == "DELETE" ? (409, body) : Answered(method, path);
+
+        var volume = (await new VolumeKind(_socket).ObserveAsync([], CancellationToken.None)).Resources.Single();
+        var refused = await new VolumeKind(_socket).ReleaseAsync(volume, CancellationToken.None);
+
+        Assert.Equal(Outcome.Failed, refused.Outcome);
+        Assert.Equal("409", refused.Detail);
     }
 
     [Fact]

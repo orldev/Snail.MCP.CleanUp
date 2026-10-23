@@ -295,13 +295,22 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
         return new DockerAnswer(answer.IsSuccessStatusCode, answer.StatusCode == HttpStatusCode.NotFound, Said(said, answer.StatusCode));
     }
 
+    /// <summary>What the Engine said about a request: its message, or the status when it gave none.</summary>
+    /// <remarks>
+    /// An error comes as an object with a message, but the removal of an image comes as an array of what was untagged and
+    /// deleted: read as an object, a removal that succeeded threw and was written down as failed (2026-10-15).
+    /// </remarks>
     private static string Said(string body, HttpStatusCode status)
     {
         try
         {
             using var document = JsonDocument.Parse(body);
+            var root = document.RootElement;
 
-            return document.RootElement.TryGetProperty("message", out var message) ? message.GetString() ?? $"{(int)status}" : $"{(int)status}";
+            if (root.ValueKind == JsonValueKind.Object && root.TryGetProperty("message", out var message) && message.ValueKind == JsonValueKind.String)
+                return message.GetString()!;
+
+            return $"{(int)status}";
         }
         catch (JsonException)
         {

@@ -220,6 +220,10 @@ background census for all, and hooks are handed to it over a socket. Published n
 51 ms and keeps 56 MB resident. What carried over to the other servers is in
 [the standard](https://orldev.github.io/Snail.Sdk/standard/#performance).
 
+A server takes its first background census five seconds after it starts. Half the servers a client starts are closed
+within five seconds, and one closed in the middle of a census outlived the 100 ms Claude Code gives it after SIGINT —
+33 of 289 were killed (2026-10-23). A tool call or a hook in those seconds takes the census it needs.
+
 ## Tests
 
 ```bash

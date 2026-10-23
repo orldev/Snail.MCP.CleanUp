@@ -40,8 +40,11 @@ public sealed class HookSocket(ServerConfig config, Hooks hooks, ILogger<HookSoc
     public static TimeSpan Reading { get; } = TimeSpan.FromSeconds(10);
 
     /// <inheritdoc/>
+    /// <remarks>It yields first, so that binding the socket is not part of the host's start, which the transport waits for.</remarks>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await Task.Yield();
+
         while (!stoppingToken.IsCancellationRequested)
         {
             if (Listen() is { } listener)
