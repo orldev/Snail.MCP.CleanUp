@@ -99,7 +99,8 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton(provider => new Cleaner(
                 provider.GetServices<IResourceKind>(),
                 provider.GetRequiredService<ILedger>(),
-                provider.GetRequiredService<IHolders>()));
+                provider.GetRequiredService<IHolders>(),
+                provider.GetRequiredService<TimeProvider>()));
             services.AddSingleton<Health>();
             services.AddSingleton<Runs>();
             services.AddSingleton<Leases>();

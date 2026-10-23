@@ -21,7 +21,7 @@ public sealed class HookSocketTests : IAsyncLifetime
 {
     private readonly Scratch _scratch = new();
 
-    private readonly string _run = Scratch.NewFolder();
+    private readonly string _run = Snail.Sdk.Mcp.Testing.TestFolder.Create();
 
     private readonly LedgerFile _file;
 
