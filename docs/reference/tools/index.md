@@ -18,3 +18,9 @@ Look, decide, then act: `cleanup_inventory` says what is there and whose, `clean
 | [`cleanup_run`](run.md#cleanup_run) | Programs started on the record | Start a program that keeps running — a dev server, a watcher, a worker — written down as yours from its first second, so that cleaning up after this session … |
 | [`find_tool`](discovery.md#find_tool) | Finding a tool | Find which of this server's tools does a thing, described in your own words, with every argument each one takes. |
 | [`cleanup_diagnose`](diagnostics.md#cleanup_diagnose) | Diagnostics | Say what state this server is in: its version, the session it counts as yours, and which of the programs it works through (simctl, adb, docker) it can reach. |
+
+## Prompts
+
+| Name | What it does |
+| --- | --- |
+| `cleanup` | Clean up what agents left on this machine: the plan is shown first, and nothing is removed until you agree. |
