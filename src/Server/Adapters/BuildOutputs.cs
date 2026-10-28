@@ -17,7 +17,9 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// are large and change by builds, not by censuses; the judgement is made again right before anything goes.
 /// </para>
 /// </remarks>
-public sealed class BuildOutputs(TimeProvider clock)
+/// <param name="clock">What now is.</param>
+/// <param name="quiet">How long an output must have gone unwritten before it is offered; <see cref="Quiet"/> when null.</param>
+public sealed class BuildOutputs(TimeProvider clock, TimeSpan? quiet = null)
 {
     /// <summary>How many levels below a scratchpad outputs are looked for: <c>repo/src/Server/bin</c> is four.</summary>
     public const int Deepest = 6;
@@ -32,8 +34,10 @@ public sealed class BuildOutputs(TimeProvider clock)
 
     private readonly ConcurrentDictionary<string, Search> _searched = new(StringComparer.Ordinal);
 
-    /// <summary>How long an output must have gone unwritten before it is offered.</summary>
+    /// <summary>How long an output of a scratchpad must have gone unwritten before it is offered.</summary>
     public static TimeSpan Quiet { get; } = TimeSpan.FromHours(2);
+
+    private readonly TimeSpan _quiet = quiet ?? Quiet;
 
     /// <summary>How long one search of a scratchpad, with its judgements, is taken as read.</summary>
     public static TimeSpan Searched { get; } = TimeSpan.FromMinutes(10);
@@ -77,13 +81,21 @@ public sealed class BuildOutputs(TimeProvider clock)
 
             var since = clock.GetUtcNow().UtcDateTime - newest;
 
-            return since < Quiet ? $"written {Math.Max(since.TotalMinutes, 0):0} minutes ago: a build may still be using it" : null;
+            return since < _quiet ? $"written {Ago(since)} ago: {(_quiet == Quiet ? "a build may still be using it" : $"its project was worked on in the last {Ago(_quiet)}")}" : null;
         }
         catch (Exception refused) when (refused is IOException or UnauthorizedAccessException)
         {
             return $"could not be read: {refused.Message}";
         }
     }
+
+    /// <summary>A span the way a person says it: minutes, hours or days.</summary>
+    private static string Ago(TimeSpan span) => span switch
+    {
+        _ when span < TimeSpan.FromHours(2) => $"{Math.Max(span.TotalMinutes, 0):0} minutes",
+        _ when span < TimeSpan.FromDays(2) => $"{span.TotalHours:0} hours",
+        _ => $"{span.TotalDays:0} days"
+    };
 
     private static string? Started(string path, IReadOnlyList<RunningProcess> running)
     {

@@ -66,7 +66,9 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<IResourceKind, BuildHistoryKind>();
             services.AddSingleton<ITrail, DockerTrail>();
             services.AddSingleton<IResourceKind, EditorKind>();
+            services.AddSingleton<Repositories>();
             services.AddSingleton<IResourceKind, TestResultsKind>();
+            services.AddSingleton<IResourceKind, ProjectOutputsKind>();
             services.AddSingleton<IResourceKind, WorktreeKind>();
             services.AddSingleton<ITrail, CertificateTrail>();
 

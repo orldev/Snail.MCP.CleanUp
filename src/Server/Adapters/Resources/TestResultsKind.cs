@@ -1,5 +1,4 @@
 using System.IO.Enumeration;
-using Snail.MCP.CleanUp.Configuration;
 
 namespace Snail.MCP.CleanUp.Adapters.Resources;
 
@@ -16,7 +15,7 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// hidden folders and build trees, at most every <see cref="Searched"/>.
 /// </para>
 /// </remarks>
-public sealed class TestResultsKind(ServerConfig config, Disposal disposal, Sizes sizes, TimeProvider clock) : IResourceKind
+public sealed class TestResultsKind(Repositories repositories, Disposal disposal, Sizes sizes, TimeProvider clock) : IResourceKind
 {
     /// <summary>The name of the folder test runs write into.</summary>
     public const string Folder = "TestResults";
@@ -122,7 +121,7 @@ public sealed class TestResultsKind(ServerConfig config, Disposal disposal, Size
     /// <summary>The folders found in the repositories, searched again when they are older than <see cref="Searched"/> or the repositories changed.</summary>
     private IReadOnlyList<(string Repository, string Path)> Found(IReadOnlyList<Holder> sessions)
     {
-        var worked = sessions.Select(session => session.Directory).OfType<string>().Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+        var worked = Repositories.Worked(sessions);
         var now = clock.GetUtcNow();
 
         lock (_searching)
@@ -131,45 +130,12 @@ public sealed class TestResultsKind(ServerConfig config, Disposal disposal, Size
                 return last.Found;
         }
 
-        var found = Repositories(worked).SelectMany(repository => Within(repository).Select(path => (repository, path))).ToList();
+        var found = repositories.Named(worked).SelectMany(repository => Within(repository).Select(path => (repository, path))).ToList();
 
         lock (_searching)
             _last = new Search(now, worked, found);
 
         return found;
-    }
-
-    /// <summary>The repositories the machine names: where sessions work, and the folders VS Code keeps state for.</summary>
-    private IEnumerable<string> Repositories(IReadOnlyList<string> worked)
-    {
-        var home = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
-        var scratch = Path.Combine(config.ScratchRoot, "claude-");
-
-        return worked
-            .Concat(Edited())
-            .Select(Path.TrimEndingDirectorySeparator)
-            .Distinct(StringComparer.Ordinal)
-            .Where(directory => directory.Length > 1
-                && !string.Equals(directory, home, StringComparison.Ordinal)
-                && !directory.StartsWith(scratch, StringComparison.Ordinal)
-                && (Directory.Exists(Path.Combine(directory, ".git")) || File.Exists(Path.Combine(directory, ".git"))));
-    }
-
-    private IEnumerable<string> Edited()
-    {
-        var storage = Path.Combine(config.EditorUserDirectory, "workspaceStorage");
-
-        if (!Directory.Exists(storage))
-            return [];
-
-        try
-        {
-            return [.. Directory.EnumerateDirectories(storage).Select(EditorKind.Folder).OfType<string>()];
-        }
-        catch (Exception refused) when (refused is IOException or UnauthorizedAccessException)
-        {
-            return [];
-        }
     }
 
     /// <summary>The <see cref="Folder"/> folders of one repository, past hidden folders, build trees and links.</summary>

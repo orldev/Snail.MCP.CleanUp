@@ -26,7 +26,7 @@ public sealed class TestResultsKindTests : IDisposable
         EditorUserDirectory = _scratch.File("Code/User")
     };
 
-    private TestResultsKind Kind => new(Config, new Disposal(Config, _clock), new Sizes(_clock), _clock);
+    private TestResultsKind Kind => new(new Repositories(Config), new Disposal(Config, _clock), new Sizes(_clock), _clock);
 
     private string Repository(string name)
     {

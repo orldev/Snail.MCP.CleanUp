@@ -41,6 +41,9 @@ public static class MachineKinds
     /// <summary>The folder a repository's test runs write their dumps, coverage and logs into.</summary>
     public const string TestResults = "testresults";
 
+    /// <summary>The <c>bin</c> and <c>obj</c> of a repository no build wrote into for a week.</summary>
+    public const string ProjectOutputs = "outputs";
+
     /// <summary>What programs that have ended left for others to reach them, such as the debugger pipes of a .NET process.</summary>
     public const string Remains = "remains";
 
@@ -55,5 +58,5 @@ public static class MachineKinds
     public static KindOrder Order { get; } = KindOrder.General
         .After(Kinds.Process, McpServer, Forward, Emulator, Simulator, VirtualDevice)
         .After(Kinds.Image, DanglingImages, BuildCache, BuildHistory)
-        .Before(Kinds.File, Worktree, Editor, TestResults, Remains, Outside);
+        .Before(Kinds.File, Worktree, Editor, TestResults, ProjectOutputs, Remains, Outside);
 }

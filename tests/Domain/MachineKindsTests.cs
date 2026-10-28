@@ -12,7 +12,7 @@ public sealed class MachineKindsTests
         Assert.Equal(
             [
                 "process", "mcp", "forward", "emulator", "simulator", "avd", "container", "network", "volume", "image", "dangling", "buildcache",
-                "buildhistory", "worktree", "editor", "testresults", "remains", "outside", "file"
+                "buildhistory", "worktree", "editor", "testresults", "outputs", "remains", "outside", "file"
             ],
             MachineKinds.Order.Listed);
 
