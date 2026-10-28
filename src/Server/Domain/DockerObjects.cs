@@ -18,7 +18,7 @@ public sealed record DockerImage(string Id, IReadOnlyList<string> Tags, long Siz
 /// <param name="Volumes">Every volume.</param>
 /// <param name="Labelled">The images that carry the owner label.</param>
 /// <param name="Dangling">The images no tag points at.</param>
-/// <param name="BuildCacheReclaimable">Bytes of build cache nothing uses.</param>
+/// <param name="BuildCacheReclaimable">Bytes of build cache a prune gives back: no build uses it, and none used it in the last day.</param>
 public sealed record DockerSnapshot(
     IReadOnlyList<DockerContainer> Containers,
     IReadOnlyList<DockerNetwork> Networks,

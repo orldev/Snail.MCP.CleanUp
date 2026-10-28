@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
@@ -19,6 +20,15 @@ namespace Snail.MCP.CleanUp.Adapters;
 public sealed class DockerSocket : IDockerEngine, IDisposable
 {
     private static readonly TimeSpan Freshness = IPrograms.Census;
+
+    /// <summary>How long a request may take.</summary>
+    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(30);
+
+    /// <summary>How long a prune may take: one of 175 GB of build cache took minutes (2026-10-28).</summary>
+    private static readonly TimeSpan PrunePatience = TimeSpan.FromMinutes(30);
+
+    /// <summary>How long a build cache record is kept after a build last used it: the next builds of the day stay fast.</summary>
+    public static TimeSpan BuildCacheKept { get; } = TimeSpan.FromHours(24);
 
     private readonly Func<IReadOnlyList<string>> _places;
 
@@ -93,9 +103,12 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
     /// <summary>Why the Engine at a socket does not answer; null when it does.</summary>
     private async Task<string?> PingAsync(string socket, CancellationToken cancellationToken)
     {
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(Patience);
+
         try
         {
-            using var answer = await Client(socket).GetAsync("_ping", cancellationToken);
+            using var answer = await Client(socket).GetAsync("_ping", limit.Token);
 
             return answer.IsSuccessStatusCode ? null : $"Docker's Engine answered {(int)answer.StatusCode} at {socket}";
         }
@@ -152,7 +165,7 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
             }
         };
 
-        return new HttpClient(handler) { BaseAddress = new Uri("http://docker/"), Timeout = TimeSpan.FromSeconds(30) };
+        return new HttpClient(handler) { BaseAddress = new Uri("http://docker/"), Timeout = Timeout.InfiniteTimeSpan };
     }
 
     /// <inheritdoc/>
@@ -179,11 +192,18 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
 
     /// <inheritdoc/>
     public Task<DockerAnswer> RemoveAsync(string collection, string id, CancellationToken cancellationToken) =>
-        SendAsync(HttpMethod.Delete, collection == "containers" ? $"containers/{Uri.EscapeDataString(id)}?force=1" : $"{collection}/{Uri.EscapeDataString(id)}", cancellationToken);
+        SendAsync(HttpMethod.Delete, collection == "containers" ? $"containers/{Uri.EscapeDataString(id)}?force=1" : $"{collection}/{Uri.EscapeDataString(id)}", Patience, cancellationToken);
 
     /// <inheritdoc/>
+    /// <remarks>
+    /// The build cache is pruned whole — <c>all</c>, not only the dangling records — except what a build used in the last
+    /// <see cref="BuildCacheKept"/>: records a later build shares are not dangling, and a prune without <c>all</c> left
+    /// 227 GB of them in place (2026-10-28).
+    /// </remarks>
     public Task<DockerAnswer> PruneAsync(string what, CancellationToken cancellationToken) =>
-        SendAsync(HttpMethod.Post, what == "build" ? "build/prune" : $"images/prune?filters={Uri.EscapeDataString("""{"dangling":["true"]}""")}", cancellationToken);
+        what == "build"
+            ? SendAsync(HttpMethod.Post, $"build/prune?all=1&filters={Uri.EscapeDataString($$"""{"until":["{{(int)BuildCacheKept.TotalHours}}h"]}""")}", PrunePatience, cancellationToken)
+            : SendAsync(HttpMethod.Post, $"images/prune?filters={Uri.EscapeDataString("""{"dangling":["true"]}""")}", PrunePatience, cancellationToken);
 
     /// <inheritdoc/>
     public void Dispose()
@@ -224,7 +244,7 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
                 : [],
             List(labelledRead, Image),
             List(danglingRead, Image),
-            Reclaimable(usageRead));
+            Reclaimable(usageRead, _clock.GetUtcNow()));
     }
 
     private static DockerContainer Container(JsonElement element) => new(
@@ -246,15 +266,27 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
         element.TryGetProperty("Size", out var size) && size.TryGetInt64(out var bytes) ? bytes : 0,
         Labels(element));
 
-    /// <summary>Bytes of build cache no build is using, the way <c>docker system df</c> counts them as reclaimable.</summary>
-    private static long Reclaimable(JsonDocument? usage)
+    /// <summary>Bytes of build cache a prune gives back: records no build is using and none used in the last <see cref="BuildCacheKept"/>.</summary>
+    /// <remarks>
+    /// Shared records count, the way <c>docker buildx du</c> counts them as reclaimable. <c>docker system df</c> leaves them out,
+    /// and counted its way 227 GB of cache read as 40 MB, below every threshold, so it was never pruned (2026-10-28).
+    /// </remarks>
+    private static long Reclaimable(JsonDocument? usage, DateTimeOffset now)
     {
         if (usage?.RootElement.TryGetProperty("BuildCache", out var records) != true || records.ValueKind != JsonValueKind.Array)
             return 0;
 
         return records.EnumerateArray()
-            .Where(record => !(record.TryGetProperty("InUse", out var used) && used.GetBoolean()) && !(record.TryGetProperty("Shared", out var shared) && shared.GetBoolean()))
+            .Where(record => !(record.TryGetProperty("InUse", out var used) && used.GetBoolean()) && !IsRecent(record, now))
             .Sum(record => record.TryGetProperty("Size", out var size) && size.TryGetInt64(out var bytes) ? bytes : 0);
+    }
+
+    /// <summary>Whether a build used the record, or made it, within <see cref="BuildCacheKept"/>; a record without a readable time is not.</summary>
+    private static bool IsRecent(JsonElement record, DateTimeOffset now)
+    {
+        var said = Text(record, "LastUsedAt") is { Length: > 0 } used ? used : Text(record, "CreatedAt");
+
+        return DateTimeOffset.TryParse(said, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var at) && now - at < BuildCacheKept;
     }
 
     private static IReadOnlyList<T> List<T>(JsonDocument? document, Func<JsonElement, T> shaped) =>
@@ -273,24 +305,30 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
         if (Answering() is not { } http)
             return null;
 
-        using var answer = await http.GetAsync(path, cancellationToken);
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(Patience);
+
+        using var answer = await http.GetAsync(path, limit.Token);
 
         if (!answer.IsSuccessStatusCode)
             return null;
 
-        await using var body = await answer.Content.ReadAsStreamAsync(cancellationToken);
+        await using var body = await answer.Content.ReadAsStreamAsync(limit.Token);
 
-        return await JsonDocument.ParseAsync(body, cancellationToken: cancellationToken);
+        return await JsonDocument.ParseAsync(body, cancellationToken: limit.Token);
     }
 
-    private async Task<DockerAnswer> SendAsync(HttpMethod method, string path, CancellationToken cancellationToken)
+    private async Task<DockerAnswer> SendAsync(HttpMethod method, string path, TimeSpan patience, CancellationToken cancellationToken)
     {
         if (Answering() is not { } http)
             return new DockerAnswer(false, false, "Docker's daemon is not running");
 
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(patience);
+
         using var request = new HttpRequestMessage(method, path);
-        using var answer = await http.SendAsync(request, cancellationToken);
-        var said = await answer.Content.ReadAsStringAsync(cancellationToken);
+        using var answer = await http.SendAsync(request, limit.Token);
+        var said = await answer.Content.ReadAsStringAsync(limit.Token);
 
         return new DockerAnswer(answer.IsSuccessStatusCode, answer.StatusCode == HttpStatusCode.NotFound, Said(said, answer.StatusCode));
     }
