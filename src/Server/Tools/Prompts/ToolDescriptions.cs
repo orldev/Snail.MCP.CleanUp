@@ -138,4 +138,28 @@ public static class ToolDescriptions
 
     /// <summary>The <c>limit</c> of <c>find_tool</c>.</summary>
     public const string FindToolLimit = "How many tools to return at most; 5 by default.";
+
+    /// <summary>The <c>cleanup</c> prompt, as a client offers it to a person.</summary>
+    public const string CleanupPrompt =
+        "Clean up what agents left on this machine: the plan is shown first, and nothing is removed until you agree.";
+
+    /// <summary>The <c>scope</c> of the <c>cleanup</c> prompt.</summary>
+    public const string CleanupPromptScope =
+        "mine (this session's), orphans (left by ended sessions), caches (shared caches that rebuild themselves) or everything; everything by default.";
+
+    /// <summary>What the <c>cleanup</c> prompt asks of the model, its scope standing for <c>{scope}</c>.</summary>
+    /// <remarks>The person's agreement is a step of its own: the plan tool changes nothing, the apply tool cannot be taken back.</remarks>
+    public const string CleanupPromptRequest =
+        """
+        Clean up what agents left on this machine, scope {scope}.
+
+        1. Call cleanup_plan with scope {scope}.
+        2. Show me the plan briefly, in the language we speak: what would be removed and why, how much space
+           that frees, and apart from it what is only reported or kept. Put whatever belongs to this session,
+           and anything still running, where I will notice it.
+        3. Stop and wait for my answer. Do not call cleanup_apply before it.
+        4. Carry out what I agree to with cleanup_apply and the planId, passing only when I leave something
+           out. A plan goes stale after 10 minutes; if it has, make it again and show me what changed.
+        5. Say what was removed, what was left, and why.
+        """;
 }

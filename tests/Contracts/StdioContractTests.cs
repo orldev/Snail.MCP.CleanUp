@@ -41,6 +41,36 @@ public sealed class StdioContractTests : IDisposable
         Assert.Empty(Snail.Sdk.Mcp.Testing.ToolGuards.Problems(listed.Select(tool => tool.ProtocolTool)));
     }
 
+    /// <summary>The prompt a client offers as a slash command: listed with its argument described, and asking for agreement before any removal.</summary>
+    [Fact]
+    public async Task CleanupPrompt_AsAProgram_IsListedAndWaitsForAgreementBeforeApplying()
+    {
+        await using var client = await StartedAsync();
+
+        var listed = await client.ListPromptsAsync();
+        var prompt = await client.GetPromptAsync("cleanup", new Dictionary<string, object?> { ["scope"] = "caches" });
+        var cleanup = Assert.Single(listed).ProtocolPrompt;
+        var text = Assert.IsType<ModelContextProtocol.Protocol.TextContentBlock>(Assert.Single(prompt.Messages).Content).Text;
+
+        Assert.Equal("cleanup", cleanup.Name);
+        Assert.Equal(ToolDescriptions.CleanupPrompt, cleanup.Description);
+        Assert.Equal(ToolDescriptions.CleanupPromptScope, Assert.Single(cleanup.Arguments!).Description);
+        Assert.Contains("Call cleanup_plan with scope caches.", text, StringComparison.Ordinal);
+        Assert.Contains("Do not call cleanup_apply before it.", text, StringComparison.Ordinal);
+    }
+
+    /// <summary>A scope the prompt does not name is refused, as cleanup_plan refuses it, never widened to everything.</summary>
+    [Fact]
+    public async Task CleanupPrompt_ScopeOfTwoNamesJoinedByAComma_IsRefused()
+    {
+        await using var client = await StartedAsync();
+
+        var refusal = await Assert.ThrowsAnyAsync<ModelContextProtocol.McpException>(() =>
+            client.GetPromptAsync("cleanup", new Dictionary<string, object?> { ["scope"] = "orphans,caches" }).AsTask());
+
+        Assert.Contains("there is no scope orphans,caches", refusal.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task Diagnose_AsAProgram_SaysItSpeaksStdioAndKeepsItsAccountWhereItWasTold()
     {

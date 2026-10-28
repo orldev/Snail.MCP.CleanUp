@@ -26,7 +26,8 @@ public static class TransportRegistrationExtensions
                 .WithTools<RunTools>()
                 .WithTools<LeaseTools>()
                 .WithTools<AccountTools>()
-                .WithTools<DiscoveryTools>();
+                .WithTools<DiscoveryTools>()
+                .WithPrompts<CleanupPrompts>();
 
             services.AddHostedService<HookSocket>();
 

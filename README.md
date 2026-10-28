@@ -38,6 +38,14 @@ Three ideas carry it:
 
 Every answer is JSON with an `ok` flag; a failure carries `error` and a `hint`, and is flagged `isError`.
 
+## Prompts
+
+| Prompt | What it does |
+| --- | --- |
+| `cleanup` | A cleanup you see before it is done: the plan of a `scope` (`everything` by default), shown briefly, carried out only after you agree. |
+
+A client offers a prompt as a command; in Claude Code it is `/mcp__<server>__cleanup`, such as `/mcp__clean__cleanup caches`.
+
 ## What it knows
 
 | Kind | Owned by | Released by |
