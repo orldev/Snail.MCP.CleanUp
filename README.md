@@ -231,8 +231,8 @@ for. Each sweep that released something is written to `sweeps.log` as `upkeep`. 
 
 - Address a simulator by anything but its UDID, or stop one another running session holds.
 - Start adb's server or Docker's daemon to look; a stopped daemon is a note in the inventory. Nor the simulators'
-  CoreSimulatorService, which `simctl list` starts: while it is down, no simulator runs, and the devices are read from
-  their folders.
+  CoreSimulatorService, which `simctl list` starts: simctl is asked only while a simulator is booted, and otherwise the
+  devices are read from their folders.
 - Count itself, its parents, its children, or a command younger than two minutes under a running agent as
   a leftover.
 - Remove a discovery, a worktree, a certificate, or anything kept with `cleanup_keep`.

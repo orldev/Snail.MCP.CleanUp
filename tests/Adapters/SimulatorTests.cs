@@ -31,7 +31,7 @@ public sealed class SimulatorTests : IDisposable
     {
         _file = new LedgerFile(_scratch.File("ledger.db"));
         _programs.Answer = (program, arguments) => arguments is ["simctl", "list", "devices", "-j"] ? FakePrograms.Said(_devices) : FakePrograms.Said(Mine);
-        _table.Add(807, 1, $"/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/XPCServices/{SimulatorDevices.Service}.xpc/Contents/MacOS/{SimulatorDevices.Service}");
+        _table.Add(807, 1, $"/Library/Developer/CoreSimulator/Volumes/iOS_24A434/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/sbin/{SimulatorDevices.Booted} /sim/{Mine}/data/var/run/launchd_bootstrap.plist", executable: $"/Library/Developer/CoreSimulator/Volumes/iOS_24A434/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/sbin/{SimulatorDevices.Booted}");
     }
 
     private string DeviceSet => _scratch.File("Devices");
@@ -139,13 +139,14 @@ public sealed class SimulatorTests : IDisposable
     }
 
     /// <summary>
-    /// simctl starts CoreSimulatorService when it is down, and a census asks every few minutes: while it is down the devices
-    /// come from their folders, the way simctl would list them, and simctl is never called.
+    /// simctl starts CoreSimulatorService when it is down, and stopping the service brings a census that still sees it: while
+    /// no simulator is booted the devices come from their folders, the way simctl would list them, and simctl is never called.
     /// </summary>
     [Fact]
-    public async Task Census_WhileTheServiceIsDown_ReadsTheDeviceFolders_AndNeverCallsSimctl()
+    public async Task Census_WhileNoSimulatorIsBooted_ReadsTheDeviceFolders_AndNeverCallsSimctl()
     {
         _table.Running.Clear();
+        _table.Add(808, 1, "/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/XPCServices/com.apple.CoreSimulator.CoreSimulatorService.xpc/Contents/MacOS/com.apple.CoreSimulator.CoreSimulatorService");
         Folder(Mine);
         Folder(Theirs, plist: false);
         Folder("not-a-device");

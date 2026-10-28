@@ -57,7 +57,7 @@ public sealed class SimulatorOnThisMacTests : IDisposable
 
     /// <summary>A real device.plist is binary and keeps a date, which plutil cannot write as JSON: read as XML, the device comes through.</summary>
     [MachineFact]
-    public async Task DevicePlist_BinaryWithADate_IsReadWhileTheServiceIsDown()
+    public async Task DevicePlist_BinaryWithADate_IsReadWhileNoSimulatorIsBooted()
     {
         var udid = Guid.NewGuid().ToString("D").ToUpperInvariant();
         var folder = Directory.CreateDirectory(_scratch.File($"Devices/{udid}")).FullName;
