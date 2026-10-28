@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Domain;
@@ -52,6 +53,42 @@ public sealed class SimulatorOnThisMacTests : IDisposable
         Assert.Contains("after shutting it down", releases[0].Detail, StringComparison.Ordinal);
 
         _udid = null;
+    }
+
+    /// <summary>A real device.plist is binary and keeps a date, which plutil cannot write as JSON: read as XML, the device comes through.</summary>
+    [MachineFact]
+    public async Task DevicePlist_BinaryWithADate_IsReadWhileTheServiceIsDown()
+    {
+        var udid = Guid.NewGuid().ToString("D").ToUpperInvariant();
+        var folder = Directory.CreateDirectory(_scratch.File($"Devices/{udid}")).FullName;
+        var plist = Path.Combine(folder, "device.plist");
+        var programs = new Programs(new Performance(TimeProvider.System), TimeProvider.System);
+
+        await File.WriteAllTextAsync(plist, $"""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <plist version="1.0">
+            <dict>
+            	<key>UDID</key>
+            	<string>{udid}</string>
+            	<key>isDeleted</key>
+            	<false/>
+            	<key>lastBootedAt</key>
+            	<date>2026-10-11T09:00:00Z</date>
+            	<key>name</key>
+            	<string>snail-machine-test-1</string>
+            	<key>runtime</key>
+            	<string>com.apple.CoreSimulator.SimRuntime.iOS-27-0</string>
+            	<key>state</key>
+            	<integer>1</integer>
+            </dict>
+            </plist>
+            """);
+        Assert.True((await programs.RunAsync("plutil", ["-convert", "binary1", plist], TimeSpan.FromSeconds(10), CancellationToken.None)).IsSuccess);
+
+        var listing = await new SimulatorDevices(programs, new FakeProcessTable()) { DeviceSet = _scratch.File("Devices") }.ListAsync(CancellationToken.None);
+
+        var device = Assert.Single(listing.Devices);
+        Assert.Equal(("snail-machine-test-1", "com.apple.CoreSimulator.SimRuntime.iOS-27-0"), (device.Name, device.Runtime));
     }
 
     public void Dispose()

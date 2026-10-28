@@ -230,7 +230,9 @@ for. Each sweep that released something is written to `sweeps.log` as `upkeep`. 
 ## What it never does
 
 - Address a simulator by anything but its UDID, or stop one another running session holds.
-- Start adb's server or Docker's daemon to look; a stopped daemon is a note in the inventory.
+- Start adb's server or Docker's daemon to look; a stopped daemon is a note in the inventory. Nor the simulators'
+  CoreSimulatorService, which `simctl list` starts: while it is down, no simulator runs, and the devices are read from
+  their folders.
 - Count itself, its parents, its children, or a command younger than two minutes under a running agent as
   a leftover.
 - Remove a discovery, a worktree, a certificate, or anything kept with `cleanup_keep`.

@@ -1,6 +1,7 @@
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Adapters.Resources;
+using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Domain;
@@ -30,9 +31,46 @@ public sealed class SimulatorTests : IDisposable
     {
         _file = new LedgerFile(_scratch.File("ledger.db"));
         _programs.Answer = (program, arguments) => arguments is ["simctl", "list", "devices", "-j"] ? FakePrograms.Said(_devices) : FakePrograms.Said(Mine);
+        _table.Add(807, 1, $"/Library/Developer/PrivateFrameworks/CoreSimulator.framework/Versions/A/XPCServices/{SimulatorDevices.Service}.xpc/Contents/MacOS/{SimulatorDevices.Service}");
     }
 
-    private SimulatorKind Kind => new(_programs, _table, new Sizes(TimeProvider.System), TimeProvider.System);
+    private string DeviceSet => _scratch.File("Devices");
+
+    private SimulatorDevices Devices => new(_programs, _table) { DeviceSet = DeviceSet };
+
+    private SimulatorKind Kind => new(Devices, _programs, _table, new Sizes(TimeProvider.System), TimeProvider.System);
+
+    /// <summary>A device.plist as plutil prints it in XML, a date among its keys as in a real one.</summary>
+    private static string Plist(string name, string udid, bool deleted = false) =>
+        $"""
+        <?xml version="1.0" encoding="UTF-8"?>
+        <plist version="1.0">
+        <dict>
+        	<key>UDID</key>
+        	<string>{udid}</string>
+        	<key>deviceType</key>
+        	<string>com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro</string>
+        	<key>isDeleted</key>
+        	<{(deleted ? "true" : "false")}/>
+        	<key>lastBootedAt</key>
+        	<date>2026-10-11T09:00:00Z</date>
+        	<key>name</key>
+        	<string>{name}</string>
+        	<key>runtime</key>
+        	<string>com.apple.CoreSimulator.SimRuntime.iOS-27-0</string>
+        	<key>state</key>
+        	<integer>1</integer>
+        </dict>
+        </plist>
+        """;
+
+    private void Folder(string name, bool plist = true)
+    {
+        var folder = Directory.CreateDirectory(Path.Combine(DeviceSet, name)).FullName;
+
+        if (plist)
+            File.WriteAllText(Path.Combine(folder, "device.plist"), "binary, as the real one; plutil reads it");
+    }
 
     private Leases LeasesFor(Owner owner, SqliteLedger ledger)
     {
@@ -99,6 +137,40 @@ public sealed class SimulatorTests : IDisposable
         Assert.Equal(Evidence.Label, observed.Resources.Single(resource => resource.Key == Mine).Evidence);
         Assert.False(observed.Resources.Single(resource => resource.Key == Theirs).Owner.IsKnown);
     }
+
+    /// <summary>
+    /// simctl starts CoreSimulatorService when it is down, and a census asks every few minutes: while it is down the devices
+    /// come from their folders, the way simctl would list them, and simctl is never called.
+    /// </summary>
+    [Fact]
+    public async Task Census_WhileTheServiceIsDown_ReadsTheDeviceFolders_AndNeverCallsSimctl()
+    {
+        _table.Running.Clear();
+        Folder(Mine);
+        Folder(Theirs, plist: false);
+        Folder("not-a-device");
+        _programs.Answer = (program, arguments) => program == "plutil" && arguments[^1].Contains(Mine, StringComparison.Ordinal)
+            ? FakePrograms.Said(Plist($"snail-{Session}-1", Mine))
+            : FakePrograms.Failed("no such device");
+
+        var observed = await Kind.ObserveAsync([], CancellationToken.None);
+        var traces = await new SimulatorTrail(Devices).FollowAsync([], CancellationToken.None);
+
+        var simulator = Assert.Single(observed.Resources);
+        Assert.Equal(Mine, simulator.Key);
+        Assert.Equal(Owner.Session(Session), simulator.Owner);
+        Assert.Equal("Shutdown", simulator.Facts["state"]);
+        Assert.Equal([Mine], traces.Select(trace => trace.Key));
+        Assert.DoesNotContain(_programs.Calls, call => call.Contains("simctl", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Plist_OfADeviceMarkedDeleted_IsNoDevice() =>
+        Assert.Null(SimulatorDevices.FromPlist(Plist("gone", Mine, deleted: true), Mine, "/sim"));
+
+    [Fact]
+    public void Plist_NameWithAnEscapedCharacter_IsReadAsWritten() =>
+        Assert.Equal("Tom & Jerry's iPhone", SimulatorDevices.FromPlist(Plist("Tom &amp; Jerry's iPhone", Mine), Mine, "/sim")!.Name);
 
     [Fact]
     public async Task ProgramDrivingASimulator_MustGoBeforeIt()

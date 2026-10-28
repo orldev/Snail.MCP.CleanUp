@@ -17,6 +17,9 @@ public static class MacPlaces
 {
     private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
 
+    /// <summary>The simulators' default device set: a folder per device, named by its UDID.</summary>
+    public static string SimulatorDeviceSet { get; } = $"{Home}/Library/Developer/CoreSimulator/Devices";
+
     /// <summary>Where the system and installed applications keep their programs; one started from there is nobody's work.</summary>
     private static readonly SearchValues<string> System = SearchValues.Create(
         ["/Applications/", "/System/", "/usr/libexec/", "/usr/sbin/", "/sbin/", "/Library/Apple/", "/Library/Application Support/", "/usr/bin/"],

@@ -6,7 +6,7 @@ namespace Snail.MCP.CleanUp.Adapters.Trails;
 /// trail sees it appear during the session and, unclaimed, it becomes a discovery: reported with its
 /// session, never removed on the strength of having appeared.
 /// </remarks>
-public sealed class SimulatorTrail(IPrograms programs) : ITrail
+public sealed class SimulatorTrail(SimulatorDevices simulators) : ITrail
 {
     /// <inheritdoc/>
     public string Name => MachineKinds.Simulator;
@@ -14,9 +14,9 @@ public sealed class SimulatorTrail(IPrograms programs) : ITrail
     /// <inheritdoc/>
     public async Task<IReadOnlyList<Trace>> FollowAsync(IReadOnlyList<Rule> rules, CancellationToken cancellationToken)
     {
-        var run = await programs.ReadAsync("xcrun", ["simctl", "list", "devices", "-j"], IPrograms.Census, TimeSpan.FromSeconds(60), cancellationToken);
+        var listed = await simulators.ListAsync(cancellationToken);
 
-        return run.IsSuccess ? [.. Simulators.Parse(run.Output).Select(device => new Trace(Name, device.Udid, device.Name))] : [];
+        return [.. listed.Devices.Select(device => new Trace(Name, device.Udid, device.Name))];
     }
 
     /// <inheritdoc/>

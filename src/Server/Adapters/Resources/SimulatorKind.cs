@@ -8,7 +8,7 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// UDID alone, and only after the programs driving it are stopped: a simulator shut down under a running
 /// test runner leaves the runner hanging instead of ending.
 /// </remarks>
-public sealed class SimulatorKind(IPrograms programs, IProcessTable table, Sizes sizes, TimeProvider clock) : IResourceKind
+public sealed class SimulatorKind(SimulatorDevices simulators, IPrograms programs, IProcessTable table, Sizes sizes, TimeProvider clock) : IResourceKind
 {
     /// <summary>How long a simulator may take to shut down or to be deleted.</summary>
     public static TimeSpan Patience { get; } = TimeSpan.FromSeconds(60);
@@ -19,13 +19,13 @@ public sealed class SimulatorKind(IPrograms programs, IProcessTable table, Sizes
     /// <inheritdoc/>
     public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
-        var run = await programs.ReadAsync("xcrun", ["simctl", "list", "devices", "-j"], IPrograms.Census, Patience, cancellationToken);
+        var listed = await simulators.ListAsync(cancellationToken);
 
-        if (!run.IsSuccess)
-            return Observation.Unseen(Name, $"simctl could not list the simulators: {run.Failure}");
+        if (!listed.IsSuccess)
+            return Observation.Unseen(Name, $"simctl could not list the simulators: {listed.Failure}");
 
         var running = await table.ListAsync(cancellationToken);
-        var devices = Simulators.Parse(run.Output);
+        var devices = listed.Devices;
 
         return new Observation(
             Name,

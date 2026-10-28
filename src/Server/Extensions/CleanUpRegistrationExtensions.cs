@@ -48,6 +48,7 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<IResourceKind, FileKind>();
             services.AddSingleton<IResourceKind, RemainsKind>();
             services.AddSingleton<IResourceKind, OutsideKind>();
+            services.AddSingleton<SimulatorDevices>();
             services.AddSingleton<IResourceKind, SimulatorKind>();
             services.AddSingleton<ITrail, SimulatorTrail>();
             services.AddSingleton<Android>();
