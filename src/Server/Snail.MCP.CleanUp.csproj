@@ -42,7 +42,7 @@
     </ItemGroup>
 
     <PropertyGroup>
-        <Version>0.1.0</Version>
+        <Version>0.2.0</Version>
         <Description>Local MCP server that keeps account of what AI agents leave behind on a Mac — processes, ports, temporary files, Docker objects, iOS simulators, Android emulators, editor state — and removes what is proven theirs, reporting everything it cannot prove.</Description>
         <PackageTags>mcp;mcp-server;modelcontextprotocol;ai;claude;cleanup;simulator;emulator;dotnet-tool</PackageTags>
         <PackageProjectUrl>https://github.com/orldev/Snail.MCP.CleanUp</PackageProjectUrl>

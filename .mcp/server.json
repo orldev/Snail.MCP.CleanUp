@@ -2,12 +2,12 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
   "name": "io.github.orldev/snail-mcp-cleanup",
   "description": "Keeps account of what AI agents leave behind on a Mac and removes only what is proven theirs.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "nuget",
       "identifier": "Snail.MCP.CleanUp",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
       },
