@@ -21,6 +21,13 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
 {
     private static readonly TimeSpan Patience = TimeSpan.FromSeconds(120);
 
+    /// <summary>How long a lease of a simulator may take in all, steps and waiting for the one before it included.</summary>
+    /// <remarks>
+    /// Every simctl call has its own deadline, and still a lease went unanswered for 35 minutes, until the client gave up on
+    /// it (2026-10-30): the lease answers at this one whatever step does not end.
+    /// </remarks>
+    public static TimeSpan Longest { get; } = TimeSpan.FromMinutes(10);
+
     private readonly SemaphoreSlim _making = new(1, 1);
 
     private readonly Dictionary<int, DateTimeOffset> _given = [];
@@ -33,17 +40,14 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
         if (!owner.IsKnown)
             return Answer.Failed(Messages.NoSession, Messages.NoSessionHint);
 
-        var made = await OneAtATimeAsync(() => SimulatorMadeAsync(owner, source, cancellationToken), cancellationToken);
-
-        if (!boot || made.Data is not JsonObject shown)
-            return made;
-
-        var isBooted = (await SimctlAsync(["bootstatus", shown["udid"]!.GetValue<string>(), "-b"], cancellationToken)).IsSuccess;
-
-        shown["isBooted"] = isBooted;
-        shown["note"] = isBooted ? null : "made, but it did not boot; boot it with xcrun simctl boot and read the error";
-
-        return made;
+        try
+        {
+            return await LeasedAsync(owner, source, boot, cancellationToken).WaitAsync(Longest, clock, cancellationToken);
+        }
+        catch (TimeoutException)
+        {
+            return Answer.Failed(Messages.SimulatorTooLong, Messages.SimulatorHint);
+        }
     }
 
     /// <summary>An Android emulator of the agent's own: a new virtual device from an installed system image, started on a free port.</summary>
@@ -71,6 +75,34 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
 
     /// <inheritdoc/>
     public void Dispose() => _making.Dispose();
+
+    /// <summary>A simulator made and, when asked, booted: nothing at all when no iOS runtime is installed.</summary>
+    /// <remarks>
+    /// Without a runtime nothing can be made, and an agent told only that the lease failed set out to download one of
+    /// gigabytes on its own (2026-10-30): the answer says at once that a person installs it.
+    /// </remarks>
+    private async Task<Answer> LeasedAsync(Owner owner, string? source, bool boot, CancellationToken cancellationToken)
+    {
+        var listed = await SimctlAsync(["list", "runtimes", "-j"], cancellationToken);
+
+        if (!listed.IsSuccess)
+            return Answer.Failed($"simctl could not list the runtimes: {listed.Failure}", Messages.SimulatorHint);
+
+        if (!Simulators.Runtimes(listed.Output).Any(runtime => runtime.IsAvailable && runtime.Platform == "iOS"))
+            return Answer.Failed(Messages.NoSimulatorRuntime, Messages.NoSimulatorRuntimeHint);
+
+        var made = await OneAtATimeAsync(() => SimulatorMadeAsync(owner, source, cancellationToken), cancellationToken);
+
+        if (!boot || made.Data is not JsonObject shown)
+            return made;
+
+        var isBooted = (await SimctlAsync(["bootstatus", shown["udid"]!.GetValue<string>(), "-b"], cancellationToken)).IsSuccess;
+
+        shown["isBooted"] = isBooted;
+        shown["note"] = isBooted ? null : "made, but it did not boot; boot it with xcrun simctl boot and read the error";
+
+        return made;
+    }
 
     /// <summary>Makes one device at a time, so that the next is named and given a port after the last one exists.</summary>
     private async Task<Answer> OneAtATimeAsync(Func<Task<Answer>> made, CancellationToken cancellationToken)

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Time.Testing;
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Adapters.Resources;
@@ -5,6 +6,7 @@ using Snail.MCP.CleanUp.Adapters.Trails;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Domain;
+using Snail.MCP.CleanUp.Tools.Prompts;
 using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Adapters;
@@ -16,6 +18,8 @@ public sealed class SimulatorTests : IDisposable
     private const string Theirs = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE";
 
     private const string Session = "2647fa9c-8ea1-4ee7-a1f0-7053be900dd8";
+
+    private const string Runtimes = """{"runtimes":[{"identifier":"com.apple.CoreSimulator.SimRuntime.iOS-27-0","platform":"iOS","version":"27.0","isAvailable":true}]}""";
 
     private readonly Scratch _scratch = new();
 
@@ -30,7 +34,12 @@ public sealed class SimulatorTests : IDisposable
     public SimulatorTests()
     {
         _file = new LedgerFile(_scratch.File("ledger.db"));
-        _programs.Answer = (program, arguments) => arguments is ["simctl", "list", "devices", "-j"] ? FakePrograms.Said(_devices) : FakePrograms.Said(Mine);
+        _programs.Answer = (program, arguments) => arguments switch
+        {
+            ["simctl", "list", "devices", "-j"] => FakePrograms.Said(_devices),
+            ["simctl", "list", "runtimes", "-j"] => FakePrograms.Said(Runtimes),
+            _ => FakePrograms.Said(Mine)
+        };
         _table.Add(807, 1, $"/Library/Developer/CoreSimulator/Volumes/iOS_24A434/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/sbin/{SimulatorDevices.Booted} /sim/{Mine}/data/var/run/launchd_bootstrap.plist", executable: $"/Library/Developer/CoreSimulator/Volumes/iOS_24A434/Library/Developer/CoreSimulator/Profiles/Runtimes/iOS 27.0.simruntime/Contents/Resources/RuntimeRoot/sbin/{SimulatorDevices.Booted}");
     }
 
@@ -256,6 +265,60 @@ public sealed class SimulatorTests : IDisposable
 
         Assert.False(answer.IsSuccess);
         Assert.Contains("shut down", answer.Error, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Without a runtime nothing can be made, and an agent told only that the lease failed set out to download one of
+    /// gigabytes on its own (2026-10-30): the answer comes at once, makes nothing, and says a person installs it.
+    /// </summary>
+    [Fact]
+    public async Task Lease_WithoutAnIosRuntime_MakesNothing_AndSaysAPersonInstallsIt()
+    {
+        _programs.Answer = (_, arguments) => arguments is ["simctl", "list", "runtimes", "-j"] ? FakePrograms.Said("""{"runtimes":[]}""") : FakePrograms.Said(_devices);
+
+        var answer = await LeasesFor(Owner.Session(Session), new SqliteLedger(_file)).SimulatorAsync("iPhone 17 Pro", boot: true, CancellationToken.None);
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(Messages.NoSimulatorRuntime, answer.Error);
+        Assert.Equal(Messages.NoSimulatorRuntimeHint, answer.Hint);
+        Assert.DoesNotContain(_programs.Calls, call => call.Contains("create", StringComparison.Ordinal) || call.Contains("clone", StringComparison.Ordinal));
+    }
+
+    /// <summary>A lease went unanswered for 35 minutes until the client gave up on it (2026-10-30): whatever step does not end, it answers in time.</summary>
+    [Fact]
+    public async Task Lease_WhoseStepDoesNotEnd_AnswersAtTheLongestALeaseMayTake()
+    {
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var stuck = new Stuck(_programs, "create");
+        var config = new ServerConfig { DataDirectory = _scratch.Path, AndroidSdk = _scratch.File("sdk"), AvdDirectory = _scratch.File("avd") };
+        _programs.Answer = (_, arguments) => arguments switch
+        {
+            ["simctl", "list", "runtimes", "-j"] => FakePrograms.Said(Runtimes),
+            ["simctl", "list", "devicetypes", "-j"] => FakePrograms.Said("""{"devicetypes":[{"name":"iPhone 17 Pro","identifier":"com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro","productFamily":"iPhone"}]}"""),
+            _ => FakePrograms.Said("""{"devices":{}}""")
+        };
+        using var leases = new Leases(stuck, new FakeSessions(Owner.Session(Session)), new SqliteLedger(_file), new Android(config, stuck), _table, config, clock);
+
+        var lease = leases.SimulatorAsync("iPhone 17 Pro", boot: false, CancellationToken.None);
+        clock.Advance(Leases.Longest);
+        var answer = await lease;
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(Messages.SimulatorTooLong, answer.Error);
+    }
+
+    /// <summary>Outside programs where one command never ends; the rest answer as the fake says.</summary>
+    private sealed class Stuck(FakePrograms programs, string never) : Snail.MCP.CleanUp.Application.Ports.IPrograms
+    {
+        public Task<ProgramRun> RunAsync(string program, IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken cancellationToken) =>
+            arguments.Contains(never) ? new TaskCompletionSource<ProgramRun>().Task : programs.RunAsync(program, arguments, timeout, cancellationToken);
+
+        public Task<ProgramRun> ReadAsync(string program, IReadOnlyList<string> arguments, TimeSpan freshness, TimeSpan timeout, CancellationToken cancellationToken) =>
+            RunAsync(program, arguments, timeout, cancellationToken);
+
+        public StartedProgram StartLogged(IReadOnlyList<string> command, string? directory, string log) => programs.StartLogged(command, directory, log);
+
+        public Task<bool> TryDetachAsync(IReadOnlyList<string> command, CancellationToken cancellationToken) => programs.TryDetachAsync(command, cancellationToken);
     }
 
     [Fact]

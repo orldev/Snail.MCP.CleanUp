@@ -40,6 +40,18 @@ public sealed class ProgramsTests
         Assert.Equal(2, _performance.Runs("echo again"));
     }
 
+    /// <summary>A program that ends while something it started holds its output open is answered at the deadline, not when that one ends.</summary>
+    [Fact]
+    public async Task Run_WhoseOutputAChildHoldsOpen_EndsAtItsDeadline()
+    {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+
+        var run = await new Programs(_performance, TimeProvider.System).RunAsync("/bin/sh", ["-c", "sleep 30 & echo started"], TimeSpan.FromSeconds(1), CancellationToken.None);
+
+        Assert.True(run.IsTimedOut);
+        Assert.True(System.Diagnostics.Stopwatch.GetElapsedTime(started) < TimeSpan.FromSeconds(10));
+    }
+
     /// <summary>A command that changes something, or checks right before it does, never gets an answer read a moment ago.</summary>
     [Fact]
     public async Task Run_IsNeverShared()

@@ -31,6 +31,15 @@ public static class Messages
     /// <summary>What to do when the sessions of the machine could not be told, so that no census was taken.</summary>
     public const string SessionsUnknownHint = "Nothing was decided or removed. Ask again in a moment; when it keeps failing, call cleanup_diagnose to see what the server can read.";
 
+    /// <summary>Why no simulator can be made: no iOS runtime is installed.</summary>
+    public const string NoSimulatorRuntime = "no iOS simulator runtime is installed, so no simulator can be made";
+
+    /// <summary>Who installs a runtime, for an agent that would start a download of gigabytes nobody asked for.</summary>
+    public const string NoSimulatorRuntimeHint = "A person installs one, in Xcode › Settings › Components or with xcodebuild -downloadPlatform iOS. It is several gigabytes, so it is theirs to start: ask them, and do not start it yourself.";
+
+    /// <summary>Why a lease answered without a simulator: it ran past the time a lease may take in all.</summary>
+    public const string SimulatorTooLong = "the simulator was not made and booted within ten minutes: simctl did not answer";
+
     /// <summary>How a simulator is asked for, for a caller that asked wrongly.</summary>
     public const string SimulatorHint = "Pass a shut-down device to clone as from, a device type such as iPhone 17 Pro, or nothing for the newest iPhone Pro.";
 
