@@ -55,6 +55,19 @@ public sealed class UpkeepTests : IDisposable
         Assert.Equal([server.Id], _processes.Released);
     }
 
+    /// <summary>A transcript is the record of a conversation: the server's own sweep never takes it, however long its session has been over.</summary>
+    [Fact]
+    public async Task Transcript_OfASessionOverForLongerThanTheGrace_IsLeft()
+    {
+        var history = new FakeKind(MachineKinds.History);
+        var transcript = Of(MachineKinds.History, "/projects/p/s.jsonl", Gone, Evidence.Label);
+        var inventory = InventoryOf([transcript], Alive(Me), Dead(Gone) with { EndedAt = Now - TimeSpan.FromDays(60) });
+        var upkeep = new Upkeep(new Cleaner([history], new NoLedger()), new SweepLog(Config, _clock), Config, _clock);
+
+        Assert.Empty(await upkeep.SweepAsync(inventory, CancellationToken.None));
+        Assert.Empty(history.Released);
+    }
+
     /// <summary>A session resumed within the hour finds what it left where it left it.</summary>
     [Fact]
     public async Task Orphan_OfASessionOverForLessThanTheGrace_IsLeft()

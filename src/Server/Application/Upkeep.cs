@@ -60,7 +60,7 @@ public sealed class Upkeep(Cleaner cleaner, SweepLog log, ServerConfig config, T
 
     private bool CanGo(Decision decision, Owner asker, IReadOnlySet<Owner> alive, Dictionary<Owner, DateTimeOffset?> ended, DateTimeOffset now)
     {
-        if (decision.Verdict != Verdict.Remove)
+        if (decision.Verdict != Verdict.Remove || MachineKinds.IsLeftUntilAsked(decision.Resource.Kind))
             return false;
 
         var resource = decision.Resource;

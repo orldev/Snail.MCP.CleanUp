@@ -68,6 +68,12 @@
           "default": "~/.claude/settings.json"
         },
         {
+          "name": "SNAIL_MCP_CLEANUP_CLAUDE_PROJECTS",
+          "description": "Where Claude Code keeps its session transcripts, a folder per working directory.",
+          "isRequired": false,
+          "default": "~/.claude/projects"
+        },
+        {
           "name": "SNAIL_MCP_CLEANUP_SCRATCHPAD_WARNING_GIGABYTES",
           "description": "How large a running session's scratchpad may grow, in gigabytes, before the inventory and every plan warn of it.",
           "isRequired": false,
@@ -96,6 +102,12 @@
           "description": "How long, in hours, nothing must have been written in the scratchpad of an ended session before it is erased rather than moved to the Trash.",
           "isRequired": false,
           "default": "24"
+        },
+        {
+          "name": "SNAIL_MCP_CLEANUP_HISTORY_DAYS",
+          "description": "How long, in days, nobody must have written into a session transcript before a plan offers it.",
+          "isRequired": false,
+          "default": "3"
         }
       ]
     }

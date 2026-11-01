@@ -62,7 +62,8 @@ public sealed class Hooks(MeasuredCensus census, Cleaner cleaner, IPrograms prog
     /// </remarks>
     public async Task<IReadOnlyList<Release>> SweepAsync(Owner session, CancellationToken cancellationToken)
     {
-        var plan = Planner.Decide(await census.TakeAsync(session, cancellationToken), Scope.Mine, $"sweep-{Guid.NewGuid():n}"[..16], MachineKinds.Order);
+        var decided = Planner.Decide(await census.TakeAsync(session, cancellationToken), Scope.Mine, $"sweep-{Guid.NewGuid():n}"[..16], MachineKinds.Order);
+        var plan = decided with { Decisions = [.. decided.Decisions.Where(decision => !MachineKinds.IsLeftUntilAsked(decision.Resource.Kind))] };
         var releases = await cleaner.ApplyAsync(plan, cancellationToken);
 
         await log.WriteAsync(SweepLog.Of($"sweep of {session}", plan, releases, withWhatWasLeft: true), cancellationToken);

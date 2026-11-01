@@ -60,6 +60,7 @@ A client offers a prompt as a command; in Claude Code it is `/mcp__<server>__cle
 | editor | VS Code state of a folder that no longer exists | erased, only when caches are asked for |
 | testresults | the repository it is in: `TestResults` folders up to four levels into the repositories sessions work in and VS Code keeps state for — hang and crash dumps, coverage, trx; the next test run makes them again | erased, only when caches are asked for, never when anything in it was written within the hour, judged again right before |
 | outputs | the repository they are in: the `bin` and `obj` beside a `*.csproj` in the same repositories, one entry per repository with the folders no build wrote into for seven days; the next build makes them again | erased, only when caches are asked for, never one a running program was started from, judged again right before |
+| history | the session by its name: a Claude Code transcript `~/.claude/projects/<project>/<session>.jsonl` and the `<session>` folder of its subagents and tool results, once nobody wrote into either for `HISTORY_DAYS` (three days) and the session is not running | erased, only in a plan of `orphans` or `everything` somebody agreed to — never by the server's own sweep or at a session's end; judged again right before, since a resumed session writes into it |
 | remains | nobody: the debugger pipes and diagnostic sockets .NET leaves in `$TMPDIR` (`clr-debug-pipe-<pid>-<start>-in`/`-out`, `dotnet-diagnostic-<pid>-<start>-socket`), and the folders of Snail test runs (`s3l-test-<pid>-<start>-<random>`, with their size), once no process has that id and start | erased, only when caches are asked for, after reading the process table again; a running process's are never touched, nor any of a process started within two minutes. On Linux the runtime keys its endpoints by ticks since boot, which the process table does not give, so there they are left alone and only the test runs' folders are judged |
 | outside | nobody: places servers write outside their data folders — ONNX Runtime's `~/Library/Application Support/Microsoft/DeveloperTools/.onnxruntime` and NuGet's `$TMPDIR/NuGetScratch` — listed with the caches, with their size | never: reported, with why — what they hold is their library's to say, and a restore works in NuGet's |
 | worktree | — | never: listed, because it may hold work nobody committed |
@@ -204,11 +205,13 @@ registration, which travel wherever they are copied. In the file a variable is a
 | `AVD_DIRECTORY` | `$ANDROID_AVD_HOME` or `~/.android/avd` |
 | `EDITOR_USER_DIRECTORY` | `~/Library/Application Support/Code/User` |
 | `CLAUDE_SETTINGS` | `~/.claude/settings.json` |
+| `CLAUDE_PROJECTS` | `~/.claude/projects` — Claude Code's session transcripts |
 | `SCRATCHPAD_WARNING_GIGABYTES` | `10` — a running session's scratchpad this large is a warning |
 | `DISK_FALL_WARNING_GIGABYTES` | `20` — free space falling this far within a day is a warning |
 | `SWEEP_MINUTES` | `10` — how often the server clears on its own what may go without asking; `0` never |
 | `DOCKER_CACHE_SWEEP_GIGABYTES` | `10` — Docker's build cache past this is pruned by the server's own sweep |
 | `SCRATCHPAD_ERASE_HOURS` | `24` — the scratchpad of an ended session left this long unwritten is erased, not moved to the Trash |
+| `HISTORY_DAYS` | `3` — a session transcript nobody wrote into this long is offered in plans |
 
 ## What it clears by itself
 

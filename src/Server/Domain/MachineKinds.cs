@@ -44,6 +44,9 @@ public static class MachineKinds
     /// <summary>The <c>bin</c> and <c>obj</c> of a repository no build wrote into for a week.</summary>
     public const string ProjectOutputs = "outputs";
 
+    /// <summary>The transcript of a Claude Code session nobody wrote into for a few days.</summary>
+    public const string History = "history";
+
     /// <summary>What programs that have ended left for others to reach them, such as the debugger pipes of a .NET process.</summary>
     public const string Remains = "remains";
 
@@ -58,5 +61,9 @@ public static class MachineKinds
     public static KindOrder Order { get; } = KindOrder.General
         .After(Kinds.Process, McpServer, Forward, Emulator, Simulator, VirtualDevice)
         .After(Kinds.Image, DanglingImages, BuildCache, BuildHistory)
-        .Before(Kinds.File, Worktree, Editor, TestResults, ProjectOutputs, Remains, Outside);
+        .Before(Kinds.File, Worktree, Editor, TestResults, ProjectOutputs, History, Remains, Outside);
+
+    /// <summary>Whether a kind goes only in a plan somebody asked for and agreed to, never in a sweep of the server's own or at a session's end.</summary>
+    /// <remarks>A transcript is the record of a conversation, not a leftover: its session being over says nothing about whether it is still wanted.</remarks>
+    public static bool IsLeftUntilAsked(string kind) => string.Equals(kind, History, StringComparison.Ordinal);
 }

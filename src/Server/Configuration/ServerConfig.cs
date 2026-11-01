@@ -61,6 +61,10 @@ public sealed class ServerConfig
     /// <remarks>The Trash gives back no space: 148 scratchpads swept at their sessions' end waited there for somebody to empty it.</remarks>
     public double ScratchpadEraseHours { get; set; } = 24;
 
+    /// <summary>How long, in days, nobody must have written into a session's transcript before a plan offers it; 3 when not set.</summary>
+    /// <remarks>Of 12 GB of transcripts, 4.1 GB were younger than a week and only 0.43 GB older than a month (2026-11-02): a month gave back almost nothing.</remarks>
+    public double HistoryDays { get; set; } = 3;
+
     /// <summary>The Android SDK, with <c>emulator/emulator</c>, <c>platform-tools/adb</c> and <c>system-images</c> inside.</summary>
     public string AndroidSdk { get; set; } =
         Environment.GetEnvironmentVariable("ANDROID_HOME")
@@ -78,6 +82,10 @@ public sealed class ServerConfig
     /// <summary>Claude Code's user settings, where the hooks of this server are installed beside everyone else's.</summary>
     public string ClaudeSettings { get; set; } =
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "settings.json");
+
+    /// <summary>Where Claude Code keeps the transcripts of its sessions: a folder per working directory, a <c>&lt;session&gt;.jsonl</c> and a <c>&lt;session&gt;</c> folder per session.</summary>
+    public string ClaudeProjects { get; set; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".claude", "projects");
 
     /// <summary>Where Snail.SleepOf keeps its account of agent sessions, the first place sessions are read from.</summary>
     public string SleepOfDirectory { get; set; } =

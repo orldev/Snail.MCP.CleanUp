@@ -60,6 +60,9 @@ public static class ServerConfigExtensions
         if (!(config.ScratchpadEraseHours > 0))
             faults.Add($"ScratchpadEraseHours must be a number of hours above zero, not {config.ScratchpadEraseHours}");
 
+        if (!(config.HistoryDays > 0))
+            faults.Add($"HistoryDays must be a number of days above zero, not {config.HistoryDays}");
+
         if (faults.Count > 0)
             throw new InvalidOperationException($"invalid configuration: {string.Join("; ", faults)}");
     }

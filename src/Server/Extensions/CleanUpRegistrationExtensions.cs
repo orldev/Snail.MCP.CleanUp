@@ -69,6 +69,7 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<Repositories>();
             services.AddSingleton<IResourceKind, TestResultsKind>();
             services.AddSingleton<IResourceKind, ProjectOutputsKind>();
+            services.AddSingleton<IResourceKind, HistoryKind>();
             services.AddSingleton<IResourceKind, WorktreeKind>();
             services.AddSingleton<ITrail, CertificateTrail>();
 

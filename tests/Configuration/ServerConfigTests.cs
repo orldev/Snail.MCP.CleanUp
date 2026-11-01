@@ -35,7 +35,7 @@ public sealed class ServerConfigTests
     [InlineData("-3")]
     public void Warning_OfNoSize_StopsTheServer(string gigabytes)
     {
-        foreach (var variable in (string[])["SCRATCHPAD_WARNING_GIGABYTES", "DISK_FALL_WARNING_GIGABYTES", "DOCKER_CACHE_SWEEP_GIGABYTES", "SCRATCHPAD_ERASE_HOURS"])
+        foreach (var variable in (string[])["SCRATCHPAD_WARNING_GIGABYTES", "DISK_FALL_WARNING_GIGABYTES", "DOCKER_CACHE_SWEEP_GIGABYTES", "SCRATCHPAD_ERASE_HOURS", "HISTORY_DAYS"])
         {
             var settings = ServerConfigExtensions.Settings(new Dictionary<string, string> { [$"{EnvironmentSettings.Prefix}{variable}"] = gigabytes });
 
