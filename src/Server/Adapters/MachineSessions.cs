@@ -16,7 +16,7 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// anyone's memory, but the ledger already wrote down whatever they owned under that name.
 /// </para>
 /// </remarks>
-public sealed class MachineSessions(ServerConfig config, IProcessTable processes) : IHolders
+public sealed class MachineSessions(ServerConfig config, IProcessTable processes, ILogger<MachineSessions>? logger = null) : IHolders
 {
     /// <summary>How far SleepOf's clock and the process table's may disagree, the process table reading to the second.</summary>
     private static readonly TimeSpan Slack = TimeSpan.FromSeconds(5);
@@ -74,7 +74,9 @@ public sealed class MachineSessions(ServerConfig config, IProcessTable processes
     /// </remarks>
     public async Task<Owner> CurrentAsync(CancellationToken cancellationToken)
     {
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
         var running = (await processes.ListAsync(cancellationToken)).ToDictionary(process => process.Pid);
+        var table = System.Diagnostics.Stopwatch.GetElapsedTime(started);
         var agent = AgentAbove(Environment.ProcessId, running);
 
         if (agent is null)
@@ -82,6 +84,10 @@ public sealed class MachineSessions(ServerConfig config, IProcessTable processes
 
         var sessions = await SessionsAsync(cancellationToken);
         var session = sessions.FirstOrDefault(known => known.IsAlive && known.Pid == agent.Pid);
+        var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
+
+        if (logger is not null && elapsed >= Snail.MCP.CleanUp.Application.Performance.Slow)
+            Log.SlowSession(logger, elapsed, table, elapsed - table);
 
         return Owner.Session(session?.Id ?? NameOf(agent));
     }

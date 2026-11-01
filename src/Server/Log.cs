@@ -45,4 +45,16 @@ internal static partial class Log
 
     [LoggerMessage(EventId = 13, Level = LogLevel.Warning, Message = "upkeep failed; the next one comes with a later census")]
     internal static partial void UpkeepFailed(ILogger logger, Exception failure);
+
+    [LoggerMessage(EventId = 14, Level = LogLevel.Warning, Message = "{Tool} took {Elapsed}")]
+    internal static partial void SlowCall(ILogger logger, string tool, TimeSpan elapsed);
+
+    [LoggerMessage(EventId = 15, Level = LogLevel.Warning, Message = "{Tool} was answered as overdue after {Limit}; it goes on in the background")]
+    internal static partial void CallOverdue(ILogger logger, string tool, TimeSpan limit);
+
+    [LoggerMessage(EventId = 16, Level = LogLevel.Warning, Message = "census took {Elapsed}; slowest: {Slowest}")]
+    internal static partial void SlowCensus(ILogger logger, TimeSpan elapsed, string slowest);
+
+    [LoggerMessage(EventId = 17, Level = LogLevel.Warning, Message = "telling the session took {Elapsed}: the process table {Table}, the sessions {Sessions}")]
+    internal static partial void SlowSession(ILogger logger, TimeSpan elapsed, TimeSpan table, TimeSpan sessions);
 }

@@ -31,6 +31,12 @@ public static class Messages
     /// <summary>What to do when the sessions of the machine could not be told, so that no census was taken.</summary>
     public const string SessionsUnknownHint = "Nothing was decided or removed. Ask again in a moment; when it keeps failing, call cleanup_diagnose to see what the server can read.";
 
+    /// <summary>Why a call was answered without its result: the server took longer than a quick tool may.</summary>
+    public const string Overdue = "the server did not answer within two minutes: it is busy or stuck, and the call may still finish in the background";
+
+    /// <summary>What to do about a call answered as overdue, for an agent that would repeat it at once.</summary>
+    public const string OverdueHint = "Do not repeat the call at once: a cleanup_run may have started its program after all. Go on without it, look again in a minute, and if the server stays stuck, ask the person to reconnect the clean server with /mcp.";
+
     /// <summary>Why no simulator can be made: no iOS runtime is installed.</summary>
     public const string NoSimulatorRuntime = "no iOS simulator runtime is installed, so no simulator can be made";
 

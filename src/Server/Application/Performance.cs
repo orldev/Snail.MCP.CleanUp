@@ -10,8 +10,13 @@ namespace Snail.MCP.CleanUp.Application;
 /// The counts are of the whole process: a census and a tool call running at the same moment share them,
 /// which is why each census also carries the timings of its own kinds and trails, measured inside it.
 /// </remarks>
-public sealed class Performance(TimeProvider clock)
+public sealed class Performance(TimeProvider clock, ILogger<Performance>? logger = null)
 {
+    private const int SlowestShown = 5;
+
+    /// <summary>How long a census, a tool call or telling the session takes before it is logged as slow.</summary>
+    public static TimeSpan Slow { get; } = TimeSpan.FromSeconds(5);
+
     private readonly ConcurrentDictionary<string, Spent> _programs = new(StringComparer.Ordinal);
 
     private readonly long _started = clock.GetTimestamp();
@@ -67,6 +72,9 @@ public sealed class Performance(TimeProvider clock)
             GC.CollectionCount(2) - gen2);
         Interlocked.Increment(ref _censuses);
 
+        if (logger is not null && _last.Duration >= Slow)
+            Log.SlowCensus(logger, _last.Duration, Slowest(_last.Timings));
+
         return inventory;
     }
 
@@ -113,6 +121,14 @@ public sealed class Performance(TimeProvider clock)
         ["allocatedMB"] = Megabytes(census.AllocatedBytes),
         ["collections"] = new JsonObject { ["gen0"] = census.Gen0, ["gen1"] = census.Gen1, ["gen2"] = census.Gen2 }
     };
+
+    /// <summary>The kinds and trails that took longest, as one line of a log.</summary>
+    private static string Slowest(IReadOnlyDictionary<string, TimeSpan> timings)
+    {
+        var slowest = timings.OrderByDescending(timing => timing.Value).Take(SlowestShown);
+
+        return string.Join(", ", slowest.Select(timing => $"{timing.Key} {(int)timing.Value.TotalMilliseconds} ms"));
+    }
 
     private static double Megabytes(long bytes) => Math.Round(bytes / 1_048_576.0, 1);
 }
