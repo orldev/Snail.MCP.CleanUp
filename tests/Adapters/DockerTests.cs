@@ -31,7 +31,7 @@ public sealed class DockerTests : IDisposable
 
     /// <summary>
     /// Build cache records the way the Engine writes them, nanoseconds and all: old and private, old and shared with a later
-    /// build, in use, and used an hour ago.
+    /// build, in use, used an hour ago, and two old layers a build of today is built on, under the Engine's own " Parents".
     /// </summary>
     private static readonly string BuildCache =
         $$"""
@@ -39,7 +39,10 @@ public sealed class DockerTests : IDisposable
          {"Size":1000000000,"InUse":false,"Shared":false,"LastUsedAt":"{{Ago(TimeSpan.FromDays(3))}}"},
          {"Size":210000000,"InUse":false,"Shared":true,"LastUsedAt":"{{Ago(TimeSpan.FromDays(2))}}"},
          {"Size":500,"InUse":true,"Shared":false,"LastUsedAt":"{{Ago(TimeSpan.FromDays(4))}}"},
-         {"Size":700,"InUse":false,"Shared":true,"CreatedAt":"{{Ago(TimeSpan.FromDays(5))}}","LastUsedAt":"{{Ago(TimeSpan.FromHours(1))}}"}]}
+         {"Size":700,"InUse":false,"Shared":true,"CreatedAt":"{{Ago(TimeSpan.FromDays(5))}}","LastUsedAt":"{{Ago(TimeSpan.FromHours(1))}}"},
+         {"ID":"base","Size":300000000,"InUse":false,"Shared":false,"LastUsedAt":"{{Ago(TimeSpan.FromDays(9))}}"},
+         {"ID":"middle"," Parents":["base"],"Size":40000000,"InUse":false,"Shared":false,"LastUsedAt":"{{Ago(TimeSpan.FromDays(8))}}"},
+         {"ID":"today"," Parents":["middle"],"Size":900,"InUse":false,"Shared":false,"LastUsedAt":"{{Ago(TimeSpan.FromHours(2))}}"}]}
         """;
 
     private readonly FakeEngine _engine = new();
@@ -181,7 +184,7 @@ public sealed class DockerTests : IDisposable
     }
 
     /// <summary>
-    /// What a prune gives back is every record no build uses and none used in the last day, shared ones too: counted the way
+    /// What a prune gives back is every record no build uses and none used in the last six hours, shared ones too: counted the way
     /// docker system df counts, 227 GB of shared records read as 40 MB and were never pruned (2026-10-28).
     /// </summary>
     [Fact]
@@ -194,14 +197,26 @@ public sealed class DockerTests : IDisposable
         Assert.Equal(1_210_000_000, cache.Bytes);
     }
 
-    /// <summary>A prune without all leaves every record a later build shares; the last day's records stay for the next builds.</summary>
+    /// <summary>
+    /// A prune never removes the layers a kept record is built on, however old: 62 records of 5.28 GB stayed after one and were
+    /// offered by every plan after it (2026-11-02). The two old layers under today's build are left out of the size.
+    /// </summary>
     [Fact]
-    public async Task BuildCache_IsPrunedWhole_ExceptTheLastDay()
+    public async Task BuildCache_LayersAKeptBuildIsBuiltOn_AreNotCountedAsGivenBack()
+    {
+        var cache = Assert.Single((await new BuildCacheKind(_socket).ObserveAsync([], CancellationToken.None)).Resources);
+
+        Assert.Equal(1_210_000_000, cache.Bytes);
+    }
+
+    /// <summary>A prune without all leaves every record a later build shares; the last six hours' records stay for the next builds.</summary>
+    [Fact]
+    public async Task BuildCache_IsPrunedWhole_ExceptTheLastSixHours()
     {
         var cache = Assert.Single((await new BuildCacheKind(_socket).ObserveAsync([], CancellationToken.None)).Resources);
 
         Assert.Equal(Outcome.Released, (await new BuildCacheKind(_socket).ReleaseAsync(cache, CancellationToken.None)).Outcome);
-        Assert.Contains("""POST /build/prune?all=1&filters={"until":["24h"]}""", _engine.Requests);
+        Assert.Contains("""POST /build/prune?all=1&filters={"until":["6h"]}""", _engine.Requests);
     }
 
     [Fact]

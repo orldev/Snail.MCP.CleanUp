@@ -27,8 +27,13 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
     /// <summary>How long a prune may take: one of 175 GB of build cache took minutes (2026-10-28).</summary>
     private static readonly TimeSpan PrunePatience = TimeSpan.FromMinutes(30);
 
-    /// <summary>How long a build cache record is kept after a build last used it: the next builds of the day stay fast.</summary>
-    public static TimeSpan BuildCacheKept { get; } = TimeSpan.FromHours(24);
+    /// <summary>How long a build cache record is kept after a build last used it: the next builds of the hour stay fast.</summary>
+    /// <remarks>
+    /// A day was kept until 2026-11-06, when agents publishing .NET images in Docker made a layer of about 0.9 GB each time,
+    /// tens of times a day: 10.8 GB of the 15.2 GB of cache were the last day's, and a sweep never came, because what it could
+    /// give back stayed under its threshold. A rebuild after six quiet hours pays a restore again; a disk that fills does not wait.
+    /// </remarks>
+    public static TimeSpan BuildCacheKept { get; } = TimeSpan.FromHours(6);
 
     private readonly Func<IReadOnlyList<string>> _places;
 
@@ -266,20 +271,61 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
         element.TryGetProperty("Size", out var size) && size.TryGetInt64(out var bytes) ? bytes : 0,
         Labels(element));
 
-    /// <summary>Bytes of build cache a prune gives back: records no build is using and none used in the last <see cref="BuildCacheKept"/>.</summary>
+    /// <summary>Bytes of build cache a prune gives back: records no build is using, none used in the last <see cref="BuildCacheKept"/>, and none a kept record is built on.</summary>
     /// <remarks>
     /// Shared records count, the way <c>docker buildx du</c> counts them as reclaimable. <c>docker system df</c> leaves them out,
     /// and counted its way 227 GB of cache read as 40 MB, below every threshold, so it was never pruned (2026-10-28).
+    /// <para>
+    /// A prune never removes the layer a kept record is built on, however old: after one on 2026-11-02, 62 records of
+    /// 5.28 GB from October stayed, every one an ancestor of a build of that day, and every plan offered them again.
+    /// </para>
     /// </remarks>
     private static long Reclaimable(JsonDocument? usage, DateTimeOffset now)
     {
-        if (usage?.RootElement.TryGetProperty("BuildCache", out var records) != true || records.ValueKind != JsonValueKind.Array)
+        if (usage?.RootElement.TryGetProperty("BuildCache", out var listed) != true || listed.ValueKind != JsonValueKind.Array)
             return 0;
 
-        return records.EnumerateArray()
-            .Where(record => !(record.TryGetProperty("InUse", out var used) && used.GetBoolean()) && !IsRecent(record, now))
-            .Sum(record => record.TryGetProperty("Size", out var size) && size.TryGetInt64(out var bytes) ? bytes : 0);
+        var records = listed.EnumerateArray().ToList();
+        var parents = records.Where(record => Text(record, "ID").Length > 0).ToDictionary(record => Text(record, "ID"), Parents, StringComparer.Ordinal);
+        var kept = records.Where(record => IsInUse(record) || IsRecent(record, now)).ToList();
+        var underKept = Ancestors(kept.Select(record => Text(record, "ID")), parents);
+        var prunable = records.Where(record => !kept.Contains(record) && !underKept.Contains(Text(record, "ID")));
+
+        return prunable.Sum(record => record.TryGetProperty("Size", out var size) && size.TryGetInt64(out var bytes) ? bytes : 0);
     }
+
+    /// <summary>Every record the given ones are built on, however far down.</summary>
+    private static HashSet<string> Ancestors(IEnumerable<string> records, IReadOnlyDictionary<string, IReadOnlyList<string>> parents)
+    {
+        var found = new HashSet<string>(StringComparer.Ordinal);
+        var waiting = new Stack<string>(records);
+
+        while (waiting.TryPop(out var record))
+        {
+            if (!parents.TryGetValue(record, out var below))
+                continue;
+
+            foreach (var parent in below.Where(found.Add))
+                waiting.Push(parent);
+        }
+
+        return found;
+    }
+
+    /// <summary>The records a record is built on.</summary>
+    /// <remarks>The Engine names the list <c>" Parents"</c>, with a space before it, as its Go type spells the tag; older ones wrote one <c>Parent</c>.</remarks>
+    private static IReadOnlyList<string> Parents(JsonElement record)
+    {
+        foreach (var name in (string[])[" Parents", "Parents"])
+        {
+            if (record.TryGetProperty(name, out var listed) && listed.ValueKind == JsonValueKind.Array)
+                return [.. listed.EnumerateArray().Select(parent => parent.GetString()).OfType<string>()];
+        }
+
+        return Text(record, "Parent") is { Length: > 0 } parent ? [parent] : [];
+    }
+
+    private static bool IsInUse(JsonElement record) => record.TryGetProperty("InUse", out var used) && used.GetBoolean();
 
     /// <summary>Whether a build used the record, or made it, within <see cref="BuildCacheKept"/>; a record without a readable time is not.</summary>
     private static bool IsRecent(JsonElement record, DateTimeOffset now)

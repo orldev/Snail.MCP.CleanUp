@@ -95,7 +95,7 @@
           "name": "SNAIL_MCP_CLEANUP_DOCKER_CACHE_SWEEP_GIGABYTES",
           "description": "How large Docker's build cache may grow, in gigabytes, before the server's own sweep prunes it.",
           "isRequired": false,
-          "default": "10"
+          "default": "5"
         },
         {
           "name": "SNAIL_MCP_CLEANUP_SCRATCHPAD_ERASE_HOURS",

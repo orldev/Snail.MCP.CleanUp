@@ -54,8 +54,9 @@ public sealed class ServerConfig
     /// </remarks>
     public double SweepMinutes { get; set; } = 10;
 
-    /// <summary>How large Docker's build cache may grow, in gigabytes, before the server's own sweep prunes it; 10 when not set.</summary>
-    public double DockerCacheSweepGigabytes { get; set; } = 10;
+    /// <summary>How large Docker's build cache may grow, in gigabytes, before the server's own sweep prunes it; 5 when not set.</summary>
+    /// <remarks>Ten until 2026-11-06: the cache a prune could give back stayed under it for six days while the disk fell to 11 GB free.</remarks>
+    public double DockerCacheSweepGigabytes { get; set; } = 5;
 
     /// <summary>How long, in hours, nothing must have been written in the scratchpad of an ended session before it is erased rather than moved to the Trash; 24 when not set.</summary>
     /// <remarks>The Trash gives back no space: 148 scratchpads swept at their sessions' end waited there for somebody to empty it.</remarks>
