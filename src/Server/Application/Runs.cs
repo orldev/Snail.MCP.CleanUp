@@ -18,15 +18,15 @@ namespace Snail.MCP.CleanUp.Application;
 public sealed class Runs(ServerConfig config, IHolders sessions, ILedger ledger, IPrograms programs, IProcessTable table, TimeProvider clock)
 {
     /// <summary>Starts the command in the directory and answers with its process and its log.</summary>
-    public async Task<Answer> StartAsync(string command, string? directory, CancellationToken cancellationToken)
+    public async Task<Answer<JsonObject>> StartAsync(string command, string? directory, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(command))
-            return Answer.Failed(Messages.RunNeedsACommand, Messages.RunHint);
+            return Answer.Failed(Messages.RunNeedsACommand, Messages.RunHint, Failures.Arguments);
 
         var workingDirectory = string.IsNullOrWhiteSpace(directory) ? Environment.CurrentDirectory : directory;
 
         if (!Directory.Exists(workingDirectory))
-            return Answer.Failed($"there is no directory {workingDirectory}", Messages.RunHint);
+            return Answer.Failed($"there is no directory {workingDirectory}", Messages.RunHint, Failures.Absent);
 
         var owner = await sessions.CurrentAsync(cancellationToken);
         var log = LogFor(clock.GetLocalNow());

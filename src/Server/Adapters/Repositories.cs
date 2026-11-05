@@ -1,5 +1,6 @@
 using Snail.MCP.CleanUp.Adapters.Resources;
 using Snail.MCP.CleanUp.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.CleanUp.Adapters;
 
@@ -14,7 +15,7 @@ public sealed class Repositories(ServerConfig config)
     /// <summary>The repositories among the directories sessions work in and the folders the editor opened.</summary>
     public IReadOnlyList<string> Named(IReadOnlyList<string> worked)
     {
-        var home = Path.TrimEndingDirectorySeparator(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        var home = Path.TrimEndingDirectorySeparator(ServerFolders.Home);
         var scratch = Path.Combine(config.ScratchRoot, "claude-");
 
         return

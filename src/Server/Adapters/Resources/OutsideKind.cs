@@ -1,3 +1,5 @@
+using Snail.Sdk.Mcp.Hosting;
+
 namespace Snail.MCP.CleanUp.Adapters.Resources;
 
 /// <summary>Places servers are known to write into outside their own data folders: reported with their size, never removed.</summary>
@@ -16,7 +18,7 @@ public sealed class OutsideKind(Sizes sizes, IReadOnlyList<(string Path, string 
 {
     /// <summary>The places of this user's Mac.</summary>
     public OutsideKind(Sizes sizes)
-        : this(sizes, Known(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Path.GetTempPath()))
+        : this(sizes, Known(ServerFolders.Home, Path.GetTempPath()))
     {
     }
 

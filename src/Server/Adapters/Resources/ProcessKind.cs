@@ -1,5 +1,6 @@
 using System.Globalization;
 using Snail.MCP.CleanUp.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.CleanUp.Adapters.Resources;
 
@@ -166,7 +167,7 @@ public sealed class ProcessKind(IProcessTable table, IPrograms programs, ILedger
     }
 
     private static readonly string[] Applications =
-        ["/Applications/", "/System/Applications/", $"{Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)}/Applications/"];
+        ["/Applications/", "/System/Applications/", $"{ServerFolders.Home}/Applications/"];
 
     private IEnumerable<Holding> Recorded(IEnumerable<Holding> holdings) =>
         holdings.Where(holding => holding.Evidence == Evidence.Ledger && holding.ResourceId.StartsWith($"{Name}:", StringComparison.Ordinal));

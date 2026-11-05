@@ -34,7 +34,7 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
     {
         get
         {
-            var variables = new Dictionary<string, string?> { ["SNAIL_MCP_CLEANUP_DATA_DIRECTORY"] = _scratch.Path, ["SNAIL_MCP_CLEANUP_HOOK_DIRECTORY"] = _run, ["SNAIL_MCP_CLEANUP_CONFIG"] = Snail.Sdk.Mcp.Testing.ServerProgram.NoSettingsFile };
+            var variables = new Dictionary<string, string?> { ["SNAIL_MCP_CLEANUP_DATA_DIRECTORY"] = _scratch.Path, ["SNAIL_MCP_CLEANUP_HOOK_DIRECTORY"] = _run, ["SNAIL_MCP_CLEANUP_SWEEP_MINUTES"] = "0", ["SNAIL_MCP_CLEANUP_CONFIG"] = Snail.Sdk.Mcp.Testing.ServerProgram.NoSettingsFile };
 
             foreach (var pair in (Environment.GetEnvironmentVariable("SNAIL_CLEANUP_BENCH_ENV") ?? string.Empty).Split(';', StringSplitOptions.RemoveEmptyEntries))
                 variables[pair.Split('=', 2)[0]] = pair.Split('=', 2)[1];
@@ -99,7 +99,7 @@ public sealed class BenchOnThisMacTests(ITestOutputHelper output) : IDisposable
     }
 
     private static async Task<JsonNode> DiagnoseAsync(McpClient client) =>
-        (await client.CallToolAsync("cleanup_diagnose", new Dictionary<string, object?>())).Data();
+        (await client.CallToolAsync("cleanup_diagnose", new Dictionary<string, object?>())).Data()!;
 
     /// <summary>Calls in a row, with the process's memory sampled four times a second while they run.</summary>
     private static async Task<JsonObject> LoadAsync(McpClient client, int pid)

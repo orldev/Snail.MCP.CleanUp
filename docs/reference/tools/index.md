@@ -16,7 +16,7 @@ Look, decide, then act: `cleanup_inventory` says what is there and whose, `clean
 | [`cleanup_simulator_acquire`](lease.md#cleanup_simulator_acquire) | Simulators and emulators of your own | Get an iOS simulator of your own: a clone of a shut-down device, or a new device of a type, named for this session so that no other agent uses it and only th… |
 | [`cleanup_emulator_acquire`](lease.md#cleanup_emulator_acquire) | Simulators and emulators of your own | Get an Android emulator of your own: a new virtual device from an installed system image, started on a free console port without saving a snapshot, named for… |
 | [`cleanup_run`](run.md#cleanup_run) | Programs started on the record | Start a program that keeps running — a dev server, a watcher, a worker — written down as yours from its first second, so that cleaning up after this session … |
-| [`find_tool`](discovery.md#find_tool) | Finding a tool | Find which of this server's tools does a thing, described in your own words, with every argument each one takes. |
+| [`find_tool`](discovery.md#find_tool) | Finding a tool | Finds tools of this server for a task in words, best first, with the parameters of each. |
 | [`cleanup_diagnose`](diagnostics.md#cleanup_diagnose) | Diagnostics | Say what state this server is in: its version, the session it counts as yours, and which of the programs it works through (simctl, adb, docker) it can reach. |
 
 ## Prompts

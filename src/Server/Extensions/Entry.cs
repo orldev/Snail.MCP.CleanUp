@@ -18,7 +18,7 @@ public static class Entry
     {
         if (args is not [var verb, ..] || !Verbs.Contains(verb))
         {
-            await McpServerHost.Of(args).RunAsync();
+            await Served(args).RunAsync();
 
             return 0;
         }
@@ -54,6 +54,24 @@ public static class Entry
         }
 
         return 0;
+    }
+
+    /// <summary>The server as a running host: a child process speaking stdio to the agent that started it.</summary>
+    /// <remarks>
+    /// There is no address to listen at. What this server cleans up lives on the machine the agent works on, and a server
+    /// elsewhere would see neither the processes of that machine nor its simulators. The host is Snail.Sdk.Mcp's empty one
+    /// over the settings read here once (<see cref="ServerConfigExtensions"/>): the appsettings files, their watchers, the
+    /// command line and the default loggers of the full builder were all loaded for nothing.
+    /// </remarks>
+    private static IHost Served(string[] args)
+    {
+        var settings = ServerConfigExtensions.Settings();
+        var config = ServerConfigExtensions.Read(settings);
+        var builder = McpHost.CreateBuilder(args, settings);
+
+        builder.ConfigureMcpServer(config);
+
+        return builder.Build();
     }
 
     /// <summary>The services without a transport or a host: a verb answers once and exits.</summary>

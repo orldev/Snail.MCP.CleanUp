@@ -26,8 +26,11 @@ public static class ServerConfigExtensions
     {
         var config = new ServerConfig();
 
-        settings.GetSection(ServerConfig.SectionName).Bind(config);
-        settings.Bind(config);
+        ServerSettings.Bind(Server, settings, source =>
+        {
+            source.GetSection(ServerConfig.SectionName).Bind(config);
+            source.Bind(config);
+        });
 
         Validate(config);
 
@@ -35,35 +38,45 @@ public static class ServerConfigExtensions
     }
 
     /// <summary>Refuses a setting that cannot work at start-up, so a typo stops the process instead of being repaired in silence.</summary>
+    /// <remarks>
+    /// Each refused value is named as the operator set it, its variable and its key in the settings file
+    /// (<see cref="ServerSettings.NameOfSetting"/>), and every one of them is said in the same line: a
+    /// <see cref="StartRefusedException"/> is what <c>Program.cs</c> writes to stderr before it exits with 1.
+    /// </remarks>
+    /// <exception cref="StartRefusedException">A setting holds a value the server cannot run on.</exception>
     internal static void Validate(ServerConfig config)
     {
         var faults = new List<string>();
 
         if (!Path.IsPathFullyQualified(config.DataDirectory))
-            faults.Add($"DataDirectory must be an absolute path, not '{config.DataDirectory}'");
+            faults.Add(Fault("DataDirectory", config.DataDirectory, "an absolute path"));
 
         if (!Path.IsPathFullyQualified(config.TrashDirectory))
-            faults.Add($"TrashDirectory must be an absolute path, not '{config.TrashDirectory}'");
+            faults.Add(Fault("TrashDirectory", config.TrashDirectory, "an absolute path"));
 
         if (!(config.ScratchpadWarningGigabytes > 0))
-            faults.Add($"ScratchpadWarningGigabytes must be a number of gigabytes above zero, not {config.ScratchpadWarningGigabytes}");
+            faults.Add(Fault("ScratchpadWarningGigabytes", config.ScratchpadWarningGigabytes, "a number of gigabytes above zero"));
 
         if (!(config.DiskFallWarningGigabytes > 0))
-            faults.Add($"DiskFallWarningGigabytes must be a number of gigabytes above zero, not {config.DiskFallWarningGigabytes}");
+            faults.Add(Fault("DiskFallWarningGigabytes", config.DiskFallWarningGigabytes, "a number of gigabytes above zero"));
 
         if (!(config.SweepMinutes >= 0))
-            faults.Add($"SweepMinutes must be a number of minutes, 0 for never, not {config.SweepMinutes}");
+            faults.Add(Fault("SweepMinutes", config.SweepMinutes, "a number of minutes, 0 for never"));
 
         if (!(config.DockerCacheSweepGigabytes > 0))
-            faults.Add($"DockerCacheSweepGigabytes must be a number of gigabytes above zero, not {config.DockerCacheSweepGigabytes}");
+            faults.Add(Fault("DockerCacheSweepGigabytes", config.DockerCacheSweepGigabytes, "a number of gigabytes above zero"));
 
         if (!(config.ScratchpadEraseHours > 0))
-            faults.Add($"ScratchpadEraseHours must be a number of hours above zero, not {config.ScratchpadEraseHours}");
+            faults.Add(Fault("ScratchpadEraseHours", config.ScratchpadEraseHours, "a number of hours above zero"));
 
         if (!(config.HistoryDays > 0))
-            faults.Add($"HistoryDays must be a number of days above zero, not {config.HistoryDays}");
+            faults.Add(Fault("HistoryDays", config.HistoryDays, "a number of days above zero"));
 
         if (faults.Count > 0)
-            throw new InvalidOperationException($"invalid configuration: {string.Join("; ", faults)}");
+            throw new StartRefusedException(string.Join(" ", faults));
     }
+
+    /// <summary>One refused value as a sentence: <c>SNAIL_MCP_CLEANUP_HISTORY_DAYS (or HistoryDays in the settings file) is '0'; it is a number of days above zero.</c></summary>
+    private static string Fault(string key, object value, string expected) =>
+        string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{ServerSettings.NameOfSetting(Server, key)} is '{value}'; it is {expected}.");
 }

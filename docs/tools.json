@@ -6,7 +6,7 @@
     { "type": "AccountTools", "slug": "account", "title": "The account: inventory, plan, apply" },
     { "type": "LeaseTools", "slug": "lease", "title": "Simulators and emulators of your own" },
     { "type": "RunTools", "slug": "run", "title": "Programs started on the record" },
-    { "type": "DiscoveryTools", "slug": "discovery", "title": "Finding a tool" },
+    { "tools": ["find_tool"], "slug": "discovery", "title": "Finding a tool" },
     { "type": "DiagnosticsTools", "slug": "diagnostics", "title": "Diagnostics" }
   ]
 }

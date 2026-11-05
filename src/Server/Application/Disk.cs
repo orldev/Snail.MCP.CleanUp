@@ -1,3 +1,5 @@
+using Snail.Sdk.Mcp.Hosting;
+
 namespace Snail.MCP.CleanUp.Application;
 
 /// <summary>How full the disk is, said before it is full rather than after.</summary>
@@ -17,7 +19,7 @@ public static class Disk
     /// <summary>The free space of the volume home lives on, with a warning when it is low.</summary>
     public static JsonObject Report()
     {
-        var volume = new DriveInfo(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+        var volume = new DriveInfo(ServerFolders.Home);
 
         return Report(volume.AvailableFreeSpace, volume.TotalSize);
     }

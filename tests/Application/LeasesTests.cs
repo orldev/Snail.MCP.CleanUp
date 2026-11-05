@@ -5,6 +5,7 @@ using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Application.Ports;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Domain;
+using Snail.Sdk.Mcp.Hosting.Sessions;
 using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Application;
@@ -34,8 +35,41 @@ public sealed class LeasesTests : IDisposable
 
     private ServerConfig Config => new() { DataDirectory = _scratch.File("data"), AndroidSdk = _scratch.File("sdk"), AvdDirectory = _scratch.File("avd") };
 
-    private Leases LeasesOver(ServerConfig config) =>
-        new(_simctl, new FakeSessions(Owner.Session(Session)), new SqliteLedger(_file), new Android(config, _simctl), new FakeProcessTable(), config, TimeProvider.System);
+    private Leases LeasesOver(ServerConfig config) => LeasesOver(config, Owner.Session(Session));
+
+    private Leases LeasesOver(ServerConfig config, Owner owner) =>
+        new(_simctl, new FakeSessions(owner), new SqliteLedger(_file), new Android(config, _simctl), new FakeProcessTable(), config, TimeProvider.System);
+
+    [Fact]
+    public async Task Simulator_ForNoSessionItCanTell_IsTypedNoSession()
+    {
+        using var leases = LeasesOver(Config, Owner.Nobody);
+
+        var answer = await leases.SimulatorAsync(null, boot: false, CancellationToken.None);
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal("noSession", answer.Type);
+    }
+
+    /// <summary>Nothing installed is a person's to install, a named image that matches nothing the caller's to fix: two types.</summary>
+    [Fact]
+    public async Task Emulator_NotInstalled_IsTypedNotInstalled_AndAnImageThatMatchesNothingAbsent()
+    {
+        var config = Config;
+
+        using var leases = LeasesOver(config);
+
+        var missing = await leases.EmulatorAsync(null, window: false, CancellationToken.None);
+        var emulator = Path.Combine(config.AndroidSdk, "emulator", "emulator");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(emulator)!);
+        File.WriteAllText(emulator, "#!/bin/sh\nexit 0\n");
+
+        var unmatched = await leases.EmulatorAsync("no-such-image", window: false, CancellationToken.None);
+
+        Assert.Equal("notInstalled", missing.Type);
+        Assert.Equal(Reached.Absent, unmatched.Type);
+    }
 
     [Fact]
     public async Task Simulator_TwoLeasesOfOneSessionAtOnce_GetTwoNames()
@@ -71,8 +105,8 @@ public sealed class LeasesTests : IDisposable
             leases.EmulatorAsync(null, window: false, CancellationToken.None));
 
         Assert.All(answers, answer => Assert.True(answer.IsSuccess, answer.Error));
-        Assert.Equal(2, answers.Select(answer => answer.Data!["avd"]!.GetValue<string>()).Distinct(StringComparer.Ordinal).Count());
-        Assert.Equal(2, answers.Select(answer => answer.Data!["port"]!.GetValue<int>()).Distinct().Count());
+        Assert.Equal(2, answers.Select(answer => answer.Value!["avd"]!.GetValue<string>()).Distinct(StringComparer.Ordinal).Count());
+        Assert.Equal(2, answers.Select(answer => answer.Value!["port"]!.GetValue<int>()).Distinct().Count());
     }
 
     /// <summary>simctl as it answers: the devices it made are listed after, and each call takes a moment, so that two callers overlap.</summary>

@@ -27,7 +27,11 @@ public sealed class ServerConfigTests
             [$"{EnvironmentSettings.Prefix}DATA_DIRECTORY"] = "relative/place"
         });
 
-        Assert.Throws<InvalidOperationException>(() => ServerConfigExtensions.Read(settings));
+        var refused = Assert.Throws<Snail.Sdk.Mcp.Hosting.StartRefusedException>(() => ServerConfigExtensions.Read(settings));
+
+        Assert.Equal(
+            "SNAIL_MCP_CLEANUP_DATA_DIRECTORY (or DataDirectory in the settings file) is 'relative/place'; it is an absolute path.",
+            refused.Message);
     }
 
     [Theory]
@@ -39,7 +43,7 @@ public sealed class ServerConfigTests
         {
             var settings = ServerConfigExtensions.Settings(new Dictionary<string, string> { [$"{EnvironmentSettings.Prefix}{variable}"] = gigabytes });
 
-            Assert.Throws<InvalidOperationException>(() => ServerConfigExtensions.Read(settings));
+            Assert.Throws<Snail.Sdk.Mcp.Hosting.StartRefusedException>(() => ServerConfigExtensions.Read(settings));
         }
     }
 
@@ -55,7 +59,7 @@ public sealed class ServerConfigTests
         if (isTaken)
             Assert.Equal(double.Parse(minutes, System.Globalization.CultureInfo.InvariantCulture), ServerConfigExtensions.Read(settings).SweepMinutes);
         else
-            Assert.Throws<InvalidOperationException>(() => ServerConfigExtensions.Read(settings));
+            Assert.Throws<Snail.Sdk.Mcp.Hosting.StartRefusedException>(() => ServerConfigExtensions.Read(settings));
     }
 
     [Fact]

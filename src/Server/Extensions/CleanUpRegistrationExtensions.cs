@@ -113,7 +113,6 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton<Upkeep>();
             services.AddSingleton<Hooks>();
             services.AddSingleton<HookInstallation>();
-            services.AddSingleton<Snail.MCP.CleanUp.Tools.ToolIndex>();
             services.AddSingleton<IChanges>(provider => OperatingSystem.IsMacOS()
                 ? new Adapters.Native.KernelChanges(provider.GetRequiredService<FileTrail>())
                 : new TimedChanges(provider.GetRequiredService<TimeProvider>()));

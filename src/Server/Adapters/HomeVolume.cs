@@ -1,3 +1,5 @@
+using Snail.Sdk.Mcp.Hosting;
+
 namespace Snail.MCP.CleanUp.Adapters;
 
 /// <summary>The volume a directory lives on — home's, unless told another — as the system reports it.</summary>
@@ -6,7 +8,7 @@ public sealed class HomeVolume(string directory) : IVolume
 {
     /// <summary>The volume home lives on.</summary>
     public HomeVolume()
-        : this(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile))
+        : this(ServerFolders.Home)
     {
     }
 

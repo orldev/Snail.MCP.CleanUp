@@ -251,7 +251,7 @@ public sealed class SimulatorTests : IDisposable
         var answer = await leases.SimulatorAsync(null, boot: false, CancellationToken.None);
 
         Assert.True(answer.IsSuccess, answer.Error);
-        Assert.Equal($"snail-{Session}-2", answer.Data!["name"]!.GetValue<string>());
+        Assert.Equal($"snail-{Session}-2", answer.Value!["name"]!.GetValue<string>());
         Assert.Contains(calls, arguments => arguments is ["simctl", "create", _, "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro", "com.apple.CoreSimulator.SimRuntime.iOS-27-0"]);
         Assert.Equal(Evidence.Ledger, Assert.Single(await ledger.HoldingsAsync(CancellationToken.None)).Evidence);
     }

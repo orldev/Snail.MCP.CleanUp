@@ -17,5 +17,5 @@ public sealed class RunTools(Runs runs)
         [Description(ToolDescriptions.RunCommand)] string command,
         [Description(ToolDescriptions.RunDirectory)] string? directory = null,
         CancellationToken cancellationToken = default) =>
-        ToolResponse.From(await runs.StartAsync(command, directory, cancellationToken));
+        ToolAnswer.From(await runs.StartAsync(command, directory, cancellationToken));
 }

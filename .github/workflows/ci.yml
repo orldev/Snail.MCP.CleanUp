@@ -1,7 +1,8 @@
 name: build and tests
 
 # The shared server CI of Snail.Sdk. The tests run on a Mac: the server reads ps, lsof, simctl and the keychain the way
-# macOS prints them. The native program is built for each platform it ships to and asked over stdio where it runs.
+# macOS prints them. The native program is built for each platform it ships to and put through every contract test
+# where it runs, the shared workflow's filter.
 
 on:
   push:
@@ -18,4 +19,3 @@ jobs:
       project: src/Server
       os: macos-latest
       contract-variable: SNAIL_CLEANUP_SERVER
-      contract-filter: FullyQualifiedName~StdioContract

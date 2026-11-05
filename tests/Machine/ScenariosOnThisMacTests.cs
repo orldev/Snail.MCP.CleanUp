@@ -42,8 +42,8 @@ public sealed class ScenariosOnThisMacTests : IDisposable
         var dead = Owner.Session(Guid.NewGuid().ToString());
 
         var started = await services.GetRequiredService<Runs>().StartAsync("sleep 300", _scratch.Path, CancellationToken.None);
-        var process = started.Data!["id"]!.GetValue<string>();
-        _processes.Add(started.Data!["pid"]!.GetValue<int>());
+        var process = started.Value!["id"]!.GetValue<string>();
+        _processes.Add(started.Value!["pid"]!.GetValue<int>());
         await services.GetRequiredService<ILedger>().RecordAsync(new Holding(process, dead, Evidence.Ledger, DateTimeOffset.UtcNow.AddMinutes(-5), "sleep 300"), CancellationToken.None);
 
         var simulator = Simulator(Simulators.NameFor(dead, 1));

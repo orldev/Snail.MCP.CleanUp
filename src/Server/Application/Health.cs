@@ -1,5 +1,6 @@
 using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.CleanUp.Application;
 
@@ -7,7 +8,7 @@ namespace Snail.MCP.CleanUp.Application;
 public sealed class Health(ServerConfig config, IHolders sessions, IPrograms programs, Android android, IDockerEngine docker, IChanges changes, Performance performance)
 {
     /// <summary>The state of the server.</summary>
-    public async Task<Answer> ReportAsync(CancellationToken cancellationToken = default)
+    public async Task<Answer<JsonObject>> ReportAsync(CancellationToken cancellationToken = default)
     {
         var current = await sessions.CurrentAsync(cancellationToken);
         var known = await sessions.ListAsync(cancellationToken);
@@ -16,8 +17,8 @@ public sealed class Health(ServerConfig config, IHolders sessions, IPrograms pro
         {
             ["server"] = new JsonObject
             {
-                ["name"] = ThisAssembly.Name,
-                ["version"] = ThisAssembly.Version,
+                ["name"] = ServerIdentity.NameOf(typeof(Health).Assembly),
+                ["version"] = ServerIdentity.VersionOf(typeof(Health).Assembly),
                 ["transport"] = "stdio",
                 ["pid"] = Environment.ProcessId
             },

@@ -17,7 +17,7 @@ public sealed class LeaseTools(Leases leases)
         [Description(ToolDescriptions.SimulatorFrom)] string? from = null,
         [Description(ToolDescriptions.SimulatorBoot)] bool boot = false,
         CancellationToken cancellationToken = default) =>
-        ToolResponse.From(await leases.SimulatorAsync(from, boot, cancellationToken));
+        ToolAnswer.From(await leases.SimulatorAsync(from, boot, cancellationToken));
 
     /// <summary>Makes and starts an Android emulator for this session.</summary>
     [McpServerTool(Name = "cleanup_emulator_acquire", ReadOnly = false, Destructive = false, Idempotent = false, OpenWorld = false)]
@@ -26,5 +26,5 @@ public sealed class LeaseTools(Leases leases)
         [Description(ToolDescriptions.EmulatorImage)] string? image = null,
         [Description(ToolDescriptions.EmulatorWindow)] bool window = false,
         CancellationToken cancellationToken = default) =>
-        ToolResponse.From(await leases.EmulatorAsync(image, window, cancellationToken));
+        ToolAnswer.From(await leases.EmulatorAsync(image, window, cancellationToken));
 }

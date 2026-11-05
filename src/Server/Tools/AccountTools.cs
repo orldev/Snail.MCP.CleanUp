@@ -14,7 +14,7 @@ public sealed class AccountTools(Account account)
     [McpServerTool(Name = "cleanup_inventory", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(ToolDescriptions.Inventory)]
     public async Task<CallToolResult> InventoryAsync(CancellationToken cancellationToken = default) =>
-        ToolResponse.From(await account.InventoryAsync(cancellationToken));
+        ToolAnswer.From(await account.InventoryAsync(cancellationToken));
 
     /// <summary>A cleanup, decided and shown.</summary>
     [McpServerTool(Name = "cleanup_plan", ReadOnly = true, Destructive = false, Idempotent = false, OpenWorld = false)]
@@ -23,8 +23,8 @@ public sealed class AccountTools(Account account)
         [Description(ToolDescriptions.PlanScope)] string scope = "mine",
         CancellationToken cancellationToken = default) =>
         ToolArguments.TryRead<Scope>(scope, out var parsed)
-            ? ToolResponse.From(await account.PlanAsync(parsed, cancellationToken))
-            : ToolResponse.Failure($"there is no scope {scope}", ToolDescriptions.PlanScope);
+            ? ToolAnswer.From(await account.PlanAsync(parsed, cancellationToken))
+            : ToolAnswer.Failed($"there is no scope {scope}", ToolDescriptions.PlanScope, Failures.Arguments);
 
     /// <summary>A shown cleanup, carried out.</summary>
     [McpServerTool(Name = "cleanup_apply", ReadOnly = false, Destructive = true, Idempotent = false, OpenWorld = false)]
@@ -33,7 +33,7 @@ public sealed class AccountTools(Account account)
         [Description(ToolDescriptions.ApplyPlan)] string planId,
         [Description(ToolDescriptions.ApplyOnly)] string[]? only = null,
         CancellationToken cancellationToken = default) =>
-        ToolResponse.From(await account.ApplyAsync(planId, only, cancellationToken));
+        ToolAnswer.From(await account.ApplyAsync(planId, only, cancellationToken));
 
     /// <summary>One thing, released now.</summary>
     [McpServerTool(Name = "cleanup_release", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false)]
@@ -41,7 +41,7 @@ public sealed class AccountTools(Account account)
     public async Task<CallToolResult> ReleaseAsync(
         [Description(ToolDescriptions.ReleaseId)] string id,
         CancellationToken cancellationToken = default) =>
-        ToolResponse.From(await account.ReleaseAsync(id, cancellationToken));
+        ToolAnswer.From(await account.ReleaseAsync(id, cancellationToken));
 
     /// <summary>One thing, left alone on purpose.</summary>
     [McpServerTool(Name = "cleanup_keep", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false)]
@@ -51,7 +51,7 @@ public sealed class AccountTools(Account account)
         [Description(ToolDescriptions.KeepReason)] string? reason = null,
         [Description(ToolDescriptions.KeepWithdraw)] bool withdraw = false,
         CancellationToken cancellationToken = default) =>
-        ToolResponse.From(await account.KeepAsync(id, reason, withdraw, cancellationToken));
+        ToolAnswer.From(await account.KeepAsync(id, reason, withdraw, cancellationToken));
 
     /// <summary>A discovery, made a known kind.</summary>
     [McpServerTool(Name = "cleanup_learn", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false)]
@@ -64,6 +64,6 @@ public sealed class AccountTools(Account account)
         [Description(ToolDescriptions.LearnBlocked)] string? blockedWhileRunning = null,
         CancellationToken cancellationToken = default) =>
         ToolArguments.TryRead<RuleAction>(action, out var parsed)
-            ? ToolResponse.From(await account.LearnAsync(new Rule(trail, pattern, parsed) { Note = note, BlockedWhileRunning = blockedWhileRunning }, cancellationToken))
-            : ToolResponse.Failure($"there is no action {action}", ToolDescriptions.LearnAction);
+            ? ToolAnswer.From(await account.LearnAsync(new Rule(trail, pattern, parsed) { Note = note, BlockedWhileRunning = blockedWhileRunning }, cancellationToken))
+            : ToolAnswer.Failed($"there is no action {action}", ToolDescriptions.LearnAction, Failures.Arguments);
 }

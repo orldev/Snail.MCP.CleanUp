@@ -41,7 +41,7 @@ public sealed class Patience(TimeProvider clock, ILogger<Patience> logger)
         {
             Log.CallOverdue(logger, tool, Quick);
 
-            return ToolResponse.Failure(Messages.Overdue, Messages.OverdueHint, new JsonObject { ["tool"] = tool, ["waitedSeconds"] = (int)Quick.TotalSeconds });
+            return ToolAnswer.Failed(Messages.Overdue, Messages.OverdueHint, Failures.Overdue, new JsonObject { ["tool"] = tool, ["waitedSeconds"] = (int)Quick.TotalSeconds });
         }
         finally
         {

@@ -4,6 +4,8 @@ using Snail.MCP.CleanUp.Adapters.Ledger;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Domain;
+using Snail.Sdk.Mcp.Hosting;
+using Snail.Sdk.Mcp.Hosting.Sessions;
 using Snail.Toolkit.Cleanup.Adapters;
 using Snail.Toolkit.Cleanup.Application;
 using Snail.Toolkit.Cleanup.Application.Ports;
@@ -56,6 +58,7 @@ public sealed class AccountTests : IDisposable
         Assert.False(plan.IsSuccess);
         Assert.Contains("process table could not be read", plan.Error, StringComparison.Ordinal);
         Assert.Equal(Snail.MCP.CleanUp.Tools.Prompts.Messages.SessionsUnknownHint, plan.Hint);
+        Assert.Equal("sessionsUnknown", plan.Type);
     }
 
     /// <summary>
@@ -75,10 +78,10 @@ public sealed class AccountTests : IDisposable
 
         holders[1] = Alive(Gone);
 
-        var applied = await account.ApplyAsync(plan.Data!["planId"]!.GetValue<string>(), null, CancellationToken.None);
+        var applied = await account.ApplyAsync(plan.Value!["planId"]!.GetValue<string>(), null, CancellationToken.None);
 
-        Assert.Equal(0, applied.Data!["released"]!.GetValue<int>());
-        Assert.Equal("changed", applied.Data!["results"]![0]!["outcome"]!.GetValue<string>());
+        Assert.Equal(0, applied.Value!["released"]!.GetValue<int>());
+        Assert.Equal("changed", applied.Value!["results"]![0]!["outcome"]!.GetValue<string>());
         Assert.Empty(_processes.Released);
     }
 
@@ -89,13 +92,13 @@ public sealed class AccountTests : IDisposable
         _processes.Present.Add(Of(Kinds.Process, "2@1", Neighbour, Evidence.Ancestry));
 
         var plan = await Account.PlanAsync(Scope.Mine, CancellationToken.None);
-        var planId = plan.Data!["planId"]!.GetValue<string>();
+        var planId = plan.Value!["planId"]!.GetValue<string>();
 
         _processes.Present.Add(Of(Kinds.Process, "3@1", Me, Evidence.Ancestry));
 
         var applied = await Account.ApplyAsync(planId, null, CancellationToken.None);
 
-        Assert.Equal(1, applied.Data!["released"]!.GetValue<int>());
+        Assert.Equal(1, applied.Value!["released"]!.GetValue<int>());
         Assert.Equal(["process:1@1"], _processes.Released);
     }
 
@@ -112,8 +115,8 @@ public sealed class AccountTests : IDisposable
         var inventory = await Account.InventoryAsync(CancellationToken.None);
         var plan = await Account.PlanAsync(Scope.Orphans, CancellationToken.None);
 
-        Assert.Contains("running session me holds 12 GB", inventory.Data!["warnings"]![0]!.GetValue<string>(), StringComparison.Ordinal);
-        Assert.Contains("running session me holds 12 GB", plan.Data!["warnings"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Contains("running session me holds 12 GB", inventory.Value!["warnings"]![0]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.Contains("running session me holds 12 GB", plan.Value!["warnings"]![0]!.GetValue<string>(), StringComparison.Ordinal);
     }
 
     /// <summary>Every census writes the free space down; the inventory of a day later says how far it fell, and what grew.</summary>
@@ -133,7 +136,7 @@ public sealed class AccountTests : IDisposable
         _volume.Free -= 50_000_000_000;
         _processes.Present[0] = scratchpad with { Bytes = 49_000_000_000 };
 
-        var disk = (await Account.InventoryAsync(CancellationToken.None)).Data!["disk"]!;
+        var disk = (await Account.InventoryAsync(CancellationToken.None)).Value!["disk"]!;
 
         Assert.Equal("50 GB", disk["fellWithinADay"]!.GetValue<string>());
         Assert.Contains("fell by 50 GB within a day", disk["trend"]!.GetValue<string>(), StringComparison.Ordinal);
@@ -142,14 +145,14 @@ public sealed class AccountTests : IDisposable
 
     [Fact]
     public async Task Inventory_WithNothingToWarnOf_HasNoWarnings() =>
-        Assert.Null((await Account.InventoryAsync(CancellationToken.None)).Data!["warnings"]);
+        Assert.Null((await Account.InventoryAsync(CancellationToken.None)).Value!["warnings"]);
 
     [Fact]
     public async Task Plan_CarriedOutAfterItWentStale_DoesNothing()
     {
         _processes.Present.Add(Of(Kinds.Process, "1@1", Me, Evidence.Ancestry));
 
-        var planId = (await Account.PlanAsync(Scope.Mine, CancellationToken.None)).Data!["planId"]!.GetValue<string>();
+        var planId = (await Account.PlanAsync(Scope.Mine, CancellationToken.None)).Value!["planId"]!.GetValue<string>();
 
         _clock.Advance(Plan.Lifetime + TimeSpan.FromMinutes(1));
 
@@ -157,6 +160,7 @@ public sealed class AccountTests : IDisposable
 
         Assert.False(applied.IsSuccess);
         Assert.Contains("stale", applied.Error, StringComparison.Ordinal);
+        Assert.Equal("stalePlan", applied.Type);
         Assert.Empty(_processes.Released);
     }
 
@@ -169,6 +173,7 @@ public sealed class AccountTests : IDisposable
 
         Assert.False(released.IsSuccess);
         Assert.Contains("not proof", released.Error, StringComparison.Ordinal);
+        Assert.Equal("notReleased", released.Type);
         Assert.Empty(_processes.Released);
     }
 
@@ -186,13 +191,16 @@ public sealed class AccountTests : IDisposable
     {
         _processes.Present.Add(Of(Kinds.Process, "1@1", Me, Evidence.Ledger));
 
-        Assert.False((await Account.KeepAsync("process:1@1", null, withdraw: false, CancellationToken.None)).IsSuccess);
+        var refused = await Account.KeepAsync("process:1@1", null, withdraw: false, CancellationToken.None);
+
+        Assert.False(refused.IsSuccess);
+        Assert.Equal(ToolFailures.Arguments, refused.Type);
         Assert.True((await Account.KeepAsync("process:1@1", "my dev server", withdraw: false, CancellationToken.None)).IsSuccess);
 
         var plan = await Account.PlanAsync(Scope.Mine, CancellationToken.None);
 
-        Assert.Equal(0, plan.Data!["remove"]!["count"]!.GetValue<int>());
-        Assert.Equal(1, plan.Data!["keep"]!["count"]!.GetValue<int>());
+        Assert.Equal(0, plan.Value!["remove"]!["count"]!.GetValue<int>());
+        Assert.Equal(1, plan.Value!["keep"]!["count"]!.GetValue<int>());
     }
 
     [Fact]
@@ -202,7 +210,36 @@ public sealed class AccountTests : IDisposable
         var learned = await Account.LearnAsync(new Rule("port", "3000", RuleAction.Ignore), CancellationToken.None);
 
         Assert.False(refused.IsSuccess);
+        Assert.Equal(ToolFailures.Arguments, refused.Type);
         Assert.True(learned.IsSuccess);
+    }
+
+    /// <summary>A plan this server does not hold is told from one that went stale by its type, so a program need not read the words.</summary>
+    [Fact]
+    public async Task Apply_OfAPlanNeverMade_IsTypedNoSuchPlan()
+    {
+        var applied = await Account.ApplyAsync("nosuchplan", null, CancellationToken.None);
+
+        Assert.False(applied.IsSuccess);
+        Assert.Equal("noSuchPlan", applied.Type);
+    }
+
+    [Fact]
+    public async Task Release_OfSomethingNotOnTheMachine_IsTypedAbsent()
+    {
+        var released = await Account.ReleaseAsync("process:404@1", CancellationToken.None);
+
+        Assert.False(released.IsSuccess);
+        Assert.Equal(Reached.Absent, released.Type);
+    }
+
+    [Fact]
+    public async Task Plan_OfMine_ForNoSessionItCanTell_IsTypedNoSession()
+    {
+        var plan = await AccountOf(new FakeSessions(Owner.Nobody, Alive(Me))).PlanAsync(Scope.Mine, CancellationToken.None);
+
+        Assert.False(plan.IsSuccess);
+        Assert.Equal("noSession", plan.Type);
     }
 
     public void Dispose()

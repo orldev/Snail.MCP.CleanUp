@@ -129,16 +129,6 @@ public static class ToolDescriptions
     /// <summary>The <c>blockedWhileRunning</c> of <c>cleanup_learn</c>.</summary>
     public const string LearnBlocked = "A program that keeps what it covers open, such as Code; nothing covered is removed while it runs.";
 
-    /// <summary><c>find_tool</c></summary>
-    public const string FindTool =
-        "Find which of this server's tools does a thing, described in your own words, with every argument each one takes.";
-
-    /// <summary>The <c>task</c> of <c>find_tool</c>.</summary>
-    public const string FindToolTask = "What you want to do, such as «free the port my dev server held».";
-
-    /// <summary>The <c>limit</c> of <c>find_tool</c>.</summary>
-    public const string FindToolLimit = "How many tools to return at most; 5 by default.";
-
     /// <summary>The <c>cleanup</c> prompt, as a client offers it to a person.</summary>
     public const string CleanupPrompt =
         "Clean up what agents left on this machine: the plan is shown first, and nothing is removed until you agree.";

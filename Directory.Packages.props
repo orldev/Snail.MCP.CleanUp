@@ -3,7 +3,7 @@
     <ItemGroup>
         <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14"/>
         <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14"/>
-        <PackageVersion Include="ModelContextProtocol" Version="2.3.0"/>
+        <PackageVersion Include="ModelContextProtocol" Version="2.3.1"/>
         <PackageVersion Include="Snail.Toolkit.Cleanup" Version="0.1.0"/>
     </ItemGroup>
 

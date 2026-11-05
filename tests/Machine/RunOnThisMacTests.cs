@@ -30,9 +30,9 @@ public sealed class RunOnThisMacTests : IDisposable
         using var host = builder.Build();
         var services = host.Services;
         var started = await services.GetRequiredService<Runs>().StartAsync("sleep 300", _scratch.Path, CancellationToken.None);
-        var id = started.Data!["id"]!.GetValue<string>();
+        var id = started.Value!["id"]!.GetValue<string>();
 
-        _started = started.Data!["pid"]!.GetValue<int>();
+        _started = started.Value!["pid"]!.GetValue<int>();
 
         var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
 

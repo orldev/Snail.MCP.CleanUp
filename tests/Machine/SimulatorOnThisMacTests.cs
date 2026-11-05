@@ -34,7 +34,7 @@ public sealed class SimulatorOnThisMacTests : IDisposable
 
         Assert.True(leased.IsSuccess, leased.Error);
 
-        _udid = leased.Data!["udid"]!.GetValue<string>();
+        _udid = leased.Value!["udid"]!.GetValue<string>();
 
         var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
         var inventory = await services.GetRequiredService<Census>().TakeAsync(me, CancellationToken.None);
@@ -48,7 +48,7 @@ public sealed class SimulatorOnThisMacTests : IDisposable
         var removal = plan.Removals.Single(decision => decision.Resource.Key == _udid);
         var releases = await services.GetRequiredService<Cleaner>().ApplyAsync(plan with { Decisions = [removal] }, CancellationToken.None);
 
-        Assert.True(leased.Data!["isBooted"]!.GetValue<bool>());
+        Assert.True(leased.Value!["isBooted"]!.GetValue<bool>());
         Assert.Equal(Outcome.Released, Assert.Single(releases).Outcome);
         Assert.Contains("after shutting it down", releases[0].Detail, StringComparison.Ordinal);
 

@@ -36,7 +36,22 @@ Three ideas carry it:
 | `cleanup_diagnose` | The session the server counts as yours, the Docker label to use, what it can reach. |
 | `find_tool` | Which tool does a thing, asked in your own words. |
 
-Every answer is JSON with an `ok` flag; a failure carries `error` and a `hint`, and is flagged `isError`.
+Every answer is JSON with an `ok` flag; a failure carries `error`, a `hint` and a `type`, and is flagged `isError`.
+The `type` is a word a program branches on:
+
+| `type` | When |
+| --- | --- |
+| `arguments` | the call cannot be acted on as written: a scope or action no description offers, a keep without a reason, a rule without a pattern, a run without a command |
+| `absent` | nothing by that name or path: a directory to run in, a resource to release, a system image to start |
+| `noSession` | the server cannot tell which session it belongs to, so nothing is made or planned in its name |
+| `sessionsUnknown` | the machine's sessions could not be told, so no census was taken and nothing decided |
+| `notInstalled` | the Android emulator, a system image or an iOS runtime is missing; a person installs it |
+| `busy` | the device to clone is running, or every emulator console port is taken |
+| `noSuchPlan` / `stalePlan` | the plan is not held, or older than ten minutes: plan again |
+| `notReleased` | a plan over everything would not remove it: not proven yours |
+| `timeout` / `failed` | simctl did not make and boot the simulator in time, or failed |
+| `overdue` | a quick tool took longer than two minutes; the call may still finish, so it is not repeated at once |
+| `internal` | something nobody foresaw: try once more, and report it if it fails the same way |
 
 ## Prompts
 

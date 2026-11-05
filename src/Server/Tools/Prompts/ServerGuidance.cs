@@ -31,7 +31,11 @@ public static class ServerGuidance
         it with cleanup_learn. cleanup_keep spares something on purpose. find_tool finds a tool by a task in
         your own words.
 
-        Every answer is JSON with an ok flag. When ok is false, read error and hint and change the call
-        instead of repeating it.
+        Every answer is JSON with an ok flag, and a failed call is also flagged isError. When ok is false, read
+        error and hint and change the call instead of repeating it; type names the failure: arguments (the call
+        as written), absent (nothing by that name or path), noSession and sessionsUnknown (cleanup_diagnose shows
+        what the server sees), notInstalled (a person installs it), busy (in use: free it or wait), noSuchPlan and
+        stalePlan (plan again), notReleased (not proven yours), timeout and failed (simctl did not do it), overdue
+        (the call may still finish: do not repeat it at once).
         """;
 }

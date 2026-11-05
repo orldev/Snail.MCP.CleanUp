@@ -2,7 +2,7 @@ using System.ComponentModel;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using ModelContextProtocol.Server;
-using Snail.MCP.CleanUp.Tools;
+using Snail.MCP.CleanUp.Extensions;
 using Snail.MCP.CleanUp.Tools.Prompts;
 using Snail.Toolkit.Cleanup.Domain;
 
@@ -14,9 +14,6 @@ namespace Snail.MCP.CleanUp.Tests.Tools;
 /// </summary>
 public sealed partial class ToolCatalogTests
 {
-    /// <summary>The names every server of the fleet spells alike, without a prefix of its own.</summary>
-    private static readonly string[] Shared = ["find_tool"];
-
     [Fact]
     public void EveryTool_InTheAssembly_IsNamedAndDescribed()
     {
@@ -45,7 +42,7 @@ public sealed partial class ToolCatalogTests
     [Fact]
     public void EveryTool_OfThisServer_CarriesItsPrefix()
     {
-        Assert.All(Catalog.Names.Except(Shared), name => Assert.StartsWith("cleanup_", name, StringComparison.Ordinal));
+        Assert.All(Catalog.Names, name => Assert.StartsWith("cleanup_", name, StringComparison.Ordinal));
         Assert.Equal(Catalog.Names.Count, Catalog.Names.Distinct(StringComparer.Ordinal).Count());
     }
 
@@ -63,7 +60,7 @@ public sealed partial class ToolCatalogTests
             .Select(match => match.Value)
             .Distinct(StringComparer.Ordinal);
 
-        Assert.All(named, name => Assert.Contains(name, Catalog.Names));
+        Assert.All(named, name => Assert.Contains(name, Catalog.Listed));
     }
 
     /// <summary>
@@ -72,16 +69,25 @@ public sealed partial class ToolCatalogTests
     /// 39% of a 32k window. Measured on 2026-10-11 at 4123 characters over eleven tools; the ceiling leaves
     /// room for one more short tool, and the one after it has to take something out first.
     /// </summary>
+    /// <remarks>
+    /// Counted over every tool a client is sent. The eleventh tool was the server's own find_tool; once it became
+    /// Snail.Sdk.Mcp's, a count over the server's methods left it out and the budget grew by its description unseen.
+    /// </remarks>
     [Fact]
     public void TheToolList_ReadIntoEverySession_StaysWithinItsBudget()
     {
-        int characters = Catalog.Tools.Sum(tool =>
-            tool.GetCustomAttribute<McpServerToolAttribute>()!.Name!.Length
-            + tool.GetCustomAttribute<DescriptionAttribute>()!.Description.Length
-            + tool.GetParameters().Sum(parameter => parameter.Name!.Length + (parameter.GetCustomAttribute<DescriptionAttribute>()?.Description.Length ?? 0)));
+        int characters = Catalog.Entries.Sum(entry =>
+            entry.Name.Length
+            + entry.Description.Length
+            + entry.Parameters.Sum(parameter => parameter.Name.Length + (parameter.Description?.Length ?? 0)));
 
         Assert.InRange(characters, 1, 4608);
     }
+
+    /// <summary>A tool written and never registered is one no client is sent.</summary>
+    [Fact]
+    public void EveryTool_InTheAssembly_IsListed() =>
+        Assert.Equal(Catalog.Names, [.. Catalog.Listed.Except(Catalog.Shared, StringComparer.Ordinal)]);
 
     /// <summary>A scope the code knows and the description never names is one no model will ever ask for.</summary>
     [Fact]
@@ -100,15 +106,16 @@ public sealed partial class ToolCatalogTests
     /// <summary>A client asks before a tool without the hint runs; only what changes nothing goes unasked.</summary>
     [Fact]
     public void OnlyTheToolsThatChangeNothing_AreReadOnly() =>
-        Assert.Equal(["cleanup_diagnose", "cleanup_inventory", "cleanup_plan", "find_tool"], [.. Catalog.Named(tool => tool.ReadOnly)]);
+        Assert.Equal(["cleanup_diagnose", "cleanup_inventory", "cleanup_plan"], [.. Catalog.Named(tool => tool.ReadOnly)]);
 
     [Fact]
     public void OnlyTheToolsThatRemove_AreDestructive() =>
         Assert.Equal(["cleanup_apply", "cleanup_release"], [.. Catalog.Named(tool => tool.Destructive)]);
 
+    /// <summary>The words find_tool knows a tool by are written beside the tools, so nothing in the compiler notices a tool renamed or added; this does.</summary>
     [Fact]
-    public void EveryWordTheIndexKnows_BelongsToAToolThatExists() =>
-        Assert.Equal(Catalog.Names, [.. ToolIndex.Meant().Order(StringComparer.Ordinal)]);
+    public void EveryWordFindToolKnows_BelongsToAToolThatExists() =>
+        Assert.Equal(Catalog.Listed, [.. TransportRegistrationExtensions.Meanings.Keys.Order(StringComparer.Ordinal)]);
 
     [GeneratedRegex(@"cleanup_[a-z_]+", RegexOptions.CultureInvariant)]
     private static partial Regex ToolName();

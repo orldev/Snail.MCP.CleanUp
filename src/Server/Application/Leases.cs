@@ -33,12 +33,12 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
     private readonly Dictionary<int, DateTimeOffset> _given = [];
 
     /// <summary>A simulator of the agent's own: a clone of a named device, or a new one of a device type.</summary>
-    public async Task<Answer> SimulatorAsync(string? source, bool boot, CancellationToken cancellationToken)
+    public async Task<Answer<JsonObject>> SimulatorAsync(string? source, bool boot, CancellationToken cancellationToken)
     {
         var owner = await sessions.CurrentAsync(cancellationToken);
 
         if (!owner.IsKnown)
-            return Answer.Failed(Messages.NoSession, Messages.NoSessionHint);
+            return Answer.Failed(Messages.NoSession, Messages.NoSessionHint, Failures.NoSession);
 
         try
         {
@@ -46,7 +46,7 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
         }
         catch (TimeoutException)
         {
-            return Answer.Failed(Messages.SimulatorTooLong, Messages.SimulatorHint);
+            return Answer.Failed(Messages.SimulatorTooLong, Messages.SimulatorHint, Failures.Timeout);
         }
     }
 
@@ -55,20 +55,22 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
     /// It runs without saving a snapshot on exit, so that the next boot is not a copy of whatever state the
     /// agent left the device in — a test identity, a PIN, an app half set up.
     /// </remarks>
-    public async Task<Answer> EmulatorAsync(string? image, bool window, CancellationToken cancellationToken)
+    public async Task<Answer<JsonObject>> EmulatorAsync(string? image, bool window, CancellationToken cancellationToken)
     {
         var owner = await sessions.CurrentAsync(cancellationToken);
 
         if (!owner.IsKnown)
-            return Answer.Failed(Messages.NoSession, Messages.NoSessionHint);
+            return Answer.Failed(Messages.NoSession, Messages.NoSessionHint, Failures.NoSession);
 
         if (!File.Exists(android.Emulator))
-            return Answer.Failed($"there is no Android emulator at {android.Emulator}", Messages.EmulatorHint);
+            return Answer.Failed($"there is no Android emulator at {android.Emulator}", Messages.EmulatorHint, Failures.NotInstalled);
 
         var chosen = android.Images().FirstOrDefault(candidate => string.IsNullOrWhiteSpace(image) || candidate.RelativePath.Contains(image, StringComparison.OrdinalIgnoreCase));
 
         if (chosen is null)
-            return Answer.Failed(string.IsNullOrWhiteSpace(image) ? "no Android system image is installed" : $"no installed system image matches {image}", Messages.EmulatorHint);
+            return string.IsNullOrWhiteSpace(image)
+                ? Answer.Failed("no Android system image is installed", Messages.EmulatorHint, Failures.NotInstalled)
+                : Answer.Failed($"no installed system image matches {image}", Messages.EmulatorHint, Failures.Absent);
 
         return await OneAtATimeAsync(() => EmulatorStartedAsync(owner, chosen, window, cancellationToken), cancellationToken);
     }
@@ -81,19 +83,19 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
     /// Without a runtime nothing can be made, and an agent told only that the lease failed set out to download one of
     /// gigabytes on its own (2026-10-30): the answer says at once that a person installs it.
     /// </remarks>
-    private async Task<Answer> LeasedAsync(Owner owner, string? source, bool boot, CancellationToken cancellationToken)
+    private async Task<Answer<JsonObject>> LeasedAsync(Owner owner, string? source, bool boot, CancellationToken cancellationToken)
     {
         var listed = await SimctlAsync(["list", "runtimes", "-j"], cancellationToken);
 
         if (!listed.IsSuccess)
-            return Answer.Failed($"simctl could not list the runtimes: {listed.Failure}", Messages.SimulatorHint);
+            return Answer.Failed($"simctl could not list the runtimes: {listed.Failure}", Messages.SimulatorHint, Failures.Failed);
 
         if (!Simulators.Runtimes(listed.Output).Any(runtime => runtime.IsAvailable && runtime.Platform == "iOS"))
-            return Answer.Failed(Messages.NoSimulatorRuntime, Messages.NoSimulatorRuntimeHint);
+            return Answer.Failed(Messages.NoSimulatorRuntime, Messages.NoSimulatorRuntimeHint, Failures.NotInstalled);
 
         var made = await OneAtATimeAsync(() => SimulatorMadeAsync(owner, source, cancellationToken), cancellationToken);
 
-        if (!boot || made.Data is not JsonObject shown)
+        if (!boot || !made.TryGet(out var shown))
             return made;
 
         var isBooted = (await SimctlAsync(["bootstatus", shown["udid"]!.GetValue<string>(), "-b"], cancellationToken)).IsSuccess;
@@ -105,7 +107,7 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
     }
 
     /// <summary>Makes one device at a time, so that the next is named and given a port after the last one exists.</summary>
-    private async Task<Answer> OneAtATimeAsync(Func<Task<Answer>> made, CancellationToken cancellationToken)
+    private async Task<Answer<JsonObject>> OneAtATimeAsync(Func<Task<Answer<JsonObject>>> made, CancellationToken cancellationToken)
     {
         await _making.WaitAsync(cancellationToken);
 
@@ -119,19 +121,19 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
         }
     }
 
-    private async Task<Answer> SimulatorMadeAsync(Owner owner, string? source, CancellationToken cancellationToken)
+    private async Task<Answer<JsonObject>> SimulatorMadeAsync(Owner owner, string? source, CancellationToken cancellationToken)
     {
         var devices = Simulators.Parse((await SimctlAsync(["list", "devices", "-j"], cancellationToken)).Output);
         var name = Simulators.NameFor(owner, devices.Where(device => Simulators.OwnerOf(device.Name) == owner).Select(device => Simulators.NumberOf(device.Name)).DefaultIfEmpty().Max() + 1);
         var original = string.IsNullOrWhiteSpace(source) ? null : devices.FirstOrDefault(device => device.Udid == source || device.Name == source);
 
         if (original is { IsBooted: true })
-            return Answer.Failed($"{original.Name} is running, and simctl clones only a device that is shut down", Messages.SimulatorHint);
+            return Answer.Failed($"{original.Name} is running, and simctl clones only a device that is shut down", Messages.SimulatorHint, Failures.Busy);
 
         var made = original is null ? await CreatedAsync(name, source, cancellationToken) : await SimctlAsync(["clone", original.Udid, name], cancellationToken);
 
         if (!made.IsSuccess)
-            return Answer.Failed($"simctl could not make the simulator: {made.Failure}", Messages.SimulatorHint);
+            return Answer.Failed($"simctl could not make the simulator: {made.Failure}", Messages.SimulatorHint, Failures.Failed);
 
         var udid = made.Output.Trim();
 
@@ -148,14 +150,14 @@ public sealed class Leases(IPrograms programs, IHolders sessions, ILedger ledger
         });
     }
 
-    private async Task<Answer> EmulatorStartedAsync(Owner owner, Android.Image chosen, bool window, CancellationToken cancellationToken)
+    private async Task<Answer<JsonObject>> EmulatorStartedAsync(Owner owner, Android.Image chosen, bool window, CancellationToken cancellationToken)
     {
         var taken = (await Listeners.ReadAsync(programs, cancellationToken)).Values.SelectMany(ports => ports).ToHashSet();
         var now = clock.GetUtcNow();
         var port = Enumerable.Range(0, 64).Select(step => 5554 + (step * 2)).FirstOrDefault(candidate => IsFree(candidate, taken, now));
 
         if (port == 0)
-            return Answer.Failed("every emulator console port from 5554 to 5680 is taken", Messages.EmulatorHint);
+            return Answer.Failed("every emulator console port from 5554 to 5680 is taken", Messages.EmulatorHint, Failures.Busy);
 
         var name = Simulators.NameFor(owner, android.DeviceNames().Where(device => Simulators.OwnerOf(device) == owner).Select(Simulators.NumberOf).DefaultIfEmpty().Max() + 1);
 

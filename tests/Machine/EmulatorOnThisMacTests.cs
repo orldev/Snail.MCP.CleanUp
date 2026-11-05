@@ -37,7 +37,7 @@ public sealed class EmulatorOnThisMacTests : IDisposable
 
         Assert.True(leased.IsSuccess, leased.Error);
 
-        _device = leased.Data!["avd"]!.GetValue<string>();
+        _device = leased.Value!["avd"]!.GetValue<string>();
 
         var me = await services.GetRequiredService<IHolders>().CurrentAsync(CancellationToken.None);
         var plan = await PlannedAsync(services, me, _device);

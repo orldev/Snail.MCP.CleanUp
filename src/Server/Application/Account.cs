@@ -13,7 +13,7 @@ namespace Snail.MCP.CleanUp.Application;
 public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans plans, Cleaner cleaner, ILedger ledger, IDiscoveries discoveries, IRules rules, DiskTrend disk, ServerConfig config, TimeProvider clock)
 {
     /// <summary>What is on the machine, grouped by whose it is.</summary>
-    public async Task<Answer> InventoryAsync(CancellationToken cancellationToken)
+    public async Task<Answer<JsonObject>> InventoryAsync(CancellationToken cancellationToken)
     {
         var asker = await sessions.CurrentAsync(cancellationToken);
 
@@ -21,26 +21,26 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
     }
 
     /// <summary>The plan for a scope, kept under an id until it is carried out or goes stale.</summary>
-    public async Task<Answer> PlanAsync(Scope scope, CancellationToken cancellationToken)
+    public async Task<Answer<JsonObject>> PlanAsync(Scope scope, CancellationToken cancellationToken)
     {
         var asker = await sessions.CurrentAsync(cancellationToken);
 
         if (!asker.IsKnown && scope == Scope.Mine)
-            return Answer.Failed(Messages.NoSession, Messages.NoSessionHint);
+            return Answer.Failed(Messages.NoSession, Messages.NoSessionHint, Failures.NoSession);
 
         return await CountedAsync(asker, inventory => PlannedAsync(inventory, scope, cancellationToken), cancellationToken);
     }
 
     /// <summary>Carries out the removals of a plan that was shown, or only the ones named.</summary>
-    public async Task<Answer> ApplyAsync(string planId, IReadOnlyList<string>? only, CancellationToken cancellationToken)
+    public async Task<Answer<JsonObject>> ApplyAsync(string planId, IReadOnlyList<string>? only, CancellationToken cancellationToken)
     {
         var plan = await plans.FindAsync(planId, cancellationToken);
 
         if (plan is null)
-            return Answer.Failed($"there is no plan {planId}", Messages.PlanHint);
+            return Answer.Failed($"there is no plan {planId}", Messages.PlanHint, Failures.NoSuchPlan);
 
         if (!plan.IsFresh(clock.GetUtcNow()))
-            return Answer.Failed($"plan {planId} was made {(clock.GetUtcNow() - plan.MadeAt).TotalMinutes:0} minutes ago and is stale", Messages.PlanHint);
+            return Answer.Failed($"plan {planId} was made {(clock.GetUtcNow() - plan.MadeAt).TotalMinutes:0} minutes ago and is stale", Messages.PlanHint, Failures.StalePlan);
 
         var chosen = only is { Count: > 0 } ? plan with { Decisions = [.. plan.Decisions.Where(decision => only.Contains(decision.Resource.Id))] } : plan;
         var releases = await cleaner.ApplyAsync(chosen, cancellationToken);
@@ -49,7 +49,7 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
     }
 
     /// <summary>Releases one resource now, if a plan over everything would remove it.</summary>
-    public async Task<Answer> ReleaseAsync(string id, CancellationToken cancellationToken)
+    public async Task<Answer<JsonObject>> ReleaseAsync(string id, CancellationToken cancellationToken)
     {
         var asker = await sessions.CurrentAsync(cancellationToken);
 
@@ -57,13 +57,13 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
     }
 
     /// <summary>Asks for a resource to be left alone, or withdraws that.</summary>
-    public async Task<Answer> KeepAsync(string id, string? reason, bool withdraw, CancellationToken cancellationToken)
+    public async Task<Answer<JsonObject>> KeepAsync(string id, string? reason, bool withdraw, CancellationToken cancellationToken)
     {
         if (withdraw)
             return Answer.Ok(new JsonObject { ["id"] = id, ["isKept"] = false, ["wasKept"] = await ledger.TryUnkeepAsync(id, cancellationToken) });
 
         if (string.IsNullOrWhiteSpace(reason))
-            return Answer.Failed("a resource is kept for a reason, and none was given", Messages.KeepHint);
+            return Answer.Failed("a resource is kept for a reason, and none was given", Messages.KeepHint, Failures.Arguments);
 
         await ledger.KeepAsync(id, reason, cancellationToken);
 
@@ -71,13 +71,13 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
     }
 
     /// <summary>Turns what was discovered into a known kind: a rule written to <c>rules.json</c>, and the discoveries it covers settled.</summary>
-    public async Task<Answer> LearnAsync(Rule rule, CancellationToken cancellationToken)
+    public async Task<Answer<JsonObject>> LearnAsync(Rule rule, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(rule.Pattern))
-            return Answer.Failed("a rule needs a pattern", Messages.LearnHint);
+            return Answer.Failed("a rule needs a pattern", Messages.LearnHint, Failures.Arguments);
 
         if (rule.Action != RuleAction.Ignore && rule.Trail != "file")
-            return Answer.Failed($"only files can be reported or cached by a rule; {rule.Trail} can only be ignored", Messages.LearnHint);
+            return Answer.Failed($"only files can be reported or cached by a rule; {rule.Trail} can only be ignored", Messages.LearnHint, Failures.Arguments);
 
         await rules.AddAsync(rule, cancellationToken);
 
@@ -89,7 +89,7 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
     }
 
     /// <summary>The answer made from a census of this moment; a refusal when the sessions of the machine cannot be told, since nothing is then decided.</summary>
-    private async Task<Answer> CountedAsync(Owner asker, Func<Inventory, Task<Answer>> answered, CancellationToken cancellationToken)
+    private async Task<Answer<JsonObject>> CountedAsync(Owner asker, Func<Inventory, Task<Answer<JsonObject>>> answered, CancellationToken cancellationToken)
     {
         Inventory inventory;
 
@@ -99,13 +99,13 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
         }
         catch (SessionsUnknownException unknown)
         {
-            return Answer.Failed(unknown.Message, Messages.SessionsUnknownHint);
+            return Answer.Failed(unknown.Message, Messages.SessionsUnknownHint, Failures.SessionsUnknown);
         }
 
         return await answered(inventory);
     }
 
-    private async Task<Answer> ListedAsync(Owner asker, Inventory inventory, CancellationToken cancellationToken)
+    private async Task<Answer<JsonObject>> ListedAsync(Owner asker, Inventory inventory, CancellationToken cancellationToken)
     {
         var mine = inventory.Resources.Where(resource => resource.Owner == asker && asker.IsKnown).ToList();
         var alive = inventory.Alive;
@@ -132,7 +132,7 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
         return Answer.Ok(shown);
     }
 
-    private async Task<Answer> PlannedAsync(Inventory inventory, Scope scope, CancellationToken cancellationToken)
+    private async Task<Answer<JsonObject>> PlannedAsync(Inventory inventory, Scope scope, CancellationToken cancellationToken)
     {
         var plan = Planner.Decide(inventory, scope, Guid.NewGuid().ToString("n")[..10], MachineKinds.Order);
 
@@ -146,16 +146,16 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
         return Answer.Ok(shown);
     }
 
-    private async Task<Answer> ReleasedAsync(string id, Inventory inventory, CancellationToken cancellationToken)
+    private async Task<Answer<JsonObject>> ReleasedAsync(string id, Inventory inventory, CancellationToken cancellationToken)
     {
         var plan = Planner.Decide(inventory, Scope.Everything, "release", MachineKinds.Order);
         var decision = plan.Decisions.FirstOrDefault(candidate => candidate.Resource.Id == id);
 
         if (decision is null)
-            return Answer.Failed($"there is no {id} on this machine now", Messages.ReleaseHint);
+            return Answer.Failed($"there is no {id} on this machine now", Messages.ReleaseHint, Failures.Absent);
 
         if (decision.Verdict != Verdict.Remove)
-            return Answer.Failed($"{id} is not released: {decision.Reason}", Messages.ReleaseHint);
+            return Answer.Failed($"{id} is not released: {decision.Reason}", Messages.ReleaseHint, Failures.NotReleased);
 
         return Answer.Ok(Released(await cleaner.ApplyAsync(plan with { Decisions = [decision] }, cancellationToken)));
     }

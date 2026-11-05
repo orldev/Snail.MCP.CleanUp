@@ -27,7 +27,8 @@ public sealed class PatienceTests
         var answer = await answering;
 
         Assert.True(answer.IsError);
-        Assert.Equal(Messages.Overdue, JsonNode.Parse(Assert.IsType<TextContentBlock>(Assert.Single(answer.Content)).Text)!["error"]!.GetValue<string>());
+        Assert.Equal(Messages.Overdue, answer.Error());
+        Assert.Equal("overdue", answer.Type());
     }
 
     /// <summary>A removal of many things waits for something by design, and is waited for past the quick limit.</summary>
@@ -41,7 +42,7 @@ public sealed class PatienceTests
 
         Assert.False(answering.IsCompleted);
 
-        _stuck.SetResult(ToolResponse.Success(new JsonObject()));
+        _stuck.SetResult(ToolAnswer.Ok(new JsonObject()));
 
         Assert.NotEqual(true, (await answering).IsError);
     }
@@ -72,7 +73,7 @@ public sealed class PatienceTests
     {
         released.Wait(TimeSpan.FromSeconds(30));
 
-        return Task.FromResult(ToolResponse.Success(new JsonObject()));
+        return Task.FromResult(ToolAnswer.Ok(new JsonObject()));
     }
 
     /// <summary>Moves the clock past the limit until the call is answered: the wait arms its timer only once the call is running.</summary>

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.CleanUp.Adapters;
 
@@ -71,7 +72,7 @@ public sealed class DockerSocket : IDockerEngine, IDisposable
     {
         get
         {
-            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            var home = ServerFolders.Home;
             var named = Environment.GetEnvironmentVariable("DOCKER_HOST") is { } host && host.StartsWith("unix://", StringComparison.Ordinal) ? [host[7..]] : Array.Empty<string>();
 
             return [.. named, $"{home}/.orbstack/run/docker.sock", $"{home}/.docker/run/docker.sock", "/var/run/docker.sock", $"{home}/.colima/default/docker.sock", $"{home}/.rd/docker.sock"];

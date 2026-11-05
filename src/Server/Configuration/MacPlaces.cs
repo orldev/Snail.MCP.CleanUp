@@ -1,4 +1,5 @@
 using System.Buffers;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.CleanUp.Configuration;
 
@@ -15,7 +16,7 @@ namespace Snail.MCP.CleanUp.Configuration;
 /// </remarks>
 public static class MacPlaces
 {
-    private static readonly string Home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+    private static readonly string Home = ServerFolders.Home;
 
     /// <summary>The simulators' default device set: a folder per device, named by its UDID.</summary>
     public static string SimulatorDeviceSet { get; } = $"{Home}/Library/Developer/CoreSimulator/Devices";

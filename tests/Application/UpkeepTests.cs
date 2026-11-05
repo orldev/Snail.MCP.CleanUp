@@ -43,6 +43,21 @@ public sealed class UpkeepTests : IDisposable
     private static Resource Cache(string kind, long bytes) =>
         Of(kind, "machine") with { IsShared = true, IsRegenerable = true, Bytes = bytes };
 
+    /// <summary>
+    /// Every server a test starts runs on <see cref="Deployment"/>: a sweep never due, and an empty scratch root of the test's
+    /// own, so a test server that lives past the watch's warm-up clears nothing of the machine it runs on.
+    /// </summary>
+    [Fact]
+    public void Deployment_OfEveryTestServer_NeverSweepsAndSeesNoScratchpadOfTheMachine()
+    {
+        var config = ServerConfigExtensions.Read(Deployment.Settings(_scratch));
+
+        Assert.Equal(0, config.SweepMinutes);
+        Assert.False(UpkeepOf(config).IsDue);
+        Assert.Equal(Deployment.ScratchRoot(_scratch), config.ScratchRoot);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(config.ScratchRoot));
+    }
+
     [Fact]
     public async Task Orphan_OfASessionOverForLongerThanTheGrace_IsReleased()
     {

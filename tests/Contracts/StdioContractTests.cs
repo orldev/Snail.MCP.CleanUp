@@ -1,5 +1,7 @@
 using ModelContextProtocol.Client;
 using Snail.MCP.CleanUp.Tools.Prompts;
+using Snail.Sdk.Mcp.Hosting;
+using Snail.Sdk.Mcp.Hosting.Sessions;
 
 namespace Snail.MCP.CleanUp.Tests.Contracts;
 
@@ -12,9 +14,6 @@ public sealed class StdioContractTests : IDisposable
 {
     private readonly Scratch _scratch = new();
 
-    /// <summary>The server as built here, or the program <c>SNAIL_CLEANUP_SERVER</c> names, such as a native build of it.</summary>
-    private static (string Command, string[] Arguments) Server => Snail.Sdk.Mcp.Testing.ServerProgram.Command("Snail.MCP.CleanUp", "SNAIL_CLEANUP_SERVER");
-
     [Fact]
     public async Task Server_AsAProgram_AnnouncesItselfAndListsItsTools()
     {
@@ -25,7 +24,7 @@ public sealed class StdioContractTests : IDisposable
         Assert.NotNull(client.ServerInfo);
         Assert.Equal("s3l-mcp-cleanup", client.ServerInfo.Name);
         Assert.Equal(ServerGuidance.Instructions, client.ServerInstructions);
-        Assert.Equal(Catalog.Names, [.. listed.Select(tool => tool.Name).Order(StringComparer.Ordinal)]);
+        Assert.Equal(Catalog.Listed, [.. listed.Select(tool => tool.Name).Order(StringComparer.Ordinal)]);
     }
 
     /// <summary>
@@ -39,7 +38,7 @@ public sealed class StdioContractTests : IDisposable
 
         var listed = await client.ListToolsAsync();
 
-        Assert.Empty(Snail.Sdk.Mcp.Testing.ToolGuards.Problems(listed.Select(tool => tool.ProtocolTool)));
+        Assert.Empty(ToolGuards.Problems(listed.Select(tool => tool.ProtocolTool)));
     }
 
     /// <summary>The prompt a client offers as a slash command: listed with its argument described, and asking for agreement before any removal.</summary>
@@ -79,9 +78,9 @@ public sealed class StdioContractTests : IDisposable
 
         var answer = await client.CallToolAsync("cleanup_diagnose", new Dictionary<string, object?>());
 
-        Assert.NotEqual(true, answer.IsError);
-        Assert.Equal("stdio", answer.Data()["server"]!["transport"]!.GetValue<string>());
-        Assert.Equal(_scratch.Path, answer.Data()["dataDirectory"]!.GetValue<string>());
+        Assert.True(answer.IsOk(), answer.Text());
+        Assert.Equal("stdio", answer.Data()!["server"]!["transport"]!.GetValue<string>());
+        Assert.Equal(_scratch.Path, answer.Data()!["dataDirectory"]!.GetValue<string>());
     }
 
     /// <summary>Two scopes joined by a comma are no scope the description names: refused, never widened to everything.</summary>
@@ -93,11 +92,28 @@ public sealed class StdioContractTests : IDisposable
         var answer = await client.CallToolAsync("cleanup_plan", new Dictionary<string, object?> { ["scope"] = "orphans,caches" });
 
         Assert.True(answer.IsError);
-        Assert.Contains("there is no scope orphans,caches", JsonNode.Parse(answer.Text())!["error"]!.GetValue<string>(), StringComparison.Ordinal);
+        Assert.False(answer.IsOk());
+        Assert.Contains("there is no scope orphans,caches", answer.Error(), StringComparison.Ordinal);
+        Assert.Equal(ToolFailures.Arguments, answer.Type());
+    }
+
+    /// <summary>The server's own refusals carry their type through the program as far as a client reads it.</summary>
+    [Fact]
+    public async Task OwnRefusals_AsAProgram_CarryTheirType()
+    {
+        await using var client = await StartedAsync();
+
+        var learned = await client.CallToolAsync("cleanup_learn", new Dictionary<string, object?> { ["pattern"] = "/nowhere/*", ["action"] = "forget" });
+        var run = await client.CallToolAsync("cleanup_run", new Dictionary<string, object?> { ["command"] = "true", ["directory"] = _scratch.File("nowhere") });
+        var applied = await client.CallToolAsync("cleanup_apply", new Dictionary<string, object?> { ["planId"] = "nosuchplan" });
+
+        Assert.Equal(ToolFailures.Arguments, learned.Type());
+        Assert.Equal(Reached.Absent, run.Type());
+        Assert.Equal("noSuchPlan", applied.Type());
     }
 
     /// <summary>
-    /// Every tool takes its arguments and answers in JSON. A native build binds arguments with code generated ahead of
+    /// Every tool takes its arguments and answers in the envelope. A native build binds arguments with code generated ahead of
     /// time, and a type it was not given fails at the call, not at the build — so each tool is called once, with
     /// arguments that change nothing outside the test's own directory.
     /// </summary>
@@ -107,7 +123,7 @@ public sealed class StdioContractTests : IDisposable
         await using var client = await StartedAsync();
 
         var plan = await client.CallToolAsync("cleanup_plan", new Dictionary<string, object?> { ["scope"] = "caches" });
-        var planId = plan.Data()["planId"]?.GetValue<string>() ?? "none";
+        var planId = plan.Data()?["planId"]?.GetValue<string>() ?? "none";
 
         Dictionary<string, Dictionary<string, object?>> calls = new()
         {
@@ -129,16 +145,48 @@ public sealed class StdioContractTests : IDisposable
             var text = Assert.IsType<ModelContextProtocol.Protocol.TextContentBlock>(Assert.Single(answer.Content)).Text;
 
             Assert.True(JsonNode.Parse(text)?["ok"] is not null, $"{tool} answered {text}");
+            Assert.Equal(answer.IsError == true, !answer.IsOk());
         }
+    }
+
+    /// <summary>A limit the server cannot run on stops it in one line naming the variable, with exit code 1 and no trace.</summary>
+    [Fact]
+    public async Task Server_WithAHistoryOfNoDays_RefusesItsStartInOneLine()
+    {
+        var environment = Deployment.Variables(_scratch, ("HISTORY_DAYS", "0")).ToDictionary(variable => variable.Key, variable => (string?)variable.Value);
+
+        var exited = await Assert.ThrowsAsync<ServerExitedException>(() => ServerProgram.StartAsync("Snail.MCP.CleanUp", "SNAIL_CLEANUP_SERVER", environment));
+
+        Assert.Equal(1, exited.ExitCode);
+        Assert.Equal(
+            "SNAIL_MCP_CLEANUP_HISTORY_DAYS (or HistoryDays in the settings file) is '0'; it is a number of days above zero.",
+            exited.Stderr.Trim());
+    }
+
+    /// <summary>
+    /// A setting that is not even of its type stops the start in one line naming the variable, exit code 1, no trace: the
+    /// settings are bound before there is a host, and that binding refuses instead of crashing with 134.
+    /// </summary>
+    [Fact]
+    public async Task Server_WithAHistoryThatIsNoNumber_RefusesItsStartInOneLine()
+    {
+        var environment = Deployment.Variables(_scratch, ("HISTORY_DAYS", "abc")).ToDictionary(variable => variable.Key, variable => (string?)variable.Value);
+
+        var exited = await Assert.ThrowsAsync<ServerExitedException>(() => ServerProgram.StartAsync("Snail.MCP.CleanUp", "SNAIL_CLEANUP_SERVER", environment));
+        var stderr = exited.Stderr.Trim();
+
+        Assert.Equal(1, exited.ExitCode);
+        Assert.Contains("SNAIL_MCP_CLEANUP_HISTORY_DAYS", stderr, StringComparison.Ordinal);
+        Assert.DoesNotContain('\n', stderr);
+        Assert.DoesNotContain("   at ", stderr, StringComparison.Ordinal);
     }
 
     public void Dispose() => _scratch.Dispose();
 
+    /// <summary>The server as built here, or the program <c>SNAIL_CLEANUP_SERVER</c> names, such as a native build of it, with its account in the test's folder.</summary>
     private Task<McpClient> StartedAsync() =>
-        McpClient.CreateAsync(new StdioClientTransport(new StdioClientTransportOptions
-        {
-            Command = Server.Command,
-            Arguments = Server.Arguments,
-            EnvironmentVariables = Deployment.Variables(_scratch, ("CONFIG", Snail.Sdk.Mcp.Testing.ServerProgram.NoSettingsFile)).ToDictionary(variable => variable.Key, variable => (string?)variable.Value)
-        }));
+        ServerProgram.StartAsync(
+            "Snail.MCP.CleanUp",
+            "SNAIL_CLEANUP_SERVER",
+            Deployment.Variables(_scratch).ToDictionary(variable => variable.Key, variable => (string?)variable.Value));
 }

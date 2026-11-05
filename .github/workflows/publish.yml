@@ -29,7 +29,6 @@ jobs:
       project: src/Server
       os: macos-latest
       contract-variable: SNAIL_CLEANUP_SERVER
-      contract-filter: FullyQualifiedName~StdioContract
       version: ${{ inputs.version }}
       push: ${{ github.event_name == 'push' || inputs.push }}
 

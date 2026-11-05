@@ -5,6 +5,8 @@ using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Domain;
 using Snail.MCP.CleanUp.Tools.Prompts;
+using Snail.Sdk.Mcp.Hosting;
+using Snail.Sdk.Mcp.Hosting.Sessions;
 using Snail.Toolkit.Cleanup.Domain;
 
 namespace Snail.MCP.CleanUp.Tests.Application;
@@ -31,6 +33,24 @@ public sealed class RunsTests : IDisposable
         new FakeProcessTable(),
         new FakeTimeProvider(DateTimeOffset.UtcNow));
 
+    [Fact]
+    public async Task Start_WithoutACommand_IsTypedArguments()
+    {
+        var answer = await RunsFor(Owner.Session("me")).StartAsync(" ", _scratch.Path, CancellationToken.None);
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(ToolFailures.Arguments, answer.Type);
+    }
+
+    [Fact]
+    public async Task Start_InADirectoryThatIsNotThere_IsTypedAbsent()
+    {
+        var answer = await RunsFor(Owner.Session("me")).StartAsync("true", _scratch.File("nowhere"), CancellationToken.None);
+
+        Assert.False(answer.IsSuccess);
+        Assert.Equal(Reached.Absent, answer.Type);
+    }
+
     /// <summary>A program started for no session the server can tell is on the record as nobody's, which no cleanup removes: the answer says so.</summary>
     [Fact]
     public async Task Start_ForNoSessionItCanTell_SaysTheProgramIsNobodys()
@@ -40,7 +60,7 @@ public sealed class RunsTests : IDisposable
         await EndedAsync([answer]);
 
         Assert.True(answer.IsSuccess);
-        Assert.Equal(Messages.RunOfNobody, answer.Data!["note"]!.GetValue<string>());
+        Assert.Equal(Messages.RunOfNobody, answer.Value!["note"]!.GetValue<string>());
     }
 
     [Fact]
@@ -50,7 +70,7 @@ public sealed class RunsTests : IDisposable
 
         await EndedAsync([answer]);
 
-        Assert.Null(answer.Data!["note"]);
+        Assert.Null(answer.Value!["note"]);
     }
 
     /// <summary>
@@ -61,7 +81,7 @@ public sealed class RunsTests : IDisposable
     public async Task Start_CommandThatEndsAtOnce_IsAnsweredNotThrown()
     {
         var runs = RunsFor(Owner.Session("me"));
-        var answers = new List<Answer>();
+        var answers = new List<Answer<JsonObject>>();
 
         for (var attempt = 0; attempt < 20; attempt++)
             answers.Add(await runs.StartAsync("exit 3", _scratch.Path, CancellationToken.None));
@@ -69,13 +89,13 @@ public sealed class RunsTests : IDisposable
         await EndedAsync(answers);
 
         Assert.All(answers, answer => Assert.True(answer.IsSuccess, answer.Error));
-        Assert.All(answers.Where(answer => answer.Data!["id"] is null), answer => Assert.Equal(Messages.RunEndedAtOnce, answer.Data!["note"]!.GetValue<string>()));
+        Assert.All(answers.Where(answer => answer.Value!["id"] is null), answer => Assert.Equal(Messages.RunEndedAtOnce, answer.Value!["note"]!.GetValue<string>()));
     }
 
     /// <summary>Waits for the programs the answers started, so that the test's folder is not removed under a shell still writing its log.</summary>
-    private static async Task EndedAsync(IEnumerable<Answer> answers)
+    private static async Task EndedAsync(IEnumerable<Answer<JsonObject>> answers)
     {
-        foreach (var pid in answers.Select(answer => answer.Data!["pid"]!.GetValue<int>()))
+        foreach (var pid in answers.Select(answer => answer.Value!["pid"]!.GetValue<int>()))
         {
             for (var wait = 0; wait < 100 && IsRunning(pid); wait++)
                 await Task.Delay(20);
