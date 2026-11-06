@@ -8,8 +8,11 @@ namespace Snail.MCP.CleanUp.Adapters;
 /// A running session's scratchpad is never released — the session writes into it — and on 2026-10-13 one grew to 50 GB
 /// while the inventory said only that it was blocked: copies of repositories with their build trees, test results and
 /// benchmark artifacts. Those are the session's own and cost a build to make again, so they are offered to the session
-/// itself: <c>bin</c> and <c>obj</c> beside a <c>*.csproj</c>, <c>TestResults</c>, <c>BenchmarkDotNet.Artifacts</c>, and
-/// <c>node_modules</c> beside a <c>package.json</c>. A Python environment (a folder with <c>pyvenv.cfg</c>) is no cheap
+/// itself: <c>bin</c> and <c>obj</c> beside a <c>*.csproj</c>, <c>TestResults</c>, <c>BenchmarkDotNet.Artifacts</c>,
+/// <c>node_modules</c> beside a <c>package.json</c>, Xcode's derived data wherever <c>-derivedDataPath</c> put it, and
+/// <c>*.xcresult</c> bundles of test runs. An iOS project kept seven derived data folders of 13 GB and 80 result bundles of
+/// 12 GB in its <c>artifacts</c> on 2026-11-06, where no name says what they are: derived data is known by what Xcode
+/// writes into it. A Python environment (a folder with <c>pyvenv.cfg</c>) is no cheap
 /// rebuild and is never looked into, nor a folder of installed tools (one holding <c>.store</c>), nor hidden folders.
 /// <para>
 /// One written in the last <see cref="Quiet"/> may be in a build's hands, and so may one a running program was started
@@ -30,7 +33,17 @@ public sealed class BuildOutputs(TimeProvider clock, TimeSpan? quiet = null)
     /// <summary>How many entries of an output are read to tell when it was last written; past them it is taken to be in use.</summary>
     public const int MostRead = 20_000;
 
+    /// <summary>What a folder of Xcode's derived data is called among the outputs, wherever it lies and whatever it is named.</summary>
+    public const string DerivedData = "DerivedData";
+
+    /// <summary>What a bundle of an Xcode test run is called among the outputs.</summary>
+    public const string TestBundle = "xcresult";
+
     private const string Project = ".csproj";
+
+    private const string Bundle = ".xcresult";
+
+    private static readonly HashSet<string> Indexed = new(["ModuleCache.noindex", "CompilationCache.noindex", "Index.noindex", "SDKStatCaches.noindex"], StringComparer.Ordinal);
 
     private readonly ConcurrentDictionary<string, Search> _searched = new(StringComparer.Ordinal);
 
@@ -61,9 +74,14 @@ public sealed class BuildOutputs(TimeProvider clock, TimeSpan? quiet = null)
     public string? Busy(string path, IReadOnlyList<RunningProcess> running) => Written(path) ?? Started(path, running);
 
     /// <summary>Why an output may be in a build's hands: written lately, or too large to tell cheaply.</summary>
+    /// <remarks>
+    /// Derived data is read two levels down only: its module caches hold tens of thousands of entries, and every build writes a
+    /// log of its own into <c>Logs/Build</c> and its products into <c>Build/Products</c>, which is where the time shows.
+    /// </remarks>
     private string? Written(string path)
     {
-        var options = new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 3, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
+        var depth = IsDerivedData(Entries(path)) ? 1 : 3;
+        var options = new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = depth, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
 
         try
         {
@@ -120,6 +138,12 @@ public sealed class BuildOutputs(TimeProvider clock, TimeSpan? quiet = null)
             if (entries.Exists(entry => !entry.IsDirectory && entry.Name == "pyvenv.cfg") || entries.Exists(entry => entry.IsDirectory && entry.Name == ".store"))
                 continue;
 
+            if (directory.Depth > 0 && IsDerivedData(entries))
+            {
+                found.Add((directory.Path, DerivedData));
+                continue;
+            }
+
             var isProject = entries.Exists(entry => !entry.IsDirectory && entry.Name.EndsWith(Project, StringComparison.Ordinal));
             var isPackage = entries.Exists(entry => !entry.IsDirectory && entry.Name == "package.json");
 
@@ -132,6 +156,8 @@ public sealed class BuildOutputs(TimeProvider clock, TimeSpan? quiet = null)
 
                 if (name is "TestResults" or "BenchmarkDotNet.Artifacts" || (isProject && name is "bin" or "obj") || (isPackage && name == "node_modules"))
                     found.Add((path, name));
+                else if (name.EndsWith(Bundle, StringComparison.Ordinal))
+                    found.Add((path, TestBundle));
                 else if (name != "node_modules" && directory.Depth + 1 < Deepest)
                     waiting.Enqueue((path, directory.Depth + 1));
             }
@@ -139,6 +165,11 @@ public sealed class BuildOutputs(TimeProvider clock, TimeSpan? quiet = null)
 
         return found;
     }
+
+    /// <summary>Whether a folder is Xcode's derived data: a module or index cache of its own, or the packages and logs a resolve leaves.</summary>
+    private static bool IsDerivedData(List<(string Name, bool IsDirectory)> entries) =>
+        entries.Exists(entry => entry.IsDirectory && Indexed.Contains(entry.Name))
+        || (entries.Exists(entry => entry.IsDirectory && entry.Name == "SourcePackages") && entries.Exists(entry => entry.IsDirectory && entry.Name == "Logs"));
 
     /// <summary>The entries of a directory, each with whether it is a directory to go into: a real one, not a link to one.</summary>
     private static List<(string Name, bool IsDirectory)> Entries(string directory)
@@ -173,7 +204,7 @@ public sealed class BuildOutputs(TimeProvider clock, TimeSpan? quiet = null)
 
     /// <summary>One output: where it is, what it is, and why it is to be left now, if it is.</summary>
     /// <param name="Path">The folder.</param>
-    /// <param name="What">Its name: <c>bin</c>, <c>obj</c>, <c>TestResults</c>, <c>BenchmarkDotNet.Artifacts</c> or <c>node_modules</c>.</param>
+    /// <param name="What">Its name: <c>bin</c>, <c>obj</c>, <c>TestResults</c>, <c>BenchmarkDotNet.Artifacts</c> or <c>node_modules</c>; <see cref="DerivedData"/> or <see cref="TestBundle"/> for Xcode's.</param>
     /// <param name="Blocker">Why it is to be left now; null when nothing stands in the way.</param>
     public sealed record Output(string Path, string What, string? Blocker);
 

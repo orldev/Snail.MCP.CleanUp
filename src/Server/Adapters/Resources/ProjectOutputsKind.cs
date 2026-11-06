@@ -2,7 +2,7 @@ using System.Globalization;
 
 namespace Snail.MCP.CleanUp.Adapters.Resources;
 
-/// <summary>The build outputs of the repositories agents and the developer work in: <c>bin</c> and <c>obj</c> no build wrote into for a week.</summary>
+/// <summary>The build outputs of the repositories agents and the developer work in: <c>bin</c>, <c>obj</c>, Xcode's derived data and test bundles no build wrote into for a week.</summary>
 /// <remarks>
 /// Every build, test run and publish an agent starts in a repository writes a tree per configuration, framework and runtime
 /// into its <c>bin</c> and <c>obj</c>, and nothing removes them: 238 of them held 39.6 GB on 2026-10-28. They lie in the
@@ -16,7 +16,7 @@ public sealed class ProjectOutputsKind(Repositories repositories, IProcessTable 
     /// <summary>The fact a repository's entry carries how many folders it offers under.</summary>
     public const string FoldersFact = "folders";
 
-    private static readonly HashSet<string> Offered = new(["bin", "obj"], StringComparer.Ordinal);
+    private static readonly HashSet<string> Offered = new(["bin", "obj", BuildOutputs.DerivedData, BuildOutputs.TestBundle], StringComparer.Ordinal);
 
     private readonly BuildOutputs _outputs = new(clock, Quiet);
 
@@ -76,7 +76,7 @@ public sealed class ProjectOutputsKind(Repositories repositories, IProcessTable 
 
         var rest = left is null ? string.Empty : $"; the rest was left: {left}";
 
-        return Release.Done(resource, $"erased {erased} bin and obj folder(s), which the next build makes again{rest}");
+        return Release.Done(resource, $"erased {erased} build output folder(s), which the next build makes again{rest}");
     }
 
     /// <summary>The quiet outputs of each repository, deepest repositories first, so that a folder is only its innermost repository's.</summary>
@@ -121,7 +121,7 @@ public sealed class ProjectOutputsKind(Repositories repositories, IProcessTable 
         {
             Kind = Name,
             Key = repository,
-            Title = $"build outputs of {Path.GetFileName(repository)}: {outputs.Count} bin and obj folder(s) no build wrote into for {Quiet.TotalDays:0} days; the next build makes them again",
+            Title = $"build outputs of {Path.GetFileName(repository)}: {outputs.Count} build output folder(s) no build wrote into for {Quiet.TotalDays:0} days; the next build makes them again",
             IsShared = true,
             IsRegenerable = true,
             Bytes = bytes,

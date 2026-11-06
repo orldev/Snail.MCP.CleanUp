@@ -41,7 +41,7 @@ public static class MachineKinds
     /// <summary>The folder a repository's test runs write their dumps, coverage and logs into.</summary>
     public const string TestResults = "testresults";
 
-    /// <summary>The <c>bin</c> and <c>obj</c> of a repository no build wrote into for a week.</summary>
+    /// <summary>The <c>bin</c>, <c>obj</c>, Xcode derived data and test bundles of a repository no build wrote into for a week.</summary>
     public const string ProjectOutputs = "outputs";
 
     /// <summary>The transcript of a Claude Code session nobody wrote into for a few days.</summary>

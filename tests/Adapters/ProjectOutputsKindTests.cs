@@ -90,6 +90,47 @@ public sealed class ProjectOutputsKindTests : IDisposable
         Assert.True(File.Exists(Path.Combine(repository, "src", "Hub", "Hub.csproj")));
     }
 
+    /// <summary>
+    /// The iOS project of 2026-11-06: seven folders of derived data of 13 GB that <c>-derivedDataPath</c> put in its
+    /// <c>artifacts</c> under names of its own, and 80 bundles of test runs of 12 GB beside them.
+    /// </summary>
+    [Fact]
+    public async Task DerivedDataAndTestBundles_UnderNamesOfTheirOwn_AreOutputsOfTheirRepository()
+    {
+        var repository = Repository("Projects/Testing/Anonym");
+        var derived = Directory.CreateDirectory(Path.Combine(repository, "artifacts", "app-dd")).FullName;
+        var resolved = Directory.CreateDirectory(Path.Combine(repository, "artifacts", "kit-dd")).FullName;
+        var bundle = Directory.CreateDirectory(Path.Combine(repository, "artifacts", "tests", "20261031-202307.xcresult", "Data")).FullName;
+        Directory.CreateDirectory(Path.Combine(derived, "ModuleCache.noindex"));
+        Directory.CreateDirectory(Path.Combine(derived, "Build", "Products", "Debug-iphonesimulator"));
+        Directory.CreateDirectory(Path.Combine(resolved, "SourcePackages"));
+        Directory.CreateDirectory(Path.Combine(resolved, "Logs"));
+        File.WriteAllBytes(Path.Combine(derived, "Build", "Products", "Debug-iphonesimulator", "Anonym"), new byte[64 * 1024]);
+        File.WriteAllBytes(Path.Combine(bundle, "data.0"), new byte[64 * 1024]);
+
+        var outputs = Assert.Single((await Kind.ObserveAsync([WorkingIn(repository)], CancellationToken.None)).Resources);
+        var release = await Kind.ReleaseAsync(outputs, CancellationToken.None);
+
+        Assert.Equal("3", outputs.Facts[ProjectOutputsKind.FoldersFact]);
+        Assert.Equal(Outcome.Released, release.Outcome);
+        Assert.False(Directory.Exists(derived));
+        Assert.False(Directory.Exists(resolved));
+        Assert.False(Directory.Exists(Path.GetDirectoryName(bundle)));
+        Assert.True(Directory.Exists(Path.Combine(repository, "artifacts", "tests")));
+    }
+
+    /// <summary>A folder of logs beside a build folder is no derived data: nothing Xcode writes only into its own says so.</summary>
+    [Fact]
+    public async Task LogsBesideABuild_AreNotDerivedData()
+    {
+        var repository = Repository("Projects/Web/site");
+        Directory.CreateDirectory(Path.Combine(repository, "out", "Logs"));
+        File.WriteAllText(Path.Combine(repository, "out", "Logs", "run.log"), "ok");
+        Directory.CreateDirectory(Path.Combine(repository, "out", "Build"));
+
+        Assert.Empty((await Kind.ObserveAsync([WorkingIn(repository)], CancellationToken.None)).Resources);
+    }
+
     /// <summary>A project built into this week is being worked on: its outputs are what the next build starts from.</summary>
     [Fact]
     public async Task Outputs_OfAProjectBuiltThisWeek_AreNotOffered()
