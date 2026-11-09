@@ -35,6 +35,21 @@ public sealed partial class ManifestContractTests
         Assert.Equal(Settings, named);
     }
 
+    /// <summary>A default copied from the manifest into a client's registration starts the server, <c>~</c> and all.</summary>
+    [Fact]
+    public void Manifest_DefaultsAsWritten_StartTheServer()
+    {
+        var manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(Root, ".mcp", "server.json")))!;
+        var defaults = manifest["packages"]![0]!["environmentVariables"]!.AsArray()
+            .Where(variable => variable!["default"] is not null)
+            .ToDictionary(variable => variable!["name"]!.GetValue<string>(), variable => variable!["default"]!.GetValue<string>());
+
+        var config = ServerConfigExtensions.Read(ServerConfigExtensions.Settings(defaults));
+
+        Assert.Equal(Path.Combine(Snail.Sdk.Mcp.Hosting.ServerFolders.Home, ".s3l-mcp-cleanup"), config.DataDirectory);
+        Assert.Equal(Path.Combine(Snail.Sdk.Mcp.Hosting.ServerFolders.Home, ".claude", "settings.json"), config.ClaudeSettings);
+    }
+
     [Fact]
     public void Readme_NamesEverySettingTheServerReads()
     {

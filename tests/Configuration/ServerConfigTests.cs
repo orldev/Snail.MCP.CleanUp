@@ -34,6 +34,28 @@ public sealed class ServerConfigTests
             refused.Message);
     }
 
+    /// <summary>A path written the way a person writes it, and the way the manifest's defaults are, is the user's home.</summary>
+    [Theory]
+    [InlineData("DATA_DIRECTORY", nameof(ServerConfig.DataDirectory))]
+    [InlineData("HOOK_DIRECTORY", nameof(ServerConfig.HookDirectory))]
+    [InlineData("TRASH_DIRECTORY", nameof(ServerConfig.TrashDirectory))]
+    [InlineData("SCRATCH_ROOT", nameof(ServerConfig.ScratchRoot))]
+    [InlineData("SLEEP_OF_DIRECTORY", nameof(ServerConfig.SleepOfDirectory))]
+    [InlineData("ANDROID_SDK", nameof(ServerConfig.AndroidSdk))]
+    [InlineData("AVD_DIRECTORY", nameof(ServerConfig.AvdDirectory))]
+    [InlineData("EDITOR_USER_DIRECTORY", nameof(ServerConfig.EditorUserDirectory))]
+    [InlineData("CLAUDE_SETTINGS", nameof(ServerConfig.ClaudeSettings))]
+    [InlineData("CLAUDE_PROJECTS", nameof(ServerConfig.ClaudeProjects))]
+    public void Path_UnderTheHome_IsTheUsersHome(string variable, string property)
+    {
+        var settings = ServerConfigExtensions.Settings(new Dictionary<string, string> { [$"{EnvironmentSettings.Prefix}{variable}"] = "~/x" });
+
+        var config = ServerConfigExtensions.Read(settings);
+        var taken = typeof(ServerConfig).GetProperty(property)!.GetValue(config);
+
+        Assert.Equal(Path.Combine(Snail.Sdk.Mcp.Hosting.ServerFolders.Home, "x"), taken);
+    }
+
     [Theory]
     [InlineData("0")]
     [InlineData("-3")]

@@ -32,10 +32,34 @@ public static class ServerConfigExtensions
             source.Bind(config);
         });
 
+        WithHome(config);
         Validate(config);
 
         return config;
     }
+
+    /// <summary>Makes a leading <c>~</c> of every path setting the user's home, before anything checks or opens it.</summary>
+    /// <remarks>
+    /// The manifest's defaults are written <c>~/.s3l-mcp-cleanup</c>, <c>~/.Trash</c>, and a client copies them into its
+    /// registration as they are, where no shell expands them: <see cref="Validate"/> refused the data and Trash folders as
+    /// relative, and every other path was taken as a folder named <c>~</c> under the working directory.
+    /// </remarks>
+    private static void WithHome(ServerConfig config)
+    {
+        config.DataDirectory = Home(config.DataDirectory);
+        config.HookDirectory = config.HookDirectory is null ? null : Home(config.HookDirectory);
+        config.TrashDirectory = Home(config.TrashDirectory);
+        config.ScratchRoot = Home(config.ScratchRoot);
+        config.AndroidSdk = Home(config.AndroidSdk);
+        config.AvdDirectory = Home(config.AvdDirectory);
+        config.EditorUserDirectory = Home(config.EditorUserDirectory);
+        config.ClaudeSettings = Home(config.ClaudeSettings);
+        config.ClaudeProjects = Home(config.ClaudeProjects);
+        config.SleepOfDirectory = Home(config.SleepOfDirectory);
+    }
+
+    /// <summary>The path with a leading <c>~</c> made the user's home; a blank one as it is, for <see cref="Validate"/> to name.</summary>
+    private static string Home(string path) => string.IsNullOrWhiteSpace(path) ? path : ServerFolders.ExpandHome(path);
 
     /// <summary>Refuses a setting that cannot work at start-up, so a typo stops the process instead of being repaired in silence.</summary>
     /// <remarks>
