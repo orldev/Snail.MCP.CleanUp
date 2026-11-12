@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Globalization;
 using System.IO.Enumeration;
 
@@ -19,7 +20,15 @@ namespace Snail.MCP.CleanUp.Adapters.Resources;
 /// cache of this kind, with their size.
 /// </para>
 /// <para>
-/// The file trail does not list either (<see cref="IsRemains"/>): what this kind accounts for is no discovery, and tens of
+/// The <c>dotnet build</c>, <c>test</c> and <c>pack</c> of the .NET 10 SDK leave two empty folders of six random
+/// characters in the temporary folder at every command, as <c>mkdtemp</c> names them; .NET 9 and <c>dotnet msbuild</c> do
+/// not. From 2026-10-11 to 2026-11-12 they came to 51 868, the ledger held 50 040 discoveries, nearly all of them these, and
+/// the file trail stopped short at its 50 000 entries. An empty folder holds nothing to lose, so the empty ones untouched
+/// for <see cref="Settled"/> are a third cache of this kind, and every empty one is claimed, so that none is a discovery.
+/// A folder of such a name that holds something is not this kind's: it stays a discovery.
+/// </para>
+/// <para>
+/// The file trail does not list the endpoints and test runs (<see cref="IsRemains"/>): what this kind accounts for is no discovery, and tens of
 /// thousands of traces a census were the larger part of its allocations.
 /// </para>
 /// </remarks>
@@ -39,6 +48,13 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
     private const string DiagnosticSocket = "dotnet-diagnostic-";
 
     private const string TestRun = "s3l-test-";
+
+    private const int ScratchNameLength = 6;
+
+    private static readonly SearchValues<char> ScratchCharacters = SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789");
+
+    /// <summary>How long an empty folder of six random characters is left alone after it was last written: whoever made it may be about to use it.</summary>
+    public static TimeSpan Settled { get; } = TimeSpan.FromDays(1);
 
     /// <summary>How many folders of ended test runs one census counts the size of; past them the size is «at least».</summary>
     public const int MostMeasured = 2_000;
@@ -61,6 +77,9 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
     /// <summary>The key of the folders of test runs that have ended: the pattern of their names in the folder.</summary>
     private string TestRunsKey => Path.Combine(directory, $"{TestRun}*");
 
+    /// <summary>The key of the empty folders of six random characters: the template <c>mkdtemp</c> names them by.</summary>
+    private string ScratchKey => Path.Combine(directory, "XXXXXX");
+
     /// <inheritdoc/>
     public string Name => MachineKinds.Remains;
 
@@ -73,14 +92,18 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
     /// <inheritdoc/>
     public async Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
     {
+        var (scratch, claimed) = EmptyScratch();
         var running = await table.ListAsync(cancellationToken);
+        var found = new List<Resource>(3);
+
+        if (scratch is not null)
+            found.Add(scratch);
 
         if (running.Count == 0)
-            return Observation.Unseen(Name, "the process table could not be read, so no process can be proven to have ended");
+            return new Observation(Name, found, claimed, "the process table could not be read, so no process can be proven to have ended");
 
         var alive = Alive(running);
         var (ended, kept) = areEndpointsKeyedBySeconds ? Sorted(alive) : default;
-        var found = new List<Resource>(2);
 
         if (ended.Files > 0)
         {
@@ -99,7 +122,137 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
         if (TestRuns(alive) is { } runs)
             found.Add(runs);
 
-        return new Observation(Name, found, []);
+        return new Observation(Name, found, claimed);
+    }
+
+    /// <summary>
+    /// The empty folders of six random characters untouched for <see cref="Settled"/>, as one cache, null when there are none;
+    /// and the trace of every empty one, young ones too, for the file trail to leave to this kind.
+    /// </summary>
+    private (Resource? Cache, List<string> Claimed) EmptyScratch()
+    {
+        var now = clock.GetUtcNow();
+        var claimed = new List<string>();
+        var (settled, young) = (0, 0);
+
+        foreach (var (path, written) in ScratchFolders())
+        {
+            claimed.Add($"{Kinds.File}:{path}");
+
+            if (now - written >= Settled)
+                settled++;
+            else
+                young++;
+        }
+
+        if (settled == 0)
+            return (null, claimed);
+
+        var cache = new Resource
+        {
+            Kind = Name,
+            Key = ScratchKey,
+            Title = $"{settled} empty folder(s) of six random characters in {directory}, untouched for a day: the .NET 10 SDK leaves two at every "
+                + $"dotnet build, test and pack; {young} younger one(s) are left alone",
+            IsShared = true,
+            IsRegenerable = true,
+            Bytes = 0,
+            Facts = new Dictionary<string, string> { ["folders"] = settled.ToString(CultureInfo.InvariantCulture) }
+        };
+
+        return (cache, claimed);
+    }
+
+    /// <summary>Erases the empty folders of six random characters untouched for <see cref="Settled"/>, each judged again; one written into since stays.</summary>
+    private Release ReleaseScratch(Resource resource, CancellationToken cancellationToken)
+    {
+        var now = clock.GetUtcNow();
+        var removed = 0;
+        var refused = new List<string>();
+
+        foreach (var (path, written) in ScratchFolders())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (now - written < Settled)
+                continue;
+
+            try
+            {
+                Directory.Delete(path, recursive: false);
+                removed++;
+            }
+            catch (DirectoryNotFoundException)
+            {
+            }
+            catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
+            {
+                refused.Add($"{Path.GetFileName(path)}: {failure.Message}");
+            }
+        }
+
+        if (removed == 0 && refused.Count == 0)
+            return Release.AlreadyGone(resource);
+
+        if (removed == 0)
+            return Release.Refused(resource, string.Join("; ", refused.Take(3)));
+
+        var detail = $"erased {removed} empty folder(s) the .NET SDK left";
+
+        return Release.Done(resource, refused.Count == 0 ? detail : $"{detail}; {refused.Count} could not be: {string.Join("; ", refused.Take(3))}");
+    }
+
+    /// <summary>The empty folders of six random characters in the folder, with when each was last written; links named so are passed over.</summary>
+    private List<(string Path, DateTimeOffset Written)> ScratchFolders()
+    {
+        if (!Directory.Exists(directory))
+            return [];
+
+        List<(string Path, DateTimeOffset Written)> named;
+
+        try
+        {
+            named =
+            [
+                .. new FileSystemEnumerable<(string, DateTimeOffset)>(directory, static (ref entry) => (entry.ToFullPath(), entry.LastWriteTimeUtc), Listing)
+                {
+                    ShouldIncludePredicate = static (ref entry) =>
+                        entry.IsDirectory && (entry.Attributes & FileAttributes.ReparsePoint) == 0 && IsScratchName(entry.FileName)
+                }
+            ];
+        }
+        catch (Exception refused) when (refused is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+
+        var empty = new List<(string Path, DateTimeOffset Written)>(named.Count);
+
+        foreach (var folder in named)
+        {
+            if (IsEmpty(folder.Path))
+                empty.Add(folder);
+        }
+
+        return empty;
+    }
+
+    /// <summary>Whether a name is six letters and digits, as <c>mkdtemp</c> fills the template <c>XXXXXX</c>.</summary>
+    private static bool IsScratchName(ReadOnlySpan<char> name) => name.Length == ScratchNameLength && !name.ContainsAnyExcept(ScratchCharacters);
+
+    /// <summary>Whether a folder holds nothing; one that cannot be read is taken to hold something.</summary>
+    private static bool IsEmpty(string path)
+    {
+        try
+        {
+            using var entries = Directory.EnumerateFileSystemEntries(path).GetEnumerator();
+
+            return !entries.MoveNext();
+        }
+        catch (Exception refused) when (refused is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>The folders of the test runs that have ended, as one cache with their size; null when there are none.</summary>
@@ -146,6 +299,9 @@ public sealed class RemainsKind(IProcessTable table, Sizes sizes, TimeProvider c
     /// <remarks>The table is read afresh and every endpoint judged again: what started since the plan was shown is not its business.</remarks>
     public async Task<Release> ReleaseAsync(Resource resource, CancellationToken cancellationToken)
     {
+        if (string.Equals(resource.Key, ScratchKey, StringComparison.Ordinal))
+            return ReleaseScratch(resource, cancellationToken);
+
         table.Refresh();
 
         var running = await table.ListAsync(cancellationToken);

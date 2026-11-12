@@ -7,7 +7,7 @@ namespace Snail.MCP.CleanUp.Adapters.Ledger;
 public sealed class SqlitePlans(LedgerFile file, TimeProvider clock) : IPlans
 {
     /// <summary>How long a plan is kept after it can no longer be carried out, for whoever asks what happened to it.</summary>
-    private static readonly TimeSpan Kept = TimeSpan.FromDays(1);
+    internal static TimeSpan Kept { get; } = TimeSpan.FromDays(1);
 
     /// <inheritdoc/>
     public async Task SaveAsync(Plan plan, CancellationToken cancellationToken)

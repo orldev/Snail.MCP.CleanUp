@@ -266,4 +266,84 @@ public sealed class RemainsKindTests : IDisposable
         Assert.All(endpoints, endpoint => Assert.True(File.Exists(endpoint)));
         Assert.False(Directory.Exists(root));
     }
+
+    /// <summary>An empty folder of six random characters, last written <paramref name="age"/> ago, as <c>dotnet build</c> of .NET 10 leaves two.</summary>
+    private string ScratchFolder(string name, TimeSpan age, bool isEmpty = true)
+    {
+        var path = _scratch.File(name);
+
+        Directory.CreateDirectory(path);
+
+        if (!isEmpty)
+            File.WriteAllText(Path.Combine(path, "kept.txt"), "something");
+
+        Directory.SetLastWriteTimeUtc(path, (Now - age).UtcDateTime);
+
+        return path;
+    }
+
+    /// <summary>
+    /// The temporary folder of 2026-11-12: 51 868 empty folders of six random characters, two left by every <c>dotnet build</c>,
+    /// <c>test</c> and <c>pack</c> of the .NET 10 SDK since 2026-10-11, and 50 040 discoveries in the ledger, nearly all of them these.
+    /// The empty ones untouched for a day are one cache; every empty one is the kind's, so none is a discovery; one that holds
+    /// something, or whose name is not six characters, is not.
+    /// </summary>
+    [Fact]
+    public async Task EmptyScratchFolders_UntouchedForADay_AreOneCache_AndEveryEmptyOneIsClaimed()
+    {
+        var settled = ScratchFolder("aB3xY9", TimeSpan.FromDays(2));
+        var young = ScratchFolder("Qw12er", TimeSpan.FromHours(1));
+        var holding = ScratchFolder("Zz99zz", TimeSpan.FromDays(2), isEmpty: false);
+        var named = ScratchFolder("longername", TimeSpan.FromDays(2));
+
+        var observation = await Kind.ObserveAsync([], CancellationToken.None);
+        var scratch = Assert.Single(observation.Resources);
+
+        Assert.True(scratch.IsShared);
+        Assert.True(scratch.IsRegenerable);
+        Assert.Equal("1", scratch.Facts["folders"]);
+        Assert.Equal([$"file:{settled}", $"file:{young}"], observation.Claimed.OrderDescending(StringComparer.Ordinal));
+        Assert.DoesNotContain($"file:{holding}", observation.Claimed);
+        Assert.DoesNotContain($"file:{named}", observation.Claimed);
+    }
+
+    [Fact]
+    public async Task Release_OfEmptyScratchFolders_ErasesOnlyTheEmptyOnesUntouchedForADay()
+    {
+        var settled = ScratchFolder("aB3xY9", TimeSpan.FromDays(2));
+        var young = ScratchFolder("Qw12er", TimeSpan.FromHours(1));
+        var holding = ScratchFolder("Zz99zz", TimeSpan.FromDays(2), isEmpty: false);
+
+        var scratch = Assert.Single((await Kind.ObserveAsync([], CancellationToken.None)).Resources);
+        var release = await Kind.ReleaseAsync(scratch, CancellationToken.None);
+
+        Assert.Equal(Outcome.Released, release.Outcome);
+        Assert.Equal((false, true, true), (Directory.Exists(settled), Directory.Exists(young), Directory.Exists(holding)));
+    }
+
+    /// <summary>A folder something wrote into between the plan and the release is no longer empty, and stays.</summary>
+    [Fact]
+    public async Task Release_OfAnEmptyScratchFolderWrittenIntoSince_LeavesIt()
+    {
+        var settled = ScratchFolder("aB3xY9", TimeSpan.FromDays(2));
+        var scratch = Assert.Single((await Kind.ObserveAsync([], CancellationToken.None)).Resources);
+
+        File.WriteAllText(Path.Combine(settled, "late.txt"), "written after the plan");
+
+        await Kind.ReleaseAsync(scratch, CancellationToken.None);
+
+        Assert.True(File.Exists(Path.Combine(settled, "late.txt")));
+    }
+
+    /// <summary>The empty folders do not need the process table: an unreadable table costs the endpoints, not them.</summary>
+    [Fact]
+    public async Task EmptyScratchFolders_WhenTheProcessTableCannotBeRead_AreStillClaimed()
+    {
+        var settled = ScratchFolder("aB3xY9", TimeSpan.FromDays(2));
+        var kind = new RemainsKind(new FakeProcessTable(), new Sizes(_clock), _clock, _scratch.Path);
+
+        var observation = await kind.ObserveAsync([], CancellationToken.None);
+
+        Assert.Contains($"file:{settled}", observation.Claimed);
+    }
 }

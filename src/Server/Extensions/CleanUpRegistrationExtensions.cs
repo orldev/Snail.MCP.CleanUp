@@ -85,6 +85,7 @@ public static class CleanUpRegistrationExtensions
             services.AddSingleton(provider => new LedgerFile(Path.Combine(provider.GetRequiredService<ServerConfig>().DataDirectory, "ledger.db")));
             services.AddSingleton<ILedger, SqliteLedger>();
             services.AddSingleton<IPlans, SqlitePlans>();
+            services.AddSingleton<LedgerTidy>();
             services.AddSingleton<IBaselines, SqliteBaselines>();
             services.AddSingleton<IShifts, SqliteShifts>();
             services.AddSingleton<IDiscoveries, SqliteDiscoveries>();

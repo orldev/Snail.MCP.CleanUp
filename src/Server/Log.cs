@@ -43,6 +43,9 @@ internal static partial class Log
     [LoggerMessage(EventId = 12, Level = LogLevel.Information, Message = "upkeep released {Released} of {Attempted}")]
     internal static partial void UpkeepDone(ILogger logger, int released, int attempted);
 
+    [LoggerMessage(EventId = 19, Level = LogLevel.Information, Message = "the ledger forgot {Plans} plan(s) past keeping and gave back {Megabytes} MB")]
+    internal static partial void LedgerTidied(ILogger logger, int plans, long megabytes);
+
     [LoggerMessage(EventId = 13, Level = LogLevel.Warning, Message = "upkeep failed; the next one comes with a later census")]
     internal static partial void UpkeepFailed(ILogger logger, Exception failure);
 

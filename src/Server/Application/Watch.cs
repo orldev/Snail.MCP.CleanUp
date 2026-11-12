@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Hosting;
+using Snail.MCP.CleanUp.Adapters.Ledger;
 
 namespace Snail.MCP.CleanUp.Application;
 
@@ -24,7 +25,7 @@ namespace Snail.MCP.CleanUp.Application;
 /// <see cref="Fallback"/> regardless, for what the kernel is not asked about.
 /// </para>
 /// </remarks>
-public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shifts, IChanges changes, Upkeep upkeep, ILogger<Watch> logger, TimeProvider clock) : BackgroundService
+public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shifts, IChanges changes, Upkeep upkeep, LedgerTidy tidy, ILogger<Watch> logger, TimeProvider clock) : BackgroundService
 {
     /// <summary>How long after a change the census waits, so that a burst of changes is counted once.</summary>
     public static TimeSpan Settle { get; } = TimeSpan.FromSeconds(2);
@@ -166,6 +167,11 @@ public sealed class Watch(MeasuredCensus census, IHolders sessions, IShifts shif
 
             if (releases.Count > 0)
                 Log.UpkeepDone(logger, releases.Count(release => release.Outcome == Outcome.Released), releases.Count);
+
+            var tidied = await tidy.TidyAsync(cancellationToken);
+
+            if (tidied.Plans > 0 || tidied.Bytes > 0)
+                Log.LedgerTidied(logger, tidied.Plans, tidied.Bytes / (1024 * 1024));
         }
         catch (Exception failure) when (failure is not OperationCanceledException)
         {
