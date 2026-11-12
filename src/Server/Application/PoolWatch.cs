@@ -6,10 +6,14 @@ namespace Snail.MCP.CleanUp.Application;
 /// <summary>Asks the thread pool, from a thread of its own, how long it takes to start a piece of work, and logs it when the answer is slow.</summary>
 /// <remarks>
 /// A tool call that never answers leaves two suspects: the call never reached the server's code, or the pool had no
-/// thread to run what came after it — the timer that answers a quick tool as overdue among it. A census walks the disk
+/// thread to run what came after it — the timer that answers a quick tool as overdue among it. A census walked the disk
 /// on pool threads without awaiting, and on 2026-11-09 a cleanup_plan went 31 minutes without the overdue answer the
 /// server gives at two. Asked from a thread of its own, the pool's delay is measured even when the pool itself is what
 /// stopped, and the line, with the threads and the work waiting, says which of the two it was.
+/// <para>
+/// Since Snail.Toolkit.Cleanup 0.1.1 the census looks off the pool. The watch stays, to say so if the pool is ever held
+/// again: a slow line after that is a new cause, not the census.
+/// </para>
 /// </remarks>
 public sealed class PoolWatch(ILogger<PoolWatch> logger) : IHostedService, IDisposable
 {
