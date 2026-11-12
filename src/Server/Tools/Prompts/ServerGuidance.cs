@@ -31,6 +31,10 @@ public static class ServerGuidance
         it with cleanup_learn. cleanup_keep spares something on purpose. find_tool finds a tool by a task in
         your own words.
 
+        cleanup_apply, cleanup_release and the two acquires are jobs: the work goes on whatever the call does,
+        and the answer comes within the wait — the result, or the running job as a resource
+        job://cleanup/<kind>/<id> whose text is its report once it ends.
+
         Every answer is JSON with an ok flag, and a failed call is also flagged isError. When ok is false, read
         error and hint and change the call instead of repeating it; type names the failure: arguments (the call
         as written), absent (nothing by that name or path), noSession and sessionsUnknown (cleanup_diagnose shows

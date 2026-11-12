@@ -2,10 +2,12 @@ using Microsoft.Extensions.DependencyInjection;
 using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Snail.MCP.CleanUp.Adapters;
+using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Tools;
 using Snail.MCP.CleanUp.Tools.Prompts;
 using Snail.Sdk.Mcp.Hosting;
 using Snail.Sdk.Mcp.Hosting.Discovery;
+using Snail.Sdk.Mcp.Hosting.Jobs;
 
 namespace Snail.MCP.CleanUp.Extensions;
 
@@ -52,11 +54,13 @@ public static class TransportRegistrationExtensions
                 .WithTools<AccountTools>()
                 .WithToolDiscovery(Discovery)
                 .WithArgumentCheck()
+                .WithJobs("cleanup")
                 .WithPrompts<CleanupPrompts>()
                 .WithRequestFilters(filters => filters.AddCallToolFilter(Patient));
 
             services.AddSingleton<Patience>();
             services.AddHostedService<HookSocket>();
+            services.AddHostedService<PoolWatch>();
 
             return services;
         }

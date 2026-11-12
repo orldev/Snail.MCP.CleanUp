@@ -55,6 +55,9 @@ internal static partial class Log
     [LoggerMessage(EventId = 16, Level = LogLevel.Warning, Message = "census took {Elapsed}; slowest: {Slowest}")]
     internal static partial void SlowCensus(ILogger logger, TimeSpan elapsed, string slowest);
 
+    [LoggerMessage(EventId = 18, Level = LogLevel.Warning, Message = "the thread pool took {Waited} to start a piece of work (gave up waiting: {IsStuck}); {Threads} threads, {Pending} pieces of work waiting")]
+    internal static partial void PoolSlow(ILogger logger, TimeSpan waited, bool isStuck, int threads, long pending);
+
     [LoggerMessage(EventId = 17, Level = LogLevel.Warning, Message = "telling the session took {Elapsed}: the process table {Table}, the sessions {Sessions}")]
     internal static partial void SlowSession(ILogger logger, TimeSpan elapsed, TimeSpan table, TimeSpan sessions);
 }

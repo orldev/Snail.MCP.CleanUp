@@ -4,7 +4,7 @@
 
 Get an iOS simulator of your own: a clone of a shut-down device, or a new device of a type, named for
 this session so that no other agent uses it and only this session's cleanup removes it. Use it instead
-of booting a simulator somebody may already be using, and drive it by the udid it returns.
+of booting a simulator somebody may already be using, and drive it by the udid it returns. A job.
 
 *only adds · every call adds · stays on this machine.*
 
@@ -12,6 +12,7 @@ of booting a simulator somebody may already be using, and drive it by the udid i
 | --- | --- | --- | --- | --- |
 | `from` | `string?` | — | `null` | A shut-down device to clone, by name or udid, or a device type such as iPhone 17 Pro; the newest iPhone Pro when omitted. |
 | `boot` | `boolean` | — | `false` | Whether to boot it and wait until it is ready; false by default. |
+| `wait` | `integer` | — | `60` | Seconds to wait before answering with the running job, a resource to read; 60 by default. |
 
 <details><summary>JSON Schema</summary>
 
@@ -31,6 +32,11 @@ of booting a simulator somebody may already be using, and drive it by the udid i
       "description": "Whether to boot it and wait until it is ready; false by default.",
       "type": "boolean",
       "default": false
+    },
+    "wait": {
+      "description": "Seconds to wait before answering with the running job, a resource to read; 60 by default.",
+      "type": "integer",
+      "default": 60
     }
   }
 }
@@ -42,7 +48,7 @@ of booting a simulator somebody may already be using, and drive it by the udid i
 
 Get an Android emulator of your own: a new virtual device from an installed system image, started on a
 free console port without saving a snapshot, named for this session so that only its cleanup removes
-it. It returns the adb serial at once; the device needs a minute or two to boot.
+it. It returns the adb serial once the emulator starts; the device needs a minute or two to boot. A job.
 
 *only adds · every call adds · stays on this machine.*
 
@@ -50,6 +56,7 @@ it. It returns the adb serial at once; the device needs a minute or two to boot.
 | --- | --- | --- | --- | --- |
 | `image` | `string?` | — | `null` | Part of an installed system image path, such as android-37.0 or google_apis; the newest image without the Play Store when omitted. |
 | `window` | `boolean` | — | `false` | Whether to show the emulator's window; false runs it headless. |
+| `wait` | `integer` | — | `60` | Seconds to wait before answering with the running job, a resource to read; 60 by default. |
 
 <details><summary>JSON Schema</summary>
 
@@ -69,6 +76,11 @@ it. It returns the adb serial at once; the device needs a minute or two to boot.
       "description": "Whether to show the emulator\u0027s window; false runs it headless.",
       "type": "boolean",
       "default": false
+    },
+    "wait": {
+      "description": "Seconds to wait before answering with the running job, a resource to read; 60 by default.",
+      "type": "integer",
+      "default": 60
     }
   }
 }

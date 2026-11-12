@@ -83,6 +83,31 @@ public sealed class StdioContractTests : IDisposable
         Assert.Equal(_scratch.Path, answer.Data()!["dataDirectory"]!.GetValue<string>());
     }
 
+    /// <summary>A removal works as a job, and a job that ended in a refusal answers the refusal with its type, not a job done.</summary>
+    [Fact]
+    public async Task Apply_OfAPlanNeverMade_AnswersTheJobsRefusalWithItsType()
+    {
+        await using var client = await StartedAsync();
+
+        var answer = await client.CallToolAsync("cleanup_apply", new Dictionary<string, object?> { ["planId"] = "nosuchplan", ["wait"] = 30 });
+
+        Assert.True(answer.IsError);
+        Assert.Contains("there is no plan nosuchplan", answer.Error(), StringComparison.Ordinal);
+        Assert.Equal(Failures.NoSuchPlan, answer.Type());
+    }
+
+    /// <summary>A wait below zero is refused, never read as no wait at all.</summary>
+    [Fact]
+    public async Task Release_WithAWaitBelowZero_IsRefusedAsArguments()
+    {
+        await using var client = await StartedAsync();
+
+        var answer = await client.CallToolAsync("cleanup_release", new Dictionary<string, object?> { ["id"] = "process:0@0", ["wait"] = -1 });
+
+        Assert.True(answer.IsError);
+        Assert.Equal(ToolFailures.Arguments, answer.Type());
+    }
+
     /// <summary>Two scopes joined by a comma are no scope the description names: refused, never widened to everything.</summary>
     [Fact]
     public async Task Plan_ScopeOfTwoNamesJoinedByAComma_IsRefused()

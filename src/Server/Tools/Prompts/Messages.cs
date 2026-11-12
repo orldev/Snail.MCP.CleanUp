@@ -31,6 +31,9 @@ public static class Messages
     /// <summary>What to do when the sessions of the machine could not be told, so that no census was taken.</summary>
     public const string SessionsUnknownHint = "Nothing was decided or removed. Ask again in a moment; when it keeps failing, call cleanup_diagnose to see what the server can read.";
 
+    /// <summary>What is said of a cleanup that moved things to the Trash, for an agent that would report their size as freed.</summary>
+    public const string TrashedNote = "what was trashed is still on the disk until the Trash is emptied, which an agent cannot do: tell the person, and count only freed as space given back";
+
     /// <summary>Why a call was answered without its result: the server took longer than a quick tool may.</summary>
     public const string Overdue = "the server did not answer within two minutes: it is busy or stuck, and the call may still finish in the background";
 

@@ -36,7 +36,7 @@ public static class ToolDescriptions
         """
         Get an iOS simulator of your own: a clone of a shut-down device, or a new device of a type, named for
         this session so that no other agent uses it and only this session's cleanup removes it. Use it instead
-        of booting a simulator somebody may already be using, and drive it by the udid it returns.
+        of booting a simulator somebody may already be using, and drive it by the udid it returns. A job.
         """;
 
     /// <summary>The <c>from</c> of <c>cleanup_simulator_acquire</c>.</summary>
@@ -50,7 +50,7 @@ public static class ToolDescriptions
         """
         Get an Android emulator of your own: a new virtual device from an installed system image, started on a
         free console port without saving a snapshot, named for this session so that only its cleanup removes
-        it. It returns the adb serial at once; the device needs a minute or two to boot.
+        it. It returns the adb serial once the emulator starts; the device needs a minute or two to boot. A job.
         """;
 
     /// <summary>The <c>image</c> of <c>cleanup_emulator_acquire</c>.</summary>
@@ -70,8 +70,8 @@ public static class ToolDescriptions
     public const string Plan =
         """
         Decide a cleanup and show it before anything is done: what will be removed and why, what is only
-        reported because nothing proves it is an agent's, what is kept. Pass the planId to cleanup_apply
-        within 10 minutes; after that the plan is stale.
+        reported because nothing proves it is an agent's, what is kept; byKind counts every removal. Pass the
+        planId to cleanup_apply within 10 minutes; after that the plan is stale.
         """;
 
     /// <summary>The <c>scope</c> of <c>cleanup_plan</c>.</summary>
@@ -80,7 +80,10 @@ public static class ToolDescriptions
 
     /// <summary><c>cleanup_apply</c></summary>
     public const string Apply =
-        "Carry out the removals of a plan cleanup_plan showed, in its order. Each thing is checked again first and left alone if it changed.";
+        "Carry out the removals of a plan cleanup_plan showed, in its order, as a job. Each thing is checked again first and left alone if it changed. freed is space given back; trashed stays on the disk until a person empties the Trash.";
+
+    /// <summary>The <c>wait</c> of every tool that works as a job; the default is <see cref="Waits.Default"/>, which a guard test holds the words to.</summary>
+    public const string Wait = "Seconds to wait before answering with the running job, a resource to read; 60 by default.";
 
     /// <summary>The <c>planId</c> of <c>cleanup_apply</c>.</summary>
     public const string ApplyPlan = "The planId cleanup_plan returned.";
@@ -90,7 +93,7 @@ public static class ToolDescriptions
 
     /// <summary><c>cleanup_release</c></summary>
     public const string Release =
-        "Release one thing now, such as a simulator or an emulator you acquired, if it is proven yours or an ended session's.";
+        "Release one thing now, such as a simulator or an emulator you acquired, if it is proven yours or an ended session's. A job.";
 
     /// <summary>The <c>id</c> of <c>cleanup_release</c>.</summary>
     public const string ReleaseId = "Its id as cleanup_inventory printed it, such as simulator:<udid>.";
@@ -145,11 +148,13 @@ public static class ToolDescriptions
 
         1. Call cleanup_plan with scope {scope}.
         2. Show me the plan briefly, in the language we speak: what would be removed and why, how much space
-           that frees, and apart from it what is only reported or kept. Put whatever belongs to this session,
-           and anything still running, where I will notice it.
+           that frees, and apart from it what is only reported or kept. Name every kind in byKind with its
+           count and size, those the list did not show included. Put whatever belongs to this session, and
+           anything still running, where I will notice it.
         3. Stop and wait for my answer. Do not call cleanup_apply before it.
         4. Carry out what I agree to with cleanup_apply and the planId, passing only when I leave something
            out. A plan goes stale after 10 minutes; if it has, make it again and show me what changed.
-        5. Say what was removed, what was left, and why.
+        5. Say what was removed, what was left, and why; what went to the Trash is still on the disk until I
+           empty it.
         """;
 }

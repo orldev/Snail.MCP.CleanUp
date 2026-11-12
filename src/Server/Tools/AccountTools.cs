@@ -3,12 +3,13 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Snail.MCP.CleanUp.Application;
 using Snail.MCP.CleanUp.Tools.Prompts;
+using Snail.Sdk.Mcp.Hosting.Jobs;
 
 namespace Snail.MCP.CleanUp.Tools;
 
 /// <summary>Looking at what agents left, deciding a cleanup, and carrying it out.</summary>
 [McpServerToolType]
-public sealed class AccountTools(Account account)
+public sealed class AccountTools(Account account, Jobs jobs)
 {
     /// <summary>What is on the machine.</summary>
     [McpServerTool(Name = "cleanup_inventory", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
@@ -32,16 +33,18 @@ public sealed class AccountTools(Account account)
     public async Task<CallToolResult> ApplyAsync(
         [Description(ToolDescriptions.ApplyPlan)] string planId,
         [Description(ToolDescriptions.ApplyOnly)] string[]? only = null,
+        [Description(ToolDescriptions.Wait)] int wait = Waits.Default,
         CancellationToken cancellationToken = default) =>
-        ToolAnswer.From(await account.ApplyAsync(planId, only, cancellationToken));
+        await Waits.AnsweredAsync(wait, () => jobs.Start("apply", (_, token) => account.ApplyAsync(planId, only, token), ToolAnswer.ObjectInfo), cancellationToken);
 
     /// <summary>One thing, released now.</summary>
     [McpServerTool(Name = "cleanup_release", ReadOnly = false, Destructive = true, Idempotent = true, OpenWorld = false)]
     [Description(ToolDescriptions.Release)]
     public async Task<CallToolResult> ReleaseAsync(
         [Description(ToolDescriptions.ReleaseId)] string id,
+        [Description(ToolDescriptions.Wait)] int wait = Waits.Default,
         CancellationToken cancellationToken = default) =>
-        ToolAnswer.From(await account.ReleaseAsync(id, cancellationToken));
+        await Waits.AnsweredAsync(wait, () => jobs.Start("release", (_, token) => account.ReleaseAsync(id, token), ToolAnswer.ObjectInfo), cancellationToken);
 
     /// <summary>One thing, left alone on purpose.</summary>
     [McpServerTool(Name = "cleanup_keep", ReadOnly = false, Destructive = false, Idempotent = true, OpenWorld = false)]

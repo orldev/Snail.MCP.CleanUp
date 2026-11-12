@@ -23,8 +23,8 @@ Takes no parameters.
 ## <code>cleanup_<wbr>plan</code>
 
 Decide a cleanup and show it before anything is done: what will be removed and why, what is only
-reported because nothing proves it is an agent's, what is kept. Pass the planId to cleanup_apply
-within 10 minutes; after that the plan is stale.
+reported because nothing proves it is an agent's, what is kept; byKind counts every removal. Pass the
+planId to cleanup_apply within 10 minutes; after that the plan is stale.
 
 *read-only · every call adds · stays on this machine.*
 
@@ -51,7 +51,7 @@ within 10 minutes; after that the plan is stale.
 
 ## <code>cleanup_<wbr>apply</code>
 
-Carry out the removals of a plan cleanup_plan showed, in its order. Each thing is checked again first and left alone if it changed.
+Carry out the removals of a plan cleanup_plan showed, in its order, as a job. Each thing is checked again first and left alone if it changed. freed is space given back; trashed stays on the disk until a person empties the Trash.
 
 *may overwrite or delete · every call adds · stays on this machine.*
 
@@ -59,6 +59,7 @@ Carry out the removals of a plan cleanup_plan showed, in its order. Each thing i
 | --- | --- | --- | --- | --- |
 | `planId` | `string` | yes | — | The planId cleanup_plan returned. |
 | `only` | `array?` | — | `null` | Ids of the plan's removals to carry out; all of them when omitted. |
+| `wait` | `integer` | — | `60` | Seconds to wait before answering with the running job, a resource to read; 60 by default. |
 
 <details><summary>JSON Schema</summary>
 
@@ -83,6 +84,11 @@ Carry out the removals of a plan cleanup_plan showed, in its order. Each thing i
         ]
       },
       "default": null
+    },
+    "wait": {
+      "description": "Seconds to wait before answering with the running job, a resource to read; 60 by default.",
+      "type": "integer",
+      "default": 60
     }
   },
   "required": [
@@ -95,13 +101,14 @@ Carry out the removals of a plan cleanup_plan showed, in its order. Each thing i
 
 ## <code>cleanup_<wbr>release</code>
 
-Release one thing now, such as a simulator or an emulator you acquired, if it is proven yours or an ended session's.
+Release one thing now, such as a simulator or an emulator you acquired, if it is proven yours or an ended session's. A job.
 
 *may overwrite or delete · repeat-safe · stays on this machine.*
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
 | `id` | `string` | yes | — | Its id as cleanup_inventory printed it, such as simulator:&lt;udid&gt;. |
+| `wait` | `integer` | — | `60` | Seconds to wait before answering with the running job, a resource to read; 60 by default. |
 
 <details><summary>JSON Schema</summary>
 
@@ -112,6 +119,11 @@ Release one thing now, such as a simulator or an emulator you acquired, if it is
     "id": {
       "description": "Its id as cleanup_inventory printed it, such as simulator:\u003Cudid\u003E.",
       "type": "string"
+    },
+    "wait": {
+      "description": "Seconds to wait before answering with the running job, a resource to read; 60 by default.",
+      "type": "integer",
+      "default": 60
     }
   },
   "required": [

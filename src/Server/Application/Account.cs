@@ -1,3 +1,4 @@
+using Snail.MCP.CleanUp.Adapters;
 using Snail.MCP.CleanUp.Configuration;
 using Snail.MCP.CleanUp.Tools.Prompts;
 using Snail.Toolkit.Cleanup.Application;
@@ -174,23 +175,58 @@ public sealed class Account(MeasuredCensus census, IHolders sessions, IPlans pla
         ["scope"] = plan.Scope.ToString().ToLowerInvariant(),
         ["expiresAt"] = (plan.MadeAt + Plan.Lifetime).ToString("u", System.Globalization.CultureInfo.InvariantCulture),
         ["frees"] = Views.Size(plan.Removals.Sum(removal => removal.Resource.Bytes ?? 0), plan.Removals.Any(removal => removal.Resource.IsAtLeast)),
+        ["byKind"] = ByKind(plan.Removals),
         ["remove"] = Views.Listed(plan.Removals, Views.Of),
         ["report"] = Views.Listed([.. plan.Decisions.Where(decision => decision.Verdict == Verdict.Report)], Views.Of),
         ["keep"] = Views.Listed([.. plan.Decisions.Where(decision => decision.Verdict == Verdict.Keep)], Views.Of),
         ["discoveries"] = Views.Listed(plan.Discoveries, Views.Of)
     };
 
-    private static JsonObject Released(IReadOnlyList<Release> releases) => new()
+    /// <summary>The removals of a plan counted by kind, largest first, the ones past the list's end included.</summary>
+    /// <remarks>
+    /// A plan lists twenty removals and says how many it left out. On 2026-11-02 the twenty shown were transcripts, and an
+    /// agent took the 99 left out for more of the same: eleven scratchpads among them went to the Trash unnamed.
+    /// </remarks>
+    private static JsonArray ByKind(IReadOnlyList<Decision> removals)
     {
-        ["freed"] = Views.Size(
-            releases.Where(release => release.Outcome == Outcome.Released).Sum(release => release.Bytes ?? 0),
-            releases.Any(release => release.Outcome == Outcome.Released && release.IsAtLeast)),
-        ["released"] = releases.Count(release => release.Outcome == Outcome.Released),
-        ["results"] = new JsonArray([.. releases.Select(release => (JsonNode)new JsonObject
+        var kinds = removals
+            .GroupBy(removal => removal.Resource.Kind, StringComparer.Ordinal)
+            .Select(kind => (Name: kind.Key, Count: kind.Count(), Bytes: kind.Sum(removal => removal.Resource.Bytes ?? 0), IsAtLeast: kind.Any(removal => removal.Resource.IsAtLeast)))
+            .OrderByDescending(kind => kind.Bytes);
+
+        return new JsonArray([.. kinds.Select(kind => (JsonNode)Views.Compact(new JsonObject
         {
-            ["id"] = release.ResourceId,
-            ["outcome"] = release.Outcome.ToString().ToLowerInvariant(),
-            ["detail"] = release.Detail
-        })])
-    };
+            ["kind"] = kind.Name,
+            ["count"] = kind.Count,
+            ["size"] = Views.Size(kind.Bytes, kind.IsAtLeast)
+        }))]);
+    }
+
+    /// <summary>What a cleanup released, the space it gave back apart from what went to the Trash.</summary>
+    /// <remarks>
+    /// The Trash is on the same volume, so what goes there gives nothing back until somebody empties it, and an agent
+    /// cannot: on 2026-11-06 a cleanup said it freed 14.76 GB while 7.1 GB of it lay in the Trash and the disk had 9.6 GB.
+    /// </remarks>
+    private static JsonObject Released(IReadOnlyList<Release> releases)
+    {
+        var released = releases.Where(release => release.Outcome == Outcome.Released).ToList();
+        var trashed = released.Where(Disposal.IsTrashed).ToList();
+        var freed = released.Where(release => !Disposal.IsTrashed(release)).ToList();
+
+        var answer = Views.Compact(new JsonObject
+        {
+            ["freed"] = Views.Size(freed.Sum(release => release.Bytes ?? 0), freed.Exists(release => release.IsAtLeast)),
+            ["trashed"] = trashed.Count == 0 ? null : Views.Size(trashed.Sum(release => release.Bytes ?? 0), trashed.Exists(release => release.IsAtLeast)),
+            ["note"] = trashed.Count == 0 ? null : Messages.TrashedNote,
+            ["released"] = released.Count,
+            ["results"] = new JsonArray([.. releases.Select(release => (JsonNode)new JsonObject
+            {
+                ["id"] = release.ResourceId,
+                ["outcome"] = release.Outcome.ToString().ToLowerInvariant(),
+                ["detail"] = release.Detail
+            })])
+        });
+
+        return answer;
+    }
 }

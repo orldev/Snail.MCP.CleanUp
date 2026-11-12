@@ -16,7 +16,7 @@
   },
   {
     "name": "cleanup_plan",
-    "description": "Decide a cleanup and show it before anything is done: what will be removed and why, what is only\nreported because nothing proves it is an agent\u0027s, what is kept. Pass the planId to cleanup_apply\nwithin 10 minutes; after that the plan is stale.",
+    "description": "Decide a cleanup and show it before anything is done: what will be removed and why, what is only\nreported because nothing proves it is an agent\u0027s, what is kept; byKind counts every removal. Pass the\nplanId to cleanup_apply within 10 minutes; after that the plan is stale.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -37,7 +37,7 @@
   },
   {
     "name": "cleanup_apply",
-    "description": "Carry out the removals of a plan cleanup_plan showed, in its order. Each thing is checked again first and left alone if it changed.",
+    "description": "Carry out the removals of a plan cleanup_plan showed, in its order, as a job. Each thing is checked again first and left alone if it changed. freed is space given back; trashed stays on the disk until a person empties the Trash.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -58,6 +58,11 @@
             ]
           },
           "default": null
+        },
+        "wait": {
+          "description": "Seconds to wait before answering with the running job, a resource to read; 60 by default.",
+          "type": "integer",
+          "default": 60
         }
       },
       "required": [
@@ -74,13 +79,18 @@
   },
   {
     "name": "cleanup_release",
-    "description": "Release one thing now, such as a simulator or an emulator you acquired, if it is proven yours or an ended session\u0027s.",
+    "description": "Release one thing now, such as a simulator or an emulator you acquired, if it is proven yours or an ended session\u0027s. A job.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "id": {
           "description": "Its id as cleanup_inventory printed it, such as simulator:\u003Cudid\u003E.",
           "type": "string"
+        },
+        "wait": {
+          "description": "Seconds to wait before answering with the running job, a resource to read; 60 by default.",
+          "type": "integer",
+          "default": 60
         }
       },
       "required": [
@@ -182,7 +192,7 @@
   },
   {
     "name": "cleanup_simulator_acquire",
-    "description": "Get an iOS simulator of your own: a clone of a shut-down device, or a new device of a type, named for\nthis session so that no other agent uses it and only this session\u0027s cleanup removes it. Use it instead\nof booting a simulator somebody may already be using, and drive it by the udid it returns.",
+    "description": "Get an iOS simulator of your own: a clone of a shut-down device, or a new device of a type, named for\nthis session so that no other agent uses it and only this session\u0027s cleanup removes it. Use it instead\nof booting a simulator somebody may already be using, and drive it by the udid it returns. A job.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -198,6 +208,11 @@
           "description": "Whether to boot it and wait until it is ready; false by default.",
           "type": "boolean",
           "default": false
+        },
+        "wait": {
+          "description": "Seconds to wait before answering with the running job, a resource to read; 60 by default.",
+          "type": "integer",
+          "default": 60
         }
       }
     },
@@ -211,7 +226,7 @@
   },
   {
     "name": "cleanup_emulator_acquire",
-    "description": "Get an Android emulator of your own: a new virtual device from an installed system image, started on a\nfree console port without saving a snapshot, named for this session so that only its cleanup removes\nit. It returns the adb serial at once; the device needs a minute or two to boot.",
+    "description": "Get an Android emulator of your own: a new virtual device from an installed system image, started on a\nfree console port without saving a snapshot, named for this session so that only its cleanup removes\nit. It returns the adb serial once the emulator starts; the device needs a minute or two to boot. A job.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -227,6 +242,11 @@
           "description": "Whether to show the emulator\u0027s window; false runs it headless.",
           "type": "boolean",
           "default": false
+        },
+        "wait": {
+          "description": "Seconds to wait before answering with the running job, a resource to read; 60 by default.",
+          "type": "integer",
+          "default": 60
         }
       }
     },

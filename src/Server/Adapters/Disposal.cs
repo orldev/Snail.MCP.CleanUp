@@ -14,6 +14,13 @@ public sealed class Disposal(ServerConfig config, TimeProvider clock)
     /// <summary>The fact a resource erased though it does not rebuild itself carries why it is erased under.</summary>
     public const string ErasedFact = "erased";
 
+    /// <summary>The words a release into the Trash begins with, which tell it apart from one that gave the space back.</summary>
+    public const string TrashedWords = "moved to the Trash";
+
+    /// <summary>Whether a release went to the Trash, where its bytes stay on the disk until the Trash is emptied.</summary>
+    public static bool IsTrashed(Release release) =>
+        release.Outcome == Outcome.Released && release.Detail.StartsWith(TrashedWords, StringComparison.Ordinal);
+
     /// <summary>Removes the file or directory at the path the way its nature calls for.</summary>
     public Release Dispose(Resource resource, string path)
     {
@@ -53,7 +60,7 @@ public sealed class Disposal(ServerConfig config, TimeProvider clock)
         else
             File.Move(path, destination);
 
-        return Release.Done(resource, $"moved to the Trash as {Path.GetFileName(destination)}");
+        return Release.Done(resource, $"{TrashedWords} as {Path.GetFileName(destination)}");
     }
 
     private string FreeName(string wanted)

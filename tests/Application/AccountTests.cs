@@ -102,6 +102,54 @@ public sealed class AccountTests : IDisposable
         Assert.Equal(["process:1@1"], _processes.Released);
     }
 
+    /// <summary>
+    /// A cleanup said it freed 14.76 GB while 7.1 GB of it lay in the Trash, on the same volume, and the disk had 9.6 GB
+    /// (2026-11-06): what went to the Trash is answered apart, with why it is no space given back yet.
+    /// </summary>
+    [Fact]
+    public async Task Apply_ThatMovedSomethingToTheTrash_CountsItApartFromWhatWasFreed()
+    {
+        _processes.Present.Add(Of(Kinds.Process, "1@1", Me, Evidence.Ancestry) with { Bytes = 2_000_000_000 });
+        _processes.Present.Add(Of(Kinds.Process, "2@1", Me, Evidence.Ancestry) with { Bytes = 7_000_000_000 });
+        _processes.Trashing.Add("process:2@1");
+
+        var plan = await Account.PlanAsync(Scope.Mine, CancellationToken.None);
+        var applied = await Account.ApplyAsync(plan.Value!["planId"]!.GetValue<string>(), null, CancellationToken.None);
+
+        Assert.Equal("2 GB", applied.Value!["freed"]!.GetValue<string>());
+        Assert.Equal("7 GB", applied.Value!["trashed"]!.GetValue<string>());
+        Assert.Equal(Snail.MCP.CleanUp.Tools.Prompts.Messages.TrashedNote, applied.Value!["note"]!.GetValue<string>());
+        Assert.Equal(2, applied.Value!["released"]!.GetValue<int>());
+    }
+
+    /// <summary>The count and size of a kind cover the removals past the list's end, which an agent once took for more of what it saw.</summary>
+    [Fact]
+    public async Task Plan_LongerThanItsList_CountsEveryRemovalByKind()
+    {
+        for (var pid = 1; pid <= Views.MostListed + 5; pid++)
+            _processes.Present.Add(Of(Kinds.Process, $"{pid}@1", Me, Evidence.Ancestry) with { Bytes = 1_000_000 });
+
+        var plan = await Account.PlanAsync(Scope.Mine, CancellationToken.None);
+        var kind = Assert.Single(plan.Value!["byKind"]!.AsArray())!;
+
+        Assert.Equal(5, plan.Value!["remove"]!["notShown"]!.GetValue<int>());
+        Assert.Equal("process", kind["kind"]!.GetValue<string>());
+        Assert.Equal(Views.MostListed + 5, kind["count"]!.GetValue<int>());
+        Assert.Equal("25 MB", kind["size"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Apply_ThatTrashedNothing_SaysNothingOfTheTrash()
+    {
+        _processes.Present.Add(Of(Kinds.Process, "1@1", Me, Evidence.Ancestry) with { Bytes = 2_000_000_000 });
+
+        var plan = await Account.PlanAsync(Scope.Mine, CancellationToken.None);
+        var applied = await Account.ApplyAsync(plan.Value!["planId"]!.GetValue<string>(), null, CancellationToken.None);
+
+        Assert.Null(applied.Value!["trashed"]);
+        Assert.Null(applied.Value!["note"]);
+    }
+
     /// <summary>A running session's scratchpad past the size is the first thing both answers say.</summary>
     [Fact]
     public async Task Inventory_AndPlan_WarnOfARunningSessionsScratchpadPastTheSize()

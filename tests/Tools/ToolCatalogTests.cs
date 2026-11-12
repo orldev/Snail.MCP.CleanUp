@@ -103,6 +103,10 @@ public sealed partial class ToolCatalogTests
     public void PlanDescription_StatesTheLifetimeTheCodeHolds() =>
         Assert.Contains($"within {Plan.Lifetime.TotalMinutes:0} minutes", ToolDescriptions.Plan, StringComparison.Ordinal);
 
+    [Fact]
+    public void WaitDescription_StatesTheDefaultTheCodeHolds() =>
+        Assert.Contains($"{Snail.MCP.CleanUp.Tools.Waits.Default} by default", ToolDescriptions.Wait, StringComparison.Ordinal);
+
     /// <summary>A client asks before a tool without the hint runs; only what changes nothing goes unasked.</summary>
     [Fact]
     public void OnlyTheToolsThatChangeNothing_AreReadOnly() =>

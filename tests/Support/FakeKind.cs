@@ -15,6 +15,8 @@ internal sealed class FakeKind(string name) : IResourceKind
 
     public HashSet<string> Refusing { get; } = new(StringComparer.Ordinal);
 
+    public HashSet<string> Trashing { get; } = new(StringComparer.Ordinal);
+
     public string? Blindness { get; set; }
 
     public Task<Observation> ObserveAsync(IReadOnlyList<Holder> holders, CancellationToken cancellationToken)
@@ -33,7 +35,9 @@ internal sealed class FakeKind(string name) : IResourceKind
         Released.Add(resource.Id);
         Present.RemoveAll(present => present.Id == resource.Id);
 
-        return Task.FromResult(Release.Done(resource, "released by the fake"));
+        var detail = Trashing.Contains(resource.Id) ? $"{Snail.MCP.CleanUp.Adapters.Disposal.TrashedWords} as {resource.Key}" : "released by the fake";
+
+        return Task.FromResult(Release.Done(resource, detail));
     }
 }
 

@@ -26,13 +26,13 @@ Three ideas carry it:
 | --- | --- |
 | `cleanup_inventory` | What is there: this session's, ended sessions', caches, discoveries, disk space. Changes nothing. |
 | `cleanup_plan` | A cleanup of a scope — exactly one of `mine`, `orphans`, `caches`, `everything` — decided and shown under a `planId`. |
-| `cleanup_apply` | Carries out exactly that plan, in its order, within ten minutes; or only the ids named. |
-| `cleanup_release` | Releases one thing now, such as a simulator you acquired, if it is proven yours. |
+| `cleanup_apply` | Carries out exactly that plan, in its order, within ten minutes; or only the ids named. A job: it answers within `wait` (60 s) with what was freed and what went to the Trash, or with the running job, `job://cleanup/apply/<id>`. |
+| `cleanup_release` | Releases one thing now, such as a simulator you acquired, if it is proven yours. A job, as `cleanup_apply`. |
 | `cleanup_keep` | Spares something on purpose, with the reason; or withdraws that. |
 | `cleanup_learn` | Turns a discovery into a rule: `ignore`, `report` or `cache`. |
 | `cleanup_run` | Starts a long-running program on the record, with its own log. |
-| `cleanup_simulator_acquire` | An iOS simulator of this session's own: a clone or a new device, `snail-<session>-N`. |
-| `cleanup_emulator_acquire` | An Android emulator of this session's own, from an installed system image. |
+| `cleanup_simulator_acquire` | An iOS simulator of this session's own: a clone or a new device, `snail-<session>-N`. A job. |
+| `cleanup_emulator_acquire` | An Android emulator of this session's own, from an installed system image. A job. |
 | `cleanup_diagnose` | The session the server counts as yours, the Docker label to use, what it can reach. |
 | `find_tool` | Which tool does a thing, asked in your own words. |
 
@@ -211,7 +211,7 @@ registration, which travel wherever they are copied. In the file a variable is a
 
 | Variable | Default |
 | --- | --- |
-| `DATA_DIRECTORY` | `~/.s3l-mcp-cleanup` — the ledger, rules, logs of runs and sweeps |
+| `DATA_DIRECTORY` | `~/.s3l-mcp-cleanup` — the ledger, rules, logs of runs and sweeps, and the server's own warnings in `server.log`, since a client keeps only what a server writes while it starts |
 | `HOOK_DIRECTORY` | `run` inside the data directory — the hook socket's own directory; a socket path may be 104 bytes at most |
 | `TRASH_DIRECTORY` | `~/.Trash` |
 | `SCRATCH_ROOT` | `/private/tmp` |

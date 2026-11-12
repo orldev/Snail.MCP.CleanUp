@@ -20,6 +20,9 @@ public static class CleanUpRegistrationExtensions
         {
             services.AddSingleton(TimeProvider.System);
             services.AddSingleton<Performance>();
+            services.AddSingleton<ILoggerProvider>(provider => new ServerLog(
+                Path.Combine(provider.GetRequiredService<ServerConfig>().DataDirectory, "server.log"),
+                provider.GetRequiredService<TimeProvider>()));
 
             return services
                 .AddMachine()
