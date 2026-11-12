@@ -5,8 +5,9 @@
 # proposes the next major when Snail.Sdk releases one.
 # Snail.Sdk and its levels come in one pull request of their own, a major update too: global.json names them apart,
 # but they are released together and build only at one version.
-# ModelContextProtocol's packages come in one pull request too, a major update included: apart, the server pinned the new
-# ModelContextProtocol while ModelContextProtocol.AspNetCore still asked for the old one, and restore refused it (NU1608).
+# ModelContextProtocol is not proposed at all: ModelContextProtocol.AspNetCore comes with Snail.Sdk.Mcp and asks for
+# one exact version, so a bump of its own fails restore (NU1608, 2026-11-13). It moves by hand with Snail.Sdk.Mcp.
+# The majors of Microsoft.Extensions.* and Microsoft.Data.* follow .NET's and wait for the move to that .NET.
 
 version: 2
 updates:
@@ -27,8 +28,12 @@ updates:
     groups:
       snail-sdk:
         patterns: ['Snail.Sdk*']
-      model-context-protocol:
-        patterns: ['ModelContextProtocol*']
       packages:
         patterns: ['*']
         update-types: [minor, patch]
+    ignore:
+      - dependency-name: 'ModelContextProtocol*'
+      - dependency-name: 'Microsoft.Extensions.*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: 'Microsoft.Data.*'
+        update-types: ['version-update:semver-major']
